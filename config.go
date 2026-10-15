@@ -12,5 +12,12 @@ func main() {
 		fmt.Println("Error:", err)
 		return
 	}
-	fmt.Printf("%+v\n", m)
+	fmt.Printf("client: %+v\n", m)
+
+	r, err := client.replicant(m.Replicants[0].Code)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	fmt.Printf("replicant: %+v\n", r)
 }

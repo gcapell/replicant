@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 )
 
@@ -21,8 +22,9 @@ func NewClient(token, apiEndpoint string) *Client {
 	}
 }
 
-func (c *Client) get(url string) ([]byte, error) {
-
+func (c *Client) get(url string, args ...interface{}) ([]byte, error) {
+	url = fmt.Sprintf(url, args...)
+	log.Printf("get %s", url)
 	req, err := http.NewRequest("GET", c.APIEndpoint+url, nil)
 
 	if err != nil {
@@ -52,4 +54,19 @@ func (c *Client) user() (*User, error) {
 		return nil, err
 	}
 	return &m, nil
+}
+
+func (c *Client) replicant(id string) (*Replicant, error) {
+	data, err := c.get("/replicants/%s", id)
+	if err != nil {
+		return nil, err
+	}
+	var r Replicant
+	log.Printf("replicant data: %s", string(data))
+
+	err = json.Unmarshal(data, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
