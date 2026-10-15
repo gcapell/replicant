@@ -42,30 +42,25 @@ func (c *Client) get(url string, args ...interface{}) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func (c *Client) user() (*User, error) {
-	data, err := c.get("/accounts/me")
+func (c *Client) getJSON(v any, url string, args ...any) error {
+	data, err := c.get(url, args...)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var m User
+	return json.Unmarshal(data, v)
+}
 
-	err = json.Unmarshal(data, &m)
-	if err != nil {
+func (c *Client) user() (*User, error) {
+	var m User
+	if err := c.getJSON(&m, "/accounts/me"); err != nil {
 		return nil, err
 	}
 	return &m, nil
 }
 
 func (c *Client) replicant(id string) (*Replicant, error) {
-	data, err := c.get("/replicants/%s", id)
-	if err != nil {
-		return nil, err
-	}
 	var r Replicant
-	log.Printf("replicant data: %s", string(data))
-
-	err = json.Unmarshal(data, &r)
-	if err != nil {
+	if err := c.getJSON(&r, "/replicants/%s", id); err != nil {
 		return nil, err
 	}
 	return &r, nil
