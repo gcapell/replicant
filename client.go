@@ -99,10 +99,18 @@ func (c *Client) inventory(id string) (*Inventory, error) {
 	}
 	return &inventory, nil
 }
-
+func (c *Client) locationInfo(id string) (*Location, error) {
+	var loc Location
+	if err := c.getJSON(&loc, "/locations/%s", id); err != nil {
+		return nil, err
+	}
+	return &loc, nil
+}
 func (c *Client) deployMiners(r *Replicant) error {
 	for _, d := range r.StowedDevices {
-		if d.DeviceType != miningDrone {
+		switch d.DeviceType {
+		case miningDrone, surveyDrone:
+		default:
 			continue
 		}
 		if err := c.postJSON(deployCmd(), "/devices/%s", d.DeviceCode); err != nil {

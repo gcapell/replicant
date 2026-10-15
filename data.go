@@ -32,8 +32,13 @@ type StowedDevice struct {
 	DeviceCode string `json:"device_code"`
 	DeviceType string `json:"device_type"`
 }
+type LocationDevice struct {
+	DeviceCode string `json:"device_code"`
+	DeviceType string `json:"device_type"`
+	Status     string `json:"status"`
+}
 type Replicant struct {
-	Location      string         `json:"current_location"`
+	Location      string         `json:"location"`
 	Position      Position       `json:"position"`
 	PrintQueue    []string       `json:"print_queue"`
 	Status        string         `json:"status"`
@@ -57,6 +62,7 @@ type InventoryItem struct {
 
 const (
 	miningDrone = "mining_drone"
+	surveyDrone = "survey_drone"
 )
 
 type Command struct {
@@ -65,4 +71,14 @@ type Command struct {
 
 func deployCmd() *Command {
 	return &Command{Command: "deploy"}
+}
+
+type Location struct {
+	Belt      Belt             `json:"belt"`
+	Inventory []InventoryItem  `json:"inventory"`
+	Devices   []LocationDevice `json:"devices"`
+}
+
+type Belt struct {
+	Resources map[string]string `json:"resources"`
 }

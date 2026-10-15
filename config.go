@@ -35,4 +35,11 @@ func main() {
 	}
 	fmt.Printf("deployed miners\n")
 
+	locInfo, err := client.locationInfo(r.Location)
+	if err != nil {
+		fmt.Println("location info:", err)
+		return
+	}
+	fmt.Printf("location info: %+v\n", locInfo)
+
 }
