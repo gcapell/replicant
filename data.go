@@ -13,7 +13,7 @@ type User struct {
 	XPTotal        int                 `json:"experience_points_total"`
 	Replicants     []ReplicantLocation `json:"replicants"`
 	Status         string              `json:"status"`
-	UnreadMessages int                 `json:"unread_message_count"`
+	UnreadMessages int
 }
 
 type ReplicantLocation struct {
@@ -38,6 +38,21 @@ type Replicant struct {
 	PrintQueue    []string       `json:"print_queue"`
 	Status        string         `json:"status"`
 	StowedDevices []StowedDevice `json:"stowed_devices"`
+	Items         map[string]int `json:"unread_message_count"`
+}
+
+type Inventory struct {
+	Locations []InventoryLocation `json:"locations"`
+}
+
+type InventoryLocation struct {
+	Location string          `json:"location"`
+	Items    []InventoryItem `json:"items"`
+}
+
+type InventoryItem struct {
+	ResourceType string `json:"resource_type"`
+	Quantity     int    `json:"quantity"`
 }
 
 const (

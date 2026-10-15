@@ -48,6 +48,7 @@ func (c *Client) getJSON(v any, url string, args ...any) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("response: %s", string(data))
 	return json.Unmarshal(data, v)
 }
 
@@ -89,6 +90,14 @@ func (c *Client) replicant(id string) (*Replicant, error) {
 		return nil, err
 	}
 	return &r, nil
+}
+
+func (c *Client) inventory(id string) (*Inventory, error) {
+	var inventory Inventory
+	if err := c.getJSON(&inventory, "/replicants/%s/inventory", id); err != nil {
+		return nil, err
+	}
+	return &inventory, nil
 }
 
 func (c *Client) deployMiners(r *Replicant) error {

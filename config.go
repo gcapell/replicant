@@ -13,8 +13,17 @@ func main() {
 		return
 	}
 	fmt.Printf("client: %+v\n", m)
+	rep0 := m.Replicants[0].Code
 
-	r, err := client.replicant(m.Replicants[0].Code)
+	inventory, err := client.inventory(rep0)
+	if err != nil {
+		fmt.Println("inventory:", err)
+		return
+	}
+
+	fmt.Printf("inventory: %+v\n", inventory)
+
+	r, err := client.replicant(rep0)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -25,4 +34,5 @@ func main() {
 		return
 	}
 	fmt.Printf("deployed miners\n")
+
 }
