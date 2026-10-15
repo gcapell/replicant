@@ -39,3 +39,15 @@ type Replicant struct {
 	Status        string         `json:"status"`
 	StowedDevices []StowedDevice `json:"stowed_devices"`
 }
+
+const (
+	miningDrone = "mining_drone"
+)
+
+type Command struct {
+	Command string `json:"command"`
+}
+
+func deployCmd() *Command {
+	return &Command{Command: "deploy"}
+}

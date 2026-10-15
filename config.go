@@ -20,4 +20,9 @@ func main() {
 		return
 	}
 	fmt.Printf("replicant: %+v\n", r)
+	if err := client.deployMiners(r); err != nil {
+		fmt.Println("deploying miners:", err)
+		return
+	}
+	fmt.Printf("deployed miners\n")
 }
