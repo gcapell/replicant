@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,6 +51,23 @@ func (c *Client) get(url string) (string, error) {
 	return string(body), nil
 }
 
+type Message struct {
+	ID             string      `json:"id"`
+	CreatedAt      string      `json:"created_at"`
+	Email          string      `json:"email"`
+	XPTotal        int         `json:"experience_points_total"`
+	Replicants     []Replicant `json:"replicants"`
+	Status         string      `json:"status"`
+	UnreadMessages int         `json:"unread_message_count"`
+}
+
+type Replicant struct {
+	CurrentLocation string `json:"current_location"`
+	CurrentStar     string `json:"current_star"`
+	CreatedAt       string `json:"created_at"`
+	Code            string `json:"replicant_code"`
+}
+
 func main() {
 	client := NewClient(Token, APIEndpoint)
 
@@ -58,4 +76,11 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(string(me))
+	var m Message
+
+	err = json.Unmarshal([]byte(me), &m)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(m)
 }
