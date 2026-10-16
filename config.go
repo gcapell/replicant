@@ -42,4 +42,16 @@ func main() {
 	}
 	fmt.Printf("location info: %+v\n", locInfo)
 
+	for _, d := range locInfo.Devices {
+		if d.DeviceType != surveyDrone {
+			continue
+		}
+		fmt.Printf("survey drone: %+v\n", d)
+		if response, err := client.search(d.DeviceCode); err != nil {
+			fmt.Println("searching:", err)
+			return
+		} else {
+			fmt.Printf("search response: %+v\n", response)
+		}
+	}
 }

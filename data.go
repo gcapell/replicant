@@ -74,11 +74,24 @@ func deployCmd() *Command {
 }
 
 type Location struct {
-	Belt      Belt             `json:"belt"`
-	Inventory []InventoryItem  `json:"inventory"`
-	Devices   []LocationDevice `json:"devices"`
+	Belt          Belt             `json:"belt"`
+	Inventory     []InventoryItem  `json:"inventory"`
+	Devices       []LocationDevice `json:"devices"`
+	ResourceSites []ResourceSite   `json:"resource_sites"`
+}
+
+type ResourceSite struct {
+	Name      string         `json:"name"`
+	Remaining map[string]int `json:"resources_remaining_pct"`
 }
 
 type Belt struct {
 	Resources map[string]string `json:"resources"`
+}
+
+type SearchResponse struct {
+	CompletesAt  string `json:"completes_at"`
+	EtaSeconds   int    `json:"eta_seconds"`
+	SearchTarget string `json:"search_target"`
+	SearchType   string `json:"search_type"`
 }
