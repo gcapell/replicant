@@ -2,15 +2,24 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
 const (
-	Token = "J9RbhJ2aoZhOInX5j6lBUUH1l8oO4aKHPcSbA94OeacU9BRuRBiV-2dk1TsXa9je"
-
 	Code        = "4698E8E6"
 	APIEndpoint = "https://api.replicant.space/v1"
 )
+
+var Token string
+
+func init() {
+	token, err := os.ReadFile("token.txt")
+	if err != nil {
+		panic(err)
+	}
+	Token = strings.TrimSpace(string(token))
+}
 
 type User struct {
 	CreatedAt      string              `json:"created_at"`
@@ -89,7 +98,10 @@ type Location struct {
 func (loc *Location) String() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Belt: %+v\n", loc.Belt)
-	fmt.Fprintf(&b, "Inventory: %+v\n", loc.Inventory)
+	fmt.Fprintf(&b, "Inventory\n")
+	for _, i := range loc.Inventory {
+		fmt.Fprintf(&b, "\t%s: %d\n", i.ResourceType, i.Quantity)
+	}
 	fmt.Fprintf(&b, "Devices\n")
 	for _, d := range loc.Devices {
 		fmt.Fprintf(&b, "\t%s(%s) %s\n", d.DeviceType, d.DeviceCode, d.Status)
