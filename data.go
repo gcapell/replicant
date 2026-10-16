@@ -1,5 +1,10 @@
 package main
 
+import (
+	"fmt"
+	"strings"
+)
+
 const (
 	Token = "J9RbhJ2aoZhOInX5j6lBUUH1l8oO4aKHPcSbA94OeacU9BRuRBiV-2dk1TsXa9je"
 
@@ -66,7 +71,8 @@ const (
 )
 
 type Command struct {
-	Command string `json:"command"`
+	Command      string `json:"command"`
+	ResourceType string `json:"resource_type,omitempty"`
 }
 
 func deployCmd() *Command {
@@ -80,6 +86,24 @@ type Location struct {
 	ResourceSites []ResourceSite   `json:"resource_sites"`
 }
 
+func (loc *Location) String() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Belt: %+v\n", loc.Belt)
+	fmt.Fprintf(&b, "Inventory: %+v\n", loc.Inventory)
+	fmt.Fprintf(&b, "Devices\n")
+	for _, d := range loc.Devices {
+		fmt.Fprintf(&b, "\t%s(%s) %s\n", d.DeviceType, d.DeviceCode, d.Status)
+	}
+	for _, rs := range loc.ResourceSites {
+		fmt.Fprintf(&b, "ResourceSite: %s\n", rs.Name)
+		for k, v := range rs.Remaining {
+			fmt.Fprintf(&b, "\t%s: %d\n", k, v)
+		}
+	}
+	fmt.Fprintf(&b, "ResourceSites: %+v\n", loc.ResourceSites)
+	return b.String()
+}
+
 type ResourceSite struct {
 	Name      string         `json:"name"`
 	Remaining map[string]int `json:"resources_remaining_pct"`
@@ -90,8 +114,21 @@ type Belt struct {
 }
 
 type SearchResponse struct {
-	CompletesAt  string `json:"completes_at"`
-	EtaSeconds   int    `json:"eta_seconds"`
-	SearchTarget string `json:"search_target"`
-	SearchType   string `json:"search_type"`
+	CompletesAt  string  `json:"completes_at"`
+	EtaSeconds   float64 `json:"eta_seconds"`
+	SearchTarget string  `json:"search_target"`
+	SearchType   string  `json:"search_type"`
+}
+
+type MiningResponse struct {
+	Availability     string `json:"availability"`
+	Belt             string `json:"belt"`
+	CycleTimeSeconds int    `json:"cycle_time_seconds"`
+	Density          string `json:"density"`
+	Designation      string `json:"designation"`
+	Location         string `json:"location"`
+	LocationType     string `json:"location_type"`
+	ResourceType     string `json:"resource_type"`
+	SalvageType      string `json:"salvage_type"`
+	Site             string `json:"site"`
 }

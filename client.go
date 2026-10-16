@@ -54,7 +54,7 @@ func (c *Client) getJSON(v any, url string, args ...any) error {
 
 func (c *Client) postJSON(v any, url string, args ...any) ([]byte, error) {
 	url = fmt.Sprintf(url, args...)
-	log.Printf("post %s", url)
+	log.Printf("post %s %+v", url, v)
 	data, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
