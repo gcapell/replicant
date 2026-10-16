@@ -6,10 +6,7 @@ import (
 	"strings"
 )
 
-const (
-	Code        = "4698E8E6"
-	APIEndpoint = "https://api.replicant.space/v1"
-)
+const API = "https://api.replicant.space/v1"
 
 var Token string
 

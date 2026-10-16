@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	client := NewClient(Token, APIEndpoint)
+	client := NewClient(Token, API)
 
 	m, err := client.user()
 	if err != nil {
