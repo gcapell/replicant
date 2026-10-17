@@ -2,6 +2,42 @@
 
 <button (click)="api.loadAccount(tokenBox.value)">Load</button>
 
+<button (click)="api.listTutorials()">Tutorials</button>
+
+@if (api.tutorialList(); as t) {
+    <h1>Tutorials</h1>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ t | json }}</pre>
+    </details>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Slug</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Order</th>
+                <th>Completed</th>
+                <th>Current Step</th>
+                <th>Total Steps</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (r of t.tutorials; track r.name) {
+            <tr>
+                <td>{{ r.slug }}</td>
+                <td>{{ r.name }}</td>
+                <td>{{ r.description }}</td>
+                <td>{{ r.order }}</td>
+                <td>{{ r.completed }}</td>
+                <td>{{ r.current_step }}</td>
+            </tr>
+            }
+        </tbody>
+    </table>    
+}
+
 @if (api.accountData(); as a) {
     <h1>Account Data</h1>
 
