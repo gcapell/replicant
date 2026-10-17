@@ -1,6 +1,6 @@
 import { Service, signal, inject, WritableSignal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { AccountData, Replicant } from './model';
+import { AccountData, Replicant, Location } from './model';
 
 @Service()
 export class ReplicantApi {
@@ -9,6 +9,7 @@ export class ReplicantApi {
 
     readonly accountData = signal<AccountData | null>(null);
     readonly replicant = signal<Replicant | null>(null);
+    readonly location = signal<Location | null>(null);
     readonly errorMessage = signal<unknown>(null);
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
@@ -30,6 +31,9 @@ export class ReplicantApi {
 
     loadReplicant(id: string) {
         this.fetchAndUpdate(`/v1/replicants/${id}`, this.replicant);
+    }
+    loadLocation(id: string) {
+        this.fetchAndUpdate(`/v1/locations/${id}`, this.location);
     }
     loadAccount(token: string) {
         localStorage.setItem('token', token);

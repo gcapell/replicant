@@ -15,7 +15,11 @@
         @for (r of a.replicants; track r.replicant_code) {
         <li><button type="button" class="link" (click)="api.loadReplicant(r.replicant_code)">
         {{ r.name }}
-        </button>at {{ r.current_location }} ({{ r.device_count }} devices)</li>
+        </button>at 
+        <button type="button" class="link" (click)="api.loadLocation(r.current_location)">
+        {{ r.current_location }}
+        </button>
+        ({{ r.device_count }} devices)</li>
         }
     </ul>
 
@@ -37,7 +41,15 @@
             }
         </ul>
     }
+}
 
+@if (api.location(); as loc) {
+    <h1>Location </h1>
+
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ loc| json }}</pre>
+    </details>
 }
 
 @if (api.errorMessage(); as e) {

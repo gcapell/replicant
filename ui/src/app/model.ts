@@ -50,3 +50,7 @@ interface PrintQueueItem {
   item_code: string;
   quantity: number;
 }
+
+export interface Location {
+    location_code: string;
+}
