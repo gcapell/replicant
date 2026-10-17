@@ -1,4 +1,4 @@
-<input #tokenBox type="text" placeholder="token" name="token" (keyup.enter)="loadUser(tokenBox.value)" />
+<input #tokenBox type="text" [value]="token()" name="token" (keyup.enter)="loadUser(tokenBox.value)" />
 
 <button (click)="loadUser(tokenBox.value)">Load</button>
 
@@ -12,7 +12,7 @@
       <li>{{ r.name }} at {{ r.current_star }} ({{ r.device_count }} devices)</li>
     }
   </ul>
-  
+
 }
 
 @if (errorMessage(); as e) {

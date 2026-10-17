@@ -29,6 +29,7 @@ export class User {
   protected readonly http = inject(HttpClient);
   protected readonly accountData = signal<AccountData|null>(null);
   protected readonly errorMessage = signal<unknown>(null);
+  protected readonly token = signal(localStorage.getItem('token') ?? '');
 
   protected loadUser(token: string) {
     this.http.get<AccountData>(`/v1/accounts/me`, {
@@ -37,6 +38,7 @@ export class User {
       }
     }).subscribe({
       next: (accountData) => {
+        localStorage.setItem('token', token);
         this.accountData.set(accountData);
         console.log('User loaded:', accountData);
       },
