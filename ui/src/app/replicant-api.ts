@@ -40,4 +40,7 @@ export class ReplicantApi {
         this.token.set(token);
         this.fetchAndUpdate(`/v1/accounts/me`, this.accountData);
     }
+    sendCommand(id: string, command: string) {
+        console.log(`Sending command ${command} to device ${id}`);
+    }
 }

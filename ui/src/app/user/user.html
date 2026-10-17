@@ -59,6 +59,7 @@
                     <th>Code</th>
                     <th>Type</th>
                     <th>Status</th>
+                    <th>Command</th>
                 </tr>
             </thead>
             <tbody>
@@ -67,6 +68,11 @@
                 <td>{{ s.device_code }}</td>
                 <td>{{ s.device_type }}</td>
                 <td>{{ s.status }}</td>
+                <td>
+                    @if (s.device_type == 'survey_drone') {
+                        <button type="button" class="link" (click)="api.sendCommand(s.device_code, 'scan')">Scan</button>
+                    }
+                </td>
             </tr>
             }
         </tbody>
