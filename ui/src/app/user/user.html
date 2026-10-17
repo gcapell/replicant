@@ -1,1 +1,10 @@
 <p>user works!</p>
+
+
+<input #tokenBox 
+  type="text" 
+  placeholder="token" 
+  name="token" 
+  (keyup.enter)="loadUser(tokenBox.value)" />
+
+<button (click)="loadUser(tokenBox.value)">Load</button>

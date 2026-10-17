@@ -1,0 +1,7 @@
+{
+  "/v1": {
+    "target": "https://api.replicant.space",
+    "secure": true,
+    "changeOrigin": true
+  }
+}

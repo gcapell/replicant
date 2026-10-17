@@ -1,5 +1,6 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal , inject } from '@angular/core';
 import { User } from './user/user';
+
 
 @Component({
   imports: [ User],
