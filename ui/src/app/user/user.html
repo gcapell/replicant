@@ -26,16 +26,33 @@
         <tbody>
             @for (r of t.tutorials; track r.name) {
             <tr>
-                <td>{{ r.slug }}</td>
-                <td>{{ r.name }}</td>
+                <td>
+                    <button type="button" class="link" (click)="api.loadTutorial(r.slug)">
+                    {{ r.name }}
+                    </button>
+                </td>
                 <td>{{ r.description }}</td>
                 <td>{{ r.order }}</td>
                 <td>{{ r.completed }}</td>
-                <td>{{ r.current_step }}</td>
             </tr>
             }
         </tbody>
     </table>    
+}
+
+@if (api.tutorialDetail(); as t) {
+    <h1>{{t.name}}</h1>
+    <p>@if(t.completed){completed} {{t.description}}</p>
+
+    <ul>
+    @for (s of t.steps; track s.key) {
+        <li>{{s.description}}; HINT: {{s.hint}}</li>
+    }
+    </ul>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ t | json }}</pre>
+    </details>
 }
 
 @if (api.accountData(); as a) {

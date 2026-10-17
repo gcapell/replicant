@@ -70,10 +70,10 @@ export interface SearchResult {
 }
 
 export interface Tutorials {
-    tutorials: Tutorial[];
+    tutorials: TutorialSummary[];
 }
 
-export interface Tutorial {
+export interface TutorialSummary {
     slug: string;
     name: string;
     description: string;
@@ -81,4 +81,21 @@ export interface Tutorial {
     completed: boolean;
     current_step: number;
     total_steps: number;
+}
+
+export interface TutorialDetail {
+    completed: boolean;
+    current_step: number;
+    description: string;
+    name: string,
+    slug: string,
+    steps: TutorialStep[]
+}
+
+interface TutorialStep {
+    completed: boolean;
+    current: boolean;
+    description: string;
+    hint: string;
+    key: string;
 }
