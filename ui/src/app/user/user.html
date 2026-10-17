@@ -1,10 +1,21 @@
-<p>user works!</p>
-
-
-<input #tokenBox 
-  type="text" 
-  placeholder="token" 
-  name="token" 
-  (keyup.enter)="loadUser(tokenBox.value)" />
+<input #tokenBox type="text" placeholder="token" name="token" (keyup.enter)="loadUser(tokenBox.value)" />
 
 <button (click)="loadUser(tokenBox.value)">Load</button>
+
+@if (accountData(); as a) {
+<h1>Account Data</h1>
+<pre>{{ a | json }}</pre>
+{{a.unread_message_count}} unread messages
+
+  <ul>
+    @for (r of a.replicants; track r.replicant_code) {
+      <li>{{ r.name }} at {{ r.current_star }} ({{ r.device_count }} devices)</li>
+    }
+  </ul>
+  
+}
+
+@if (errorMessage(); as e) {
+<h1>Error</h1>
+<pre>{{ errorMessage()  }}</pre>
+}
