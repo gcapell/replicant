@@ -82,14 +82,14 @@ export class User {
       }
     });
   }
-  protected loadUser(token: string) {
+  protected loadAccount(token: string) {
+    localStorage.setItem('token', token);
     this.http.get<AccountData>(`/v1/accounts/me`, {
       headers: {
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${this.token()}`
       }
     }).subscribe({
       next: (accountData) => {
-        localStorage.setItem('token', token);
         this.accountData.set(accountData);
         console.log('User loaded:', accountData);
       },
