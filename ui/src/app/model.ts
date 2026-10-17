@@ -33,6 +33,7 @@ export interface Replicant {
 interface Device {
   device_code: string;
   device_type: string;
+  status: string;
 }
 
 interface CargoItem {
@@ -52,5 +53,14 @@ interface PrintQueueItem {
 }
 
 export interface Location {
-    location_code: string;
+    location: string;
+    devices: Device[];
+    name: string;
+    position: Position;
+    inventory: ResourceCount[];
+}
+
+interface ResourceCount {
+    resource_type: string;
+    quantity: number;
 }

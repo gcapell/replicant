@@ -44,13 +44,56 @@
 }
 
 @if (api.location(); as loc) {
-    <h1>Location </h1>
+    <h1>Location {{ loc.location }}</h1>
 
     <details>
     <summary>Raw JSON</summary>
     <pre>{{ loc| json }}</pre>
     </details>
+
+    @if (loc.devices; as d) {
+        <h2>Devices</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+            @for (s of d; track s.device_code) {
+            <tr>
+                <td>{{ s.device_code }}</td>
+                <td>{{ s.device_type }}</td>
+                <td>{{ s.status }}</td>
+            </tr>
+            }
+        </tbody>
+        </table>
+    }
+
+    @if (loc.inventory; as i) {
+        <h2>Inventory</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Resource</th>
+                    <th>Quantity</th>
+                </tr>
+            </thead>
+            <tbody>
+            @for (r of i; track r.resource_type) {
+            <tr>
+                <td>{{ r.resource_type }}</td>
+                <td>{{ r.quantity }}</td>
+            </tr>
+            }
+        </tbody>
+        </table>
+    }
 }
+
 
 @if (api.errorMessage(); as e) {
 <h1>Error</h1>
