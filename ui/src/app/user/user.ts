@@ -3,9 +3,10 @@ import { JsonPipe } from '@angular/common';
 import { ReplicantApi } from '../replicant-api';
 import {Tutorials} from '../tutorials/tutorials';
 import {Messages} from '../messages/messages';
+import {Events} from '../events/events';
 
 @Component({
-  imports: [JsonPipe,Tutorials,Messages],
+  imports: [JsonPipe,Tutorials,Messages,Events],
   selector: 'app-user',
   styleUrl: './user.scss',
   templateUrl: './user.html',

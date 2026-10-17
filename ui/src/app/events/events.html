@@ -1,0 +1,86 @@
+<button (click)="api.listEvents()">Events</button>
+@if (api.eventList(); as el) {
+    <h1>Events</h1>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ el | json }}</pre>
+    </details>
+
+    <ul>
+    @for (e of el.events; track e.id) {
+        <li>
+            {{e.event}}
+            @switch (e.event) {
+                @case ('blueprint.unlocked') {
+                    <details>
+                        <summary>{{e.payload.device_type}} - {{e.payload.short_description}}</summary>
+                        print_time: {{e.payload.print_time}}
+                        resources: <pre>{{e.payload.resources | json}}</pre>
+                        {{e.payload.description}}
+                    </details>
+                }
+                @case('message.new'){
+                    <details>
+                        <summary>{{e.payload.title}}</summary>
+                        {{e.payload.body}}
+                    </details>
+                }
+                @case('mining.retargeted'){
+                    {{e.device_code}} {{e.payload.old_resource}}->{{e.payload.new_resource}}
+                }
+                @case('mining.resource_depleted') {
+                    {{e.payload.resource_type}} @ {{e.payload.site}}
+                }
+                @case('mining.stopped'){
+                    {{e.device_code}}, {{e.payload.resource_type}} @ {{e.payload.location}}
+                }
+                @case('experience.gained'){
+                    {{e.payload.amount}} for {{e.payload.source}}
+                }
+                @case('print.completed'){
+                    {{e.payload.device_type}} ( {{e.payload.new_device_code}})
+                }
+                @case('mining.started'){
+                    {{e.device_code}} {{e.payload.resource_type}} @ {{e.payload.site}}
+                }
+                @case('print.started'){
+                    {{e.payload.device_type}}
+                }
+                @case('site.depleted'){
+                    {{e.payload.site}}
+                }
+                @case('device.stowed'){
+                    {{e.device_code}} in {{e.payload.stowed_in_device_code}}
+                }
+                @case('scan.started'){
+                    {{e.device_code}} scanning {{e.payload.scan_target}} (ETA {{e.payload.eta_seconds}}s)
+                }
+                @case('search.started'){
+                    {{e.device_code}} searching {{e.payload.search_target}} (ETA {{e.payload.eta_seconds}}s)
+                }
+                @case('search.completed'){
+                    {{e.payload.search_target}}
+                    <table>
+                        <tbody>
+                        @for (kv of e.payload.report.resources |keyvalue; track kv.key){
+                            <tr>
+                                <td>{{kv.key}}</td>
+                                <td>{{kv.value}}</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+
+                }
+                @case('device.deployed'){
+                    {{e.device_code}} from {{e.payload.deployed_from}}
+                }
+                @default {
+                <pre>{{ e.payload | json }}</pre>
+                }
+            }
+        </li>
+    }
+    </ul>
+}
+
