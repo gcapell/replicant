@@ -1,4 +1,4 @@
-import { Component, signal, inject } from '@angular/core';
+import { Component, signal, inject, WritableSignal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { JsonPipe } from '@angular/common';
 
@@ -67,36 +67,27 @@ export class User {
   protected readonly errorMessage = signal<unknown>(null);
   protected readonly token = signal(localStorage.getItem('token') ?? '');
 
-  protected loadReplicant(id:string) {
-    this.http.get<Replicant>(`/v1/replicants/${id}`, {
+  private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
+  this.http.get<T>(path, {
       headers: {
         'Authorization': `Bearer ${this.token()}`
       }
     }).subscribe({
       next: (data) => {
-        this.replicant.set(data);
+        target.set(data);
       },
       error: (error) => {
         this.errorMessage.set(error);
-        console.error('Error loading replicant data:', error);
+        console.error(`Error loading ${path}:`, error);
       }
     });
+}
+  protected loadReplicant(id:string) {
+    this.fetchAndUpdate<Replicant>(`/v1/replicants/${id}`, this.replicant);
   }
   protected loadAccount(token: string) {
     localStorage.setItem('token', token);
-    this.http.get<AccountData>(`/v1/accounts/me`, {
-      headers: {
-        'Authorization': `Bearer ${this.token()}`
-      }
-    }).subscribe({
-      next: (accountData) => {
-        this.accountData.set(accountData);
-        console.log('User loaded:', accountData);
-      },
-      error: (error) => {
-        this.errorMessage.set(error);
-        console.error('Error loading account data:', error);
-      }
-    });
+    this.token.set(token);
+    this.fetchAndUpdate<AccountData>(`/v1/accounts/me`, this.accountData);
   }
 }
