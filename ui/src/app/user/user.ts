@@ -83,11 +83,11 @@ export class User {
     });
 }
   protected loadReplicant(id:string) {
-    this.fetchAndUpdate<Replicant>(`/v1/replicants/${id}`, this.replicant);
+    this.fetchAndUpdate(`/v1/replicants/${id}`, this.replicant);
   }
   protected loadAccount(token: string) {
     localStorage.setItem('token', token);
     this.token.set(token);
-    this.fetchAndUpdate<AccountData>(`/v1/accounts/me`, this.accountData);
+    this.fetchAndUpdate(`/v1/accounts/me`, this.accountData);
   }
 }
