@@ -1,0 +1,19 @@
+<button (click)="api.listMessages()">Messages</button>
+@if (api.messageList(); as ml) {
+    <h1>Messages</h1>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ ml | json }}</pre>
+    </details>
+
+    <ul>
+    @for (m of ml.messages; track m.id){
+        <li>
+            <details>
+                <summary>@if(!m.is_read){NEW} {{m.title}}</summary>
+                {{m.body}}
+            </details>
+        </li>
+    }
+    </ul>
+}

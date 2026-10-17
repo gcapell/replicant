@@ -99,3 +99,17 @@ interface TutorialStep {
     hint: string;
     key: string;
 }
+
+export interface MessageList {
+    messages: Message[];
+}
+interface Message {
+    body:string;
+    category:string;
+    created_at:string;
+    id:number;
+    is_read:boolean;
+    message_type:string,
+    subcategory:string,
+    title:string,
+}
