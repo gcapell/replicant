@@ -64,3 +64,7 @@ interface ResourceCount {
     resource_type: string;
     quantity: number;
 }
+
+export interface SearchResult {
+
+}

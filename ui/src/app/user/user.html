@@ -70,7 +70,7 @@
                 <td>{{ s.status }}</td>
                 <td>
                     @if (s.device_type == 'survey_drone') {
-                        <button type="button" class="link" (click)="api.sendCommand(s.device_code, 'scan')">Scan</button>
+                        <button type="button" class="link" (click)="api.search(s.device_code)">Search</button>
                     }
                 </td>
             </tr>
@@ -78,6 +78,8 @@
         </tbody>
         </table>
     }
+
+
 
     @if (loc.inventory; as i) {
         <h2>Inventory</h2>
@@ -100,6 +102,10 @@
     }
 }
 
+@if (api.searchResult(); as sr) {
+    <h2>Search Result</h2>
+    <pre>{{ sr | json }}</pre>
+}
 
 @if (api.errorMessage(); as e) {
 <h1>Error</h1>

@@ -1,6 +1,6 @@
 import { Service, signal, inject, WritableSignal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { AccountData, Replicant, Location } from './model';
+import { AccountData, Replicant, Location , SearchResult} from './model';
 
 @Service()
 export class ReplicantApi {
@@ -11,6 +11,7 @@ export class ReplicantApi {
     readonly replicant = signal<Replicant | null>(null);
     readonly location = signal<Location | null>(null);
     readonly errorMessage = signal<unknown>(null);
+    readonly searchResult = signal<SearchResult | null>(null);
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
         this.http.get<T>(path, {
@@ -29,6 +30,25 @@ export class ReplicantApi {
         });
     }
 
+    private postAndUpdate<T>(path: string, body: any, target: WritableSignal<T | null>) {
+        this.http.post<T>(path, body, {
+            headers: {
+                'Authorization': `Bearer ${this.token()}`,
+                'Content-Type': 'application/json',
+            }
+        }).subscribe({
+            next: (data) => {
+                target.set(data);
+            },
+            error: (error) => {
+                this.errorMessage.set(error);
+                target.set(null);
+                console.error(`Error posting to ${path}:`, error);
+            }
+        });
+    }
+
+
     loadReplicant(id: string) {
         this.fetchAndUpdate(`/v1/replicants/${id}`, this.replicant);
     }
@@ -40,7 +60,10 @@ export class ReplicantApi {
         this.token.set(token);
         this.fetchAndUpdate(`/v1/accounts/me`, this.accountData);
     }
-    sendCommand(id: string, command: string) {
-        console.log(`Sending command ${command} to device ${id}`);
+    search(id: string) {
+        this.postAndUpdate(
+            `/v1/devices/${id}`, 
+            {"command": "search"}, 
+            this.searchResult);
     }
 }
