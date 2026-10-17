@@ -4,7 +4,11 @@
 
 @if (accountData(); as a) {
 <h1>Account Data</h1>
-<pre>{{ a | json }}</pre>
+
+<details>
+  <summary>Raw JSON</summary>
+  <pre>{{ a | json }}</pre>
+</details>
 {{a.unread_message_count}} unread messages
 
   <ul>
