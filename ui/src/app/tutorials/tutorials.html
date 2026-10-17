@@ -1,0 +1,52 @@
+<button (click)="api.listTutorials()">Tutorials</button>
+
+@if (api.tutorialList(); as t) {
+    <h1>Tutorials</h1>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ t | json }}</pre>
+    </details>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Slug</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Order</th>
+                <th>Completed</th>
+                <th>Current Step</th>
+                <th>Total Steps</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (r of t.tutorials; track r.name) {
+            <tr>
+                <td>
+                    <button type="button" class="link" (click)="api.loadTutorial(r.slug)">
+                    {{ r.name }}
+                    </button>
+                </td>
+                <td>{{ r.description }}</td>
+                <td>{{ r.order }}</td>
+                <td>{{ r.completed }}</td>
+            </tr>
+            }
+        </tbody>
+    </table>    
+}
+
+@if (api.tutorialDetail(); as t) {
+    <h1>{{t.name}}</h1>
+    <p>@if(t.completed){completed} {{t.description}}</p>
+
+    <ul>
+    @for (s of t.steps; track s.key) {
+        <li>{{s.description}}; HINT: {{s.hint}}</li>
+    }
+    </ul>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ t | json }}</pre>
+    </details>
+}
