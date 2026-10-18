@@ -425,3 +425,11 @@ interface ReplicantPtr{
     name:string;
     replicant_code: string;
 }
+
+export interface SendDroneResult{
+
+}
+
+export interface DeactivateDroneResult{
+    
+}

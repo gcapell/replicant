@@ -17,6 +17,19 @@
                         {{d.stow_used}}/{{d.stow_capacity}}
                     }</td>
                     <td><app-bulleted-list [items]="d.features"/></td>
+                    <td>
+                        @if(d.device_type == "survey_drone"){
+                            <select #planetToSurvey>
+                                <option value="" disabled selected>move to...</option>
+                                <option value="OTHYONAL-1">OTHYONAL-1</option>
+                                <option value="OTHYONAL-2">OTHYONAL-2</option>
+                                <option value="OTHYONAL-3">OTHYONAL-3</option>
+                            </select>
+                            <button type="button" (click)="api.sendDrone(d.device_code, planetToSurvey.value)">Send</button>
+                            <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
+                      
+                        }
+                    </td>
 
                 </tr>
 
@@ -24,4 +37,20 @@
         </tbody>
     </table>
 
+}
+
+@if (api.sendDroneResult(); as sdr){
+    <h3>SendDroneResult</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ sdr | json }}</pre>
+    </details>
+}
+
+@if (api.deactivateDroneResult(); as ddr){
+    <h3>DeactivateDroneResult</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ ddr | json }}</pre>
+    </details>
 }
