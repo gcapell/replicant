@@ -1,6 +1,6 @@
 import { Service, signal, inject, WritableSignal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { AccountData, EventList, Replicant, Location , MessageList, SearchResult, Tutorials, TutorialDetail, StartMiningResult, ReplicantScanResult, BlueprintsList} from './model';
+import { AccountData, DeviceList, EventList, Replicant, Location, MessageList, SearchResult, Tutorials, TutorialDetail, StartMiningResult, ReplicantScanResult, BlueprintsList } from './model';
 
 @Service()
 export class ReplicantApi {
@@ -13,12 +13,13 @@ export class ReplicantApi {
     readonly errorMessage = signal<unknown>(null);
     readonly searchResult = signal<SearchResult | null>(null);
     readonly tutorialList = signal<Tutorials | null>(null);
-    readonly tutorialDetail = signal<TutorialDetail | null> (null);
-    readonly messageList = signal<MessageList | null> (null);
+    readonly tutorialDetail = signal<TutorialDetail | null>(null);
+    readonly messageList = signal<MessageList | null>(null);
     readonly eventList = signal<EventList | null>(null);
     readonly startMiningResult = signal<StartMiningResult | null>(null);
     readonly replicantScanResult = signal<ReplicantScanResult | null>(null);
-    readonly blueprintList = signal<BlueprintsList | null> (null);
+    readonly blueprintList = signal<BlueprintsList | null>(null);
+    readonly deviceList = signal<DeviceList | null>(null);
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
         this.http.get<T>(path, {
@@ -34,6 +35,41 @@ export class ReplicantApi {
                 target.set(null);
                 console.error(`Error loading ${path}:`, error);
             }
+        });
+    }
+
+    private fetchAllPages<T extends { next_cursor?: number | null }>(
+        path: string,
+        target: WritableSignal<T | null>,
+        merge: (soFar: T, page: T) => T,
+    ) {
+        target.set(null);                       // clear once, up front
+        this.fetchPage(path, target, merge, null);
+    }
+
+    private fetchPage<T extends { next_cursor?: number | null }>(
+        path: string,
+        target: WritableSignal<T | null>,
+        merge: (soFar: T, page: T) => T,
+        cursor: number | null,
+    ) {
+        this.http.get<T>(path, {
+            headers: {
+                'Authorization': `Bearer ${this.token()}`,
+            },
+            params: cursor !== null ? { cursor } : {},
+        }).subscribe({
+            next: (page) => {
+                target.update(cur => cur ? merge(cur, page) : page);
+                if (page.next_cursor != null) {
+                    this.fetchPage(path, target, merge, page.next_cursor);
+                }
+            },
+            error: (e) => {
+                this.errorMessage.set(e);
+                target.set(null);
+                console.error(`Error loading ${path}:`, e);
+            },
         });
     }
 
@@ -74,6 +110,14 @@ export class ReplicantApi {
     listEvents() {
         this.fetchAndUpdate('/v1/events', this.eventList);
     }
+    listDevices() {
+        this.fetchAllPages('/v1/devices', this.deviceList, (acc, extra) => ({
+            ...extra,
+            devices: [...acc.devices, ...extra.devices],
+        })
+        );
+
+    }
     listBlueprints() {
         this.fetchAndUpdate('/v1/blueprints', this.blueprintList);
     }
@@ -84,21 +128,21 @@ export class ReplicantApi {
     }
     search(id: string) {
         this.postAndUpdate(
-            `/v1/devices/${id}`, 
-            {"command": "search"}, 
+            `/v1/devices/${id}`,
+            { "command": "search" },
             this.searchResult);
     }
     startMining(id: string) {
         this.postAndUpdate(
-            `/v1/devices/${id}`, 
-            {"command": "start_mining", "resource_type":"structural"}, 
+            `/v1/devices/${id}`,
+            { "command": "start_mining", "resource_type": "carbon" },
             this.startMiningResult);
     }
-    scan(id:string) {
-         this.postAndUpdate(
-            `/v1/replicants/${id}/scan`, 
-            null, 
-            this.replicantScanResult);       
+    scan(id: string) {
+        this.postAndUpdate(
+            `/v1/replicants/${id}/scan`,
+            null,
+            this.replicantScanResult);
     }
-    
+
 }

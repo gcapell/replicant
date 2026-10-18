@@ -7,9 +7,10 @@ import {AccountData} from './account-data/account-data';
 import {Location} from './location/location';
 import {Replicant} from './replicant/replicant';
 import { Blueprints } from './blueprints/blueprints';
+import {Devices} from './devices/devices';
 
 @Component({
-  imports: [ Tutorials,Messages,Events,AccountData,Location,Replicant,Blueprints],
+  imports: [ Tutorials,Messages,Events,AccountData,Location,Replicant,Blueprints,Devices],
   selector: 'app-root',
   styleUrl: './app.scss',
   templateUrl: './app.html',

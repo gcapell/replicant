@@ -1,0 +1,27 @@
+<button (click)="api.listDevices()">Devices</button>
+@if (api.deviceList(); as dl) {
+    <h1>Devices</h1>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ dl | json }}</pre>
+    </details>
+
+    <table>
+        <tbody>
+            @for (d of dl.devices; track d.device_code){
+                <tr>
+                    <td>{{d.device_type}} {{d.device_code}}</td>
+                    <td>{{d.location}}</td>
+                    <td>{{d.status}}</td>
+                    <td>@if(d.stow_capacity){
+                        {{d.stow_used}}/{{d.stow_capacity}}
+                    }</td>
+                    <td><app-bulleted-list [items]="d.features"/></td>
+
+                </tr>
+
+            }
+        </tbody>
+    </table>
+
+}

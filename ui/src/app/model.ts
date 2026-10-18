@@ -27,10 +27,10 @@ export interface Replicant {
     print_queue: PrintQueueItem[];
     replicant_code: string;
     status: string;
-    stowed_devices: Device[];
+    stowed_devices: StowedDevice[];
 }
 
-interface Device {
+interface StowedDevice {
     device_code: string;
     device_type: string;
     status: string;
@@ -397,4 +397,31 @@ interface Blueprint{
     short_description:string;
     stow_capacity:number;
     strength:number;
+}
+
+export interface DeviceList {
+    devices: Device[]
+    next_cursor: number;
+}
+
+interface Device {
+    available_commands: string[];
+    device_code:string;
+    device_type:string;
+    features: string[];
+    hosting_replicant: ReplicantPtr;
+    in_control_range: boolean;
+    location:string;
+    operational_capacity: number;
+    // print_queue
+    replicant_code: string;
+    status: string;
+    stow_capacity: number;
+    stow_used: number;
+    stowed_devices: StowedDevice[];
+}
+
+interface ReplicantPtr{
+    name:string;
+    replicant_code: string;
 }
