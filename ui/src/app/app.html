@@ -1,1 +1,11 @@
-<app-user></app-user>
+<app-account-data></app-account-data>
+<app-tutorials></app-tutorials>
+<app-messages></app-messages>
+<app-events></app-events>
+<app-location></app-location>
+<app-replicant></app-replicant>
+
+@if (api.errorMessage(); as e) {
+<h1>Error</h1>
+<pre>{{ api.errorMessage()  }}</pre>
+}
