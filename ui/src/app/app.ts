@@ -6,9 +6,10 @@ import {Events} from './events/events';
 import {AccountData} from './account-data/account-data';
 import {Location} from './location/location';
 import {Replicant} from './replicant/replicant';
+import { Blueprints } from './blueprints/blueprints';
 
 @Component({
-  imports: [ Tutorials,Messages,Events,AccountData,Location,Replicant],
+  imports: [ Tutorials,Messages,Events,AccountData,Location,Replicant,Blueprints],
   selector: 'app-root',
   styleUrl: './app.scss',
   templateUrl: './app.html',

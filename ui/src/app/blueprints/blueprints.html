@@ -1,0 +1,56 @@
+<button (click)="api.listBlueprints()">Blueprints</button>
+@if (api.blueprintList(); as bps) {
+    <h1>BluePrints</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>type</th>
+                <th>desc</th>
+                <th>carbon</th>
+                <th>conductive</th>
+                <th>rares</th>
+                <th>silicates</th>
+                <th>structural</th>
+                <th>volatiles</th>
+                <th>print_time</th>
+                <th>directives</th>
+                <th>features</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (bp of bps.blueprints; track bp.device_type){
+                <tr>
+                    <td>{{bp.device_type}}</td>
+                    <td>
+                        <details>
+                            <summary>{{bp.short_description}}</summary>
+                            {{bp.description}}
+                        </details>
+                    </td>
+                    <td>{{bp.resources["carbon"]}}</td>
+                    <td>{{bp.resources["conductive"]}}</td>
+                    <td>{{bp.resources["rares"]}}</td>
+                    <td>{{bp.resources["silicates"]}}</td>
+                    <td>{{bp.resources["structural"]}}</td>
+                    <td>{{bp.resources["volatiles"]}}</td>
+                    <td>{{bp.print_time}}s</td>
+                    <td>
+                        @if(bp.directives){
+                            <ul>
+                                @for(d of bp.directives; track d){
+                                    <li>{{d}}</li>
+                                }
+                            </ul>
+                        }
+                    </td>
+                    <td>{{bp.features}}</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ bps | json }}</pre>
+    </details>
+}

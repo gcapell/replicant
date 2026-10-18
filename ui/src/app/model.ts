@@ -377,3 +377,24 @@ interface AsteroidBelt{
     designation:string;
 }
 interface ActiveLocationEvent{}
+
+export interface BlueprintsList{
+    blueprints: Blueprint[];
+}
+
+interface Blueprint{
+    attach_capacity: number;
+    cargo_capacity:number;
+    // components?
+    description:string;
+    device_type: string;
+    directives: string[];
+    features: string[];
+    print_time: number;
+    queue_size: number;
+    relay_range: number;
+    resources: Record<string,number>;
+    short_description:string;
+    stow_capacity:number;
+    strength:number;
+}

@@ -1,6 +1,6 @@
 import { Service, signal, inject, WritableSignal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { AccountData, EventList, Replicant, Location , MessageList, SearchResult, Tutorials, TutorialDetail, StartMiningResult, ReplicantScanResult} from './model';
+import { AccountData, EventList, Replicant, Location , MessageList, SearchResult, Tutorials, TutorialDetail, StartMiningResult, ReplicantScanResult, BlueprintsList} from './model';
 
 @Service()
 export class ReplicantApi {
@@ -18,6 +18,7 @@ export class ReplicantApi {
     readonly eventList = signal<EventList | null>(null);
     readonly startMiningResult = signal<StartMiningResult | null>(null);
     readonly replicantScanResult = signal<ReplicantScanResult | null>(null);
+    readonly blueprintList = signal<BlueprintsList | null> (null);
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
         this.http.get<T>(path, {
@@ -72,6 +73,9 @@ export class ReplicantApi {
     }
     listEvents() {
         this.fetchAndUpdate('/v1/events', this.eventList);
+    }
+    listBlueprints() {
+        this.fetchAndUpdate('/v1/blueprints', this.blueprintList);
     }
     loadAccount(token: string) {
         localStorage.setItem('token', token);
