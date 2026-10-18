@@ -22,11 +22,14 @@
                             <select #planetToSurvey>
                                 <option value="" disabled selected>move to...</option>
                                 <option value="OTHYONAL-1">OTHYONAL-1</option>
+                                <option value="OTHYONAL-1-1">OTHYONAL-1-1</option>
                                 <option value="OTHYONAL-2">OTHYONAL-2</option>
                                 <option value="OTHYONAL-3">OTHYONAL-3</option>
                             </select>
                             <button type="button" (click)="api.sendDrone(d.device_code, planetToSurvey.value)">Send</button>
                             <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
+                            <button type="button" (click)="api.scanDrone(d.device_code)">Scan</button>
+                      
                       
                         }
                     </td>
@@ -52,5 +55,13 @@
     <details>
     <summary>Raw JSON</summary>
     <pre>{{ ddr | json }}</pre>
+    </details>
+}
+
+@if (api.scanDroneResult(); as sdr){
+    <h3>ScanDroneResult</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ sdr | json }}</pre>
     </details>
 }

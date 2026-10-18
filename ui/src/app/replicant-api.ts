@@ -1,6 +1,6 @@
 import { Service, signal, inject, WritableSignal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { AccountData, DeactivateDroneResult, DeviceList, EventList, Replicant, Location, MessageList, SearchResult, Tutorials, TutorialDetail, SendDroneResult, StartMiningResult, ReplicantScanResult, BlueprintsList } from './model';
+import { AccountData, ScanDroneResult, DeactivateDroneResult, DeviceList, EventList, Replicant, Location, MessageList, SearchResult, Tutorials, TutorialDetail, SendDroneResult, StartMiningResult, ReplicantScanResult, BlueprintsList } from './model';
 
 @Service()
 export class ReplicantApi {
@@ -22,7 +22,7 @@ export class ReplicantApi {
     readonly deviceList = signal<DeviceList | null>(null);
     readonly sendDroneResult = signal<SendDroneResult | null>(null);
     readonly deactivateDroneResult = signal<DeactivateDroneResult | null>(null);
-
+    readonly scanDroneResult = signal<ScanDroneResult | null>(null);
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
         this.http.get<T>(path, {
             headers: {
@@ -147,18 +147,24 @@ export class ReplicantApi {
             null,
             this.replicantScanResult);
     }
-    deactivateDrone(id:string){
+    deactivateDrone(id: string) {
         console.log("deactivate");
         this.postAndUpdate(
             `/v1/devices/${id}`,
-            { "command": "deactivate"},
+            { "command": "deactivate" },
             this.deactivateDroneResult);
     }
-    sendDrone(drone:string, loc:string){
+    sendDrone(drone: string, loc: string) {
         this.postAndUpdate(
             `/v1/devices/${drone}`,
             { "command": "travel", "destination": loc },
             this.sendDroneResult);
+    }
+    scanDrone(drone: string) {
+        this.postAndUpdate(
+            `/v1/devices/${drone}`,
+            { "command": "scan" },
+            this.scanDroneResult);
     }
 
 }

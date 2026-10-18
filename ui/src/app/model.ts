@@ -431,5 +431,9 @@ export interface SendDroneResult{
 }
 
 export interface DeactivateDroneResult{
+
+}
+
+export interface ScanDroneResult{
     
 }

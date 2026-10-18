@@ -10,13 +10,8 @@
     <table>
         <thead>
             <tr>
-                <th>Slug</th>
                 <th>Name</th>
                 <th>Description</th>
-                <th>Order</th>
-                <th>Completed</th>
-                <th>Current Step</th>
-                <th>Total Steps</th>
             </tr>
         </thead>
         <tbody>
@@ -26,10 +21,9 @@
                     <button type="button" class="link" (click)="api.loadTutorial(r.slug)">
                     {{ r.name }}
                     </button>
+                    @if (r.completed){✅}
                 </td>
                 <td>{{ r.description }}</td>
-                <td>{{ r.order }}</td>
-                <td>{{ r.completed }}</td>
             </tr>
             }
         </tbody>
