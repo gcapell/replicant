@@ -24,8 +24,17 @@
                 <td>{{ s.device_type }}</td>
                 <td>{{ s.status }}</td>
                 <td>
-                    @if (s.device_type == 'survey_drone') {
-                        <button type="button" class="link" (click)="api.search(s.device_code)">Search</button>
+                    @switch (s.device_type){
+                        @case('survey_drone'){
+                            <button type="button" class="link" (click)="api.search(s.device_code)">
+                            Search
+                            </button> 
+                        }
+                        @case('mining_drone'){
+                            <button type="button" class="link" (click)="api.startMining(s.device_code)">
+                            Start Mining
+                            </button> 
+                        }
                     }
                 </td>
             </tr>
@@ -73,4 +82,14 @@
 @if (api.searchResult(); as sr) {
     <h2>Search Result</h2>
     <pre>{{ sr | json }}</pre>
+}
+@if (api.startMiningResult(); as sr) {
+    <h2>Start Mining Result</h2>
+    cycle time: {{sr.cycle_time_seconds}}s
+
+    <details>
+        <summary>Raw JSON</summary>
+        <pre>{{ sr| json }}</pre>
+    </details>
+
 }

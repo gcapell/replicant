@@ -306,3 +306,10 @@ type GameEvent = BlueprintUnlockedEvent |
     SearchStartedEvent |
     SearchCompletedEvent |
     MiningStartedEvent;
+
+export interface StartMiningResult {
+    cycle_time_seconds: number;
+    device_code: string;
+    location:string;
+    status:string;
+}
