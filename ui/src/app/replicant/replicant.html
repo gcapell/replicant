@@ -31,11 +31,7 @@
     @if(r.mining_bonus_pct){<p>mining bonus {{r.mining_bonus_pct}}%</p>}
     @if(r.outer_system; as os){
         <h3>outer systems</h3>
-        <ul>
-            @for (kv of os |keyvalue; track kv.key){
-                <li>{{kv.key}}</li>
-            }
-        </ul>
+        <app-kv-table [items]="os"/>
     }
     @if(r.planets; as ps){
         <h3>planets</h3>
@@ -91,13 +87,7 @@
             @for(b of belts; track b.designation){
                 <li>
                     {{b.designation}}
-                    <table>
-                        <tbody>
-                            @for (kv of b.resources |keyvalue; track kv.key){
-                                <tr><td>{{kv.key}}</td><td>{{kv.value}}</td></tr>
-                            }
-                        </tbody>
-                    </table>
+                    <app-kv-table [items]="b.resources"/>
                 </li>
             }
         </ul>

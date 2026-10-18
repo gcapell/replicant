@@ -1,0 +1,7 @@
+<table>
+    <tbody>
+        @for (kv of items() |keyvalue; track kv.key){
+            <tr><td>{{kv.key}}</td><td>{{kv.value}}</td></tr>
+        }
+    </tbody>
+</table>

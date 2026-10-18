@@ -60,17 +60,7 @@
                 }
                 @case('search.completed'){
                     {{e.payload.search_target}}
-                    <table>
-                        <tbody>
-                        @for (kv of e.payload.report.resources |keyvalue; track kv.key){
-                            <tr>
-                                <td>{{kv.key}}</td>
-                                <td>{{kv.value}}</td>
-                            </tr>
-                        }
-                        </tbody>
-                    </table>
-
+                    <app-kv-table [items]="e.payload.report.resources"/> 
                 }
                 @case('device.deployed'){
                     {{e.device_code}} from {{e.payload.deployed_from}}

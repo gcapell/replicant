@@ -69,13 +69,7 @@
         <h2>Resource sites</h2>
         @for (r of rs; track r.designation) {
             <p>{{r.name}}</p>
-            <table>
-                <tbody>
-                    @for (kv of r.resources_remaining_pct |keyvalue; track kv.key){
-                        <tr><td>{{kv.key}}</td><td>{{kv.value}}</td></tr>
-                    }
-                </tbody>
-            </table>
+            <app-kv-table [items]="r.resources_remaining_pct"/>
         }
     }
 }
