@@ -1,33 +1,7 @@
-<input #tokenBox type="text" [value]="api.token()" name="token" (keyup.enter)="api.loadAccount(tokenBox.value)" />
-
-<button (click)="api.loadAccount(tokenBox.value)">Load</button>
-
+<app-account-data></app-account-data>
 <app-tutorials></app-tutorials>
 <app-messages></app-messages>
 <app-events></app-events>
-
-@if (api.accountData(); as a) {
-    <h1>Account Data</h1>
-
-    <details>
-    <summary>Raw JSON</summary>
-    <pre>{{ a | json }}</pre>
-    </details>
-    {{a.unread_message_count}} unread messages
-
-    <ul>
-        @for (r of a.replicants; track r.replicant_code) {
-        <li><button type="button" class="link" (click)="api.loadReplicant(r.replicant_code)">
-        {{ r.name }}
-        </button>at 
-        <button type="button" class="link" (click)="api.loadLocation(r.current_location)">
-        {{ r.current_location }}
-        </button>
-        ({{ r.device_count }} devices)</li>
-        }
-    </ul>
-
-}
 
 @if (api.replicant(); as r) {
     <h1>Replicant {{ r.name }} @ {{ r.location }}</h1>
