@@ -6,9 +6,10 @@ import {Messages} from '../messages/messages';
 import {Events} from '../events/events';
 import {AccountData} from '../account-data/account-data';
 import {Location} from '../location/location';
+import {Replicant} from '../replicant/replicant';
 
 @Component({
-  imports: [JsonPipe,Tutorials,Messages,Events,AccountData,Location],
+  imports: [JsonPipe,Tutorials,Messages,Events,AccountData,Location,Replicant],
   selector: 'app-user',
   styleUrl: './user.scss',
   templateUrl: './user.html',

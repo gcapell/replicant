@@ -1,0 +1,17 @@
+@if (api.replicant(); as r) {
+    <h1>Replicant {{ r.name }} @ {{ r.location }}</h1>
+
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ r | json }}</pre>
+    </details>
+
+    @if (r.stowed_devices; as d) {
+        <h2>Stowed Devices</h2>
+        <ul>
+            @for (s of d; track s.device_code) {
+            <li>{{ s.device_type }} ({{ s.device_code }})</li>
+            }
+        </ul>
+    }
+}
