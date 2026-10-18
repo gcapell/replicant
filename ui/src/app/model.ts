@@ -313,3 +313,67 @@ export interface StartMiningResult {
     location:string;
     status:string;
 }
+
+export interface ReplicantScanResult{
+    active_location_events: ActiveLocationEvent[];
+    asteroid_belt: AsteroidBelts;
+    entry_point:string;
+    life_detected: boolean;
+    mining_bonus_pct: number;
+    outer_system: Record<string,OuterSystem>;
+    planets: Planet[];
+    replicants: ReplicantFoundByScan[]
+    shops: Shop[];
+    system_objects: SystemObject[];
+    system_tags: string[];
+}
+
+interface SystemObject{
+    designation:string;
+    impact_eta: string;
+    impact_likelihood: number;
+    impact_target: string;
+    object_type: string;
+    status:string;
+}
+interface Shop{}
+
+interface ReplicantFoundByScan{
+    last_active:string;
+    location:string;
+    name:string;
+    replicant_code:string;
+}
+
+interface Planet {
+    designation: string;
+    in_habitable_zone: boolean;
+    moon_count: number;
+    scanned: boolean;
+    salvage: Salvage[];
+    type: string;
+}
+
+interface Salvage{
+    depleted: boolean;
+    designation: string;
+    location:string;
+    name:string;
+    resources_available: string[];
+    salvage_type: string;
+}
+
+interface OuterSystem{
+    designation: string;
+    distance_au: number;
+}
+
+interface AsteroidBelts {
+    belts: AsteroidBelt[];
+}
+
+interface AsteroidBelt{
+    resources: Record<string,string>;
+    designation:string;
+}
+interface ActiveLocationEvent{}

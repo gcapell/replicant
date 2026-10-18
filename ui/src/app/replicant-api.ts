@@ -1,6 +1,6 @@
 import { Service, signal, inject, WritableSignal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { AccountData, EventList, Replicant, Location , MessageList, SearchResult, Tutorials, TutorialDetail, StartMiningResult} from './model';
+import { AccountData, EventList, Replicant, Location , MessageList, SearchResult, Tutorials, TutorialDetail, StartMiningResult, ReplicantScanResult} from './model';
 
 @Service()
 export class ReplicantApi {
@@ -17,6 +17,7 @@ export class ReplicantApi {
     readonly messageList = signal<MessageList | null> (null);
     readonly eventList = signal<EventList | null>(null);
     readonly startMiningResult = signal<StartMiningResult | null>(null);
+    readonly replicantScanResult = signal<ReplicantScanResult | null>(null);
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
         this.http.get<T>(path, {
@@ -88,6 +89,12 @@ export class ReplicantApi {
             `/v1/devices/${id}`, 
             {"command": "start_mining", "resource_type":"structural"}, 
             this.startMiningResult);
+    }
+    scan(id:string) {
+         this.postAndUpdate(
+            `/v1/replicants/${id}/scan`, 
+            null, 
+            this.replicantScanResult);       
     }
     
 }

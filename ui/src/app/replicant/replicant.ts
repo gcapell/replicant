@@ -1,9 +1,9 @@
 import { Component, inject } from '@angular/core';
 import { ReplicantApi } from '../replicant-api';
-import { JsonPipe } from '@angular/common';
+import { JsonPipe, KeyValuePipe } from '@angular/common';
 
 @Component({
-  imports: [JsonPipe],
+  imports: [JsonPipe, KeyValuePipe],
   selector: 'app-replicant',
   styleUrl: './replicant.scss',
   templateUrl: './replicant.html',
