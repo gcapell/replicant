@@ -58,8 +58,14 @@ export interface Location {
     name: string;
     position: Position;
     inventory: ResourceCount[];
+    resource_sites: ResourceSite[];
 }
 
+interface ResourceSite{
+    designation: string;
+    name:string;
+    resources_remaining_pct: Record<string,number>;
+}
 interface ResourceCount {
     resource_type: string;
     quantity: number;
