@@ -1,0 +1,7 @@
+@if (items()?.length) {
+  <ul>
+    @for (d of items(); track d) {
+      <li>{{ d }}</li>
+    }
+  </ul>
+}

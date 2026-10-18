@@ -34,16 +34,8 @@
                     <td>{{bp.resources["structural"]}}</td>
                     <td>{{bp.resources["volatiles"]}}</td>
                     <td>{{bp.print_time}}s</td>
-                    <td>
-                        @if(bp.directives){
-                            <ul>
-                                @for(d of bp.directives; track d){
-                                    <li>{{d}}</li>
-                                }
-                            </ul>
-                        }
-                    </td>
-                    <td>{{bp.features}}</td>
+                    <td><app-bulleted-list [items]="bp.directives"/></td>   
+                    <td><app-bulleted-list [items]="bp.features"/></td>  
                 </tr>
             }
         </tbody>
