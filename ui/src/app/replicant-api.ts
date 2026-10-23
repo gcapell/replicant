@@ -1,6 +1,10 @@
 import { Service, signal, inject, WritableSignal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { AccountData, ScanDroneResult, DeactivateDroneResult, DeviceList, EventList, Replicant, Location, MessageList, SearchResult, Tutorials, TutorialDetail, SendDroneResult, StartMiningResult, ReplicantScanResult, BlueprintsList } from './model';
+import { AccountData, ScanDroneResult, DeactivateDroneResult, 
+    DeviceList, Replicant, Location, MessageList, 
+    SearchResult, Tutorials, TutorialDetail, SendDroneResult, 
+    StartMiningResult, ReplicantScanResult, BlueprintsList } from './model';
+import { EventList } from './eventmodel';
 
 @Service()
 export class ReplicantApi {
