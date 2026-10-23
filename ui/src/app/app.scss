@@ -3,4 +3,16 @@
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1rem;
   padding: 1rem;
+  align-items: start; // so a collapsed panel doesn't stretch to its neighbour's height
+
+  > details {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 1rem;
+  }
+
+  summary {
+    cursor: pointer;
+    font-weight: bold;
+  }
 }

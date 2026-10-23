@@ -1,11 +1,32 @@
-<main class="dashboard"><app-account-data/>
-<app-tutorials/>
-<app-messages/>
-<app-events/>
-<app-location/>
-<app-replicant/>
-<app-blueprints/>
-<app-devices/>
+<main class="dashboard"><app-account-data />
+    <details open>
+        <summary>Tutorials</summary>
+        <app-tutorials />
+    </details>
+    <details open>
+        <summary>Messages</summary>
+        <app-messages />
+    </details>
+    <details open>
+        <summary>Events</summary>
+        <app-events />
+    </details>
+    <details open>
+        <summary>Location</summary>
+        <app-location />
+    </details>
+    <details open>
+        <summary>Replicant</summary>
+        <app-replicant />
+    </details>
+    <details open>
+        <summary>Blueprints</summary>
+        <app-blueprints />
+    </details>
+    <details open>
+        <summary>Devices</summary>
+        <app-devices />
+    </details>
 </main>
 
 @if (api.errorMessage(); as e) {
