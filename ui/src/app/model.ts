@@ -25,9 +25,17 @@ export interface Replicant {
     name: string;
     position: Position;
     print_queue: PrintQueueItem[];
+    printing: CurrentlyPrinting;
     replicant_code: string;
     status: string;
     stowed_devices: StowedDevice[];
+}
+
+interface CurrentlyPrinting {
+    device_type:string;
+    completes_at:string;
+    eta_seconds:number;
+    progress_percent:number;
 }
 
 interface StowedDevice {
@@ -260,4 +268,8 @@ export interface DeactivateDroneResult{
 
 export interface ScanDroneResult{
     
+}
+
+export interface StartPrintingResult {
+
 }

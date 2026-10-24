@@ -3,7 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { AccountData, ScanDroneResult, DeactivateDroneResult, 
     DeviceList, Replicant, Location, MessageList, 
     SearchResult, Tutorials, TutorialDetail, SendDroneResult, 
-    StartMiningResult, ReplicantScanResult, BlueprintsList } from './model';
+    StartMiningResult, ReplicantScanResult, BlueprintsList,
+    StartPrintingResult } from './model';
 import { EventList } from './eventmodel';
 
 @Service()
@@ -27,6 +28,7 @@ export class ReplicantApi {
     readonly sendDroneResult = signal<SendDroneResult | null>(null);
     readonly deactivateDroneResult = signal<DeactivateDroneResult | null>(null);
     readonly scanDroneResult = signal<ScanDroneResult | null>(null);
+    readonly startPrintingResult = signal<StartPrintingResult | null>(null);
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
         this.http.get<T>(path, {
             headers: {
@@ -145,6 +147,11 @@ export class ReplicantApi {
             resource_type: resource , 
             ...(site && { target: site }),
         }, this.startMiningResult);
+    }
+    startPrinting(replicant:string, device_type:string){
+        this.postAndUpdate( `/v1/replicants/${replicant}/print`,{
+            device_type: device_type,
+        }, this.startPrintingResult);
     }
     scan(id: string) {
         this.postAndUpdate(

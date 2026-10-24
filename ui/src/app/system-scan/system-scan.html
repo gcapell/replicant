@@ -32,7 +32,11 @@
             <tbody>
             @for( p of ps; track p.designation){
                 <tr>
-                    <td>{{p.designation}} {{p.type}}</td>
+                    <td>
+                        {{p.designation}} {{p.type}}
+                        <button type="button" class="link" 
+                        (click)="api.loadLocation(p.designation)">inventory</button>
+                    </td>
                     <td>@if(p.in_habitable_zone){✔}</td>
                     <td>@if(p.moon_count){ {{p.moon_count}} }</td>
                     <td>@if(p.scanned){✔}</td>
@@ -70,6 +74,8 @@
             @for(b of belts; track b.designation){
                 <li>
                     {{b.designation}}
+                     <button type="button" class="link" 
+                        (click)="api.loadLocation(b.designation)">inventory</button>
                     <app-kv-table [items]="b.resources"/>
                 </li>
             }

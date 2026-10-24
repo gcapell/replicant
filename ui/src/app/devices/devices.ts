@@ -17,7 +17,7 @@ export class Devices {
       p => p.designation === location
     );
     return planet?.salvage
-      .filter(s => !s.depleted)
+      ?.filter(s => !s.depleted)
       .map(s => s.designation) ?? [];
   }
 }

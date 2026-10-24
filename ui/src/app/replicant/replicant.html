@@ -14,4 +14,23 @@
             }
         </ul>
     }
+    @if (api.blueprintList(); as bps) {
+        <select #blueprint>
+        <option value="" disabled selected>resource...</option>
+        @for(bp of bps.blueprints; track bp.device_type){
+            <option [value]="bp.device_type">{{bp.device_type}}</option>
+        }
+        </select>
+        <button type="button" 
+                (click)="api.startPrinting(r.replicant_code,blueprint.value)">
+                Print</button>
+    }
+    @if (api.startPrintingResult(); as spr) {
+        <h2>started printing</h2>
+        <pre>{{spr | json}}</pre>
+    }
+    @if (r.printing; as p) {
+        <h2>printing</h2>
+        <p>{{p.progress_percent}}% of {{p.device_type}}, ready in {{p.eta_seconds}}s.</p>
+    }
 }
