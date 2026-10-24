@@ -12,7 +12,15 @@
                 <tr>
                     <td>{{d.device_type}} {{d.device_code}}</td>
                     <td>{{d.location}}</td>
-                    <td>{{d.status}}</td>
+                    <td>{{d.status}}
+                               @if(d.cargo){
+                                <ul>
+                                    @for(c of d.cargo; track c.resource_type){
+                                        <li>{{c.resource_type}}:{{c.quantity}}</li>
+                                    }
+                                </ul>
+                            }
+                    </td>
                     <td>@if(d.stow_capacity){
                         {{d.stow_used}}/{{d.stow_capacity}}
                     }</td>
@@ -23,7 +31,8 @@
                     }
                     <!-- <td><app-bulleted-list [items]="d.features"/></td> -->
                     <td>
-                        @if(d.device_type == "mining_drone"){
+                        @switch(d.device_type){
+                        @case("mining_drone"){
                             <app-move-device deviceCode="d.device_code"/>
                             <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
 
@@ -43,10 +52,22 @@
                             </select>
                             <button type="button" (click)="api.startMining(d.device_code,resource.value,site.value)">Mine</button>
                         }
-                        @if(d.device_type == "survey_drone"){
+                        @case("survey_drone"){
                             <app-move-device deviceCode="d.device_code"/>
                             <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
                             <button type="button" (click)="api.scanDrone(d.device_code)">Scan</button>
+                        }
+                        @case("transport_drone"){
+                     
+                            <app-move-device deviceCode="d.device_code"/>
+                            <select #resource>
+                            <option value="" disabled selected>resource...</option>
+                            @for(r of ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"]; track r){
+                                <option [value]="r">{{r}}</option>
+                            }
+                            </select>
+                            <button type="button" (click)="api.fillTransport(d.device_code, resource.value)">Load</button>
+                        }
                         }
                     </td>
 
@@ -79,5 +100,13 @@
     <details>
     <summary>Raw JSON</summary>
     <pre>{{ sdr | json }}</pre>
+    </details>
+}
+
+@if (api.fillTransportResult(); as ftr){
+    <h3>fill transport result</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ ftr | json }}</pre>
     </details>
 }

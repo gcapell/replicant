@@ -4,7 +4,7 @@ import { AccountData, ScanDroneResult, DeactivateDroneResult,
     DeviceList, Replicant, Location, MessageList, 
     SearchResult, Tutorials, TutorialDetail, SendDroneResult, 
     StartMiningResult, ReplicantScanResult, BlueprintsList,
-    StartPrintingResult } from './model';
+    StartPrintingResult, FillTransportResult } from './model';
 import { EventList } from './eventmodel';
 
 @Service()
@@ -29,6 +29,7 @@ export class ReplicantApi {
     readonly deactivateDroneResult = signal<DeactivateDroneResult | null>(null);
     readonly scanDroneResult = signal<ScanDroneResult | null>(null);
     readonly startPrintingResult = signal<StartPrintingResult | null>(null);
+    readonly fillTransportResult = signal<FillTransportResult | null > (null);
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
         this.http.get<T>(path, {
             headers: {
@@ -171,6 +172,13 @@ export class ReplicantApi {
             `/v1/devices/${drone}`,
             { "command": "travel", "destination": loc },
             this.sendDroneResult);
+    }
+    fillTransport(drone:string, resource:string) {
+        this.postAndUpdate(`/v1/devices/${drone}`,
+            {command: "collect_resources",
+                resources: {[resource]: 20},
+            },
+            this.fillTransportResult);
     }
     scanDrone(drone: string) {
         this.postAndUpdate(

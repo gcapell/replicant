@@ -241,6 +241,10 @@ interface Device {
     stow_used: number;
     stowed_devices: StowedDevice[];
     travel: Travel;
+
+    cargo: ResourceCount[];
+    cargo_capacity:number;
+    cargo_used:number;
 }
 
 interface Travel {
@@ -271,5 +275,9 @@ export interface ScanDroneResult{
 }
 
 export interface StartPrintingResult {
+
+}
+
+export interface FillTransportResult{
 
 }
