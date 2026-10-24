@@ -1,10 +1,10 @@
 import { Component, inject } from '@angular/core';
 import { ReplicantApi } from '../replicant-api';
 import { JsonPipe } from '@angular/common';
-import { BulletedList } from '../shared/bulleted-list/bulleted-list';
+import { MoveDevice} from '../shared/move-device/move-device';
 
 @Component({
-  imports: [JsonPipe, BulletedList],
+  imports: [JsonPipe, MoveDevice],
   selector: 'app-devices',
   styleUrl: './devices.scss',
   templateUrl: './devices.html',

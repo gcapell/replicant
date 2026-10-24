@@ -24,23 +24,11 @@
                     <!-- <td><app-bulleted-list [items]="d.features"/></td> -->
                     <td>
                         @if(d.device_type == "mining_drone"){
-                            <select #miningDestination>
-                                <option value="" disabled selected>move to...</option>
-                                @for ( p of api.replicantScanResult()?.planets; track p.designation){
-                                    <option value="{{p.designation}}">{{p.designation}}</option>
-                                }
-                            </select>
-                            <button type="button" (click)="api.sendDrone(d.device_code, miningDestination.value)">Send</button>
+                            <app-move-device deviceCode="d.device_code"/>
                             <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
                         }
                         @if(d.device_type == "survey_drone"){
-                            <select #surveyDestination>
-                                <option value="" disabled selected>move to...</option>
-                                @for ( p of api.replicantScanResult()?.planets; track p.designation){
-                                    <option value="{{p.designation}}">{{p.designation}}</option>
-                                }
-                            </select>
-                            <button type="button" (click)="api.sendDrone(d.device_code, surveyDestination.value)">Send</button>
+                            <app-move-device deviceCode="d.device_code"/>
                             <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
                             <button type="button" (click)="api.scanDrone(d.device_code)">Scan</button>
                         }
