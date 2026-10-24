@@ -10,6 +10,17 @@
     <pre>{{ r | json }}</pre>
     </details>
 
+    @if(r.active_location_events; as ales){
+        <h3>Location Events</h3>
+        <ul>
+        @for(e of ales; track e.designation){
+            <li>
+                {{e.title}}(tier {{e.tier}} {{e.event_type}} @ {{e.location}})
+            </li>
+        }
+        </ul>
+    }
+
     @if(r.life_detected){<p>life detected!</p>}
     @if(r.mining_bonus_pct){<p>mining bonus {{r.mining_bonus_pct}}%</p>}
     @if(r.outer_system; as os){

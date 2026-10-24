@@ -197,7 +197,13 @@ interface AsteroidBelt{
     resources: Record<string,string>;
     designation:string;
 }
-interface ActiveLocationEvent{}
+interface ActiveLocationEvent{
+    designation: string;
+    event_type: string;
+    location:string;
+    tier: number;
+    title: string;
+}
 
 export interface BlueprintsList{
     blueprints: Blueprint[];
