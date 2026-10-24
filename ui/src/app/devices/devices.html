@@ -33,7 +33,7 @@
                     <td>
                         @switch(d.device_type){
                         @case("mining_drone"){
-                            <app-move-device deviceCode="d.device_code"/>
+                            <app-move-device [deviceCode]="d.device_code"/>
                             <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
 
                             <select #resource>
@@ -53,13 +53,12 @@
                             <button type="button" (click)="api.startMining(d.device_code,resource.value,site.value)">Mine</button>
                         }
                         @case("survey_drone"){
-                            <app-move-device deviceCode="d.device_code"/>
+                            <app-move-device [deviceCode]="d.device_code"/>
                             <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
                             <button type="button" (click)="api.scanDrone(d.device_code)">Scan</button>
                         }
                         @case("transport_drone"){
-                     
-                            <app-move-device deviceCode="d.device_code"/>
+                            <app-move-device [deviceCode]="d.device_code"/>
                             <select #resource>
                             <option value="" disabled selected>resource...</option>
                             @for(r of ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"]; track r){
