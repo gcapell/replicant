@@ -120,9 +120,6 @@ interface Message {
     title: string,
 }
 
-
-
-
 export interface StartMiningResult {
     cycle_time_seconds: number;
     device_code: string;
@@ -235,6 +232,17 @@ interface Device {
     stow_capacity: number;
     stow_used: number;
     stowed_devices: StowedDevice[];
+    travel: Travel;
+}
+
+interface Travel {
+    final_arrives_at: string;
+    origin:string;
+    departed_at: string;
+    final_destination:string;
+    route_eta_seconds: string;
+    stage: string;
+    type: string;
 }
 
 interface ReplicantPtr{
