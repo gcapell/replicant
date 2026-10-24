@@ -75,5 +75,16 @@
             }
         </ul>
     }
+    @if(r.system_objects; as sos) {
+        <h3>System Objects</h3>
+        <ul>
+            @for(so of sos; track so.designation){
+                <li>
+                    {{so.designation}} ({{so.object_type}}) ->
+                    {{so.impact_target}} ETA {{so.impact_eta}} ({{so.impact_likelihood}}%)
+                </li>
+            }
+        </ul>
+    }
     
 }
