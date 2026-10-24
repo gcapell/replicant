@@ -281,3 +281,6 @@ export interface StartPrintingResult {
 export interface FillTransportResult{
 
 }
+export interface EmptyTransportResult{
+
+}

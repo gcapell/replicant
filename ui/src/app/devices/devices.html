@@ -65,7 +65,8 @@
                                 <option [value]="r">{{r}}</option>
                             }
                             </select>
-                            <button type="button" (click)="api.fillTransport(d.device_code, resource.value)">Load</button>
+                            <button type="button" (click)="api.fillTransport(d.device_code, resource.value)">Fill</button>
+                            <button type="button" (click)="api.emptyTransport(d.device_code, resource.value)">Empty</button>
                         }
                         }
                     </td>
@@ -107,5 +108,12 @@
     <details>
     <summary>Raw JSON</summary>
     <pre>{{ ftr | json }}</pre>
+    </details>
+}
+@if (api.emptyTransportResult(); as etr){
+    <h3>empty transport result</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ etr | json }}</pre>
     </details>
 }
