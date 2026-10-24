@@ -139,11 +139,12 @@ export class ReplicantApi {
             { "command": "search" },
             this.searchResult);
     }
-    startMining(id: string) {
-        this.postAndUpdate(
-            `/v1/devices/${id}`,
-            { "command": "start_mining", "resource_type": "carbon" },
-            this.startMiningResult);
+    startMining(id: string, resource:string,site:string) {
+        this.postAndUpdate( `/v1/devices/${id}`,{
+            command: "start_mining", 
+            resource_type: resource , 
+            ...(site && { target: site }),
+        }, this.startMiningResult);
     }
     scan(id: string) {
         this.postAndUpdate(

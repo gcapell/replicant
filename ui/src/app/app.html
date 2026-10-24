@@ -1,3 +1,7 @@
+@if (api.errorMessage(); as e) {
+<h1>Error</h1>
+<pre>{{ api.errorMessage() | json  }}</pre>
+}
 <main class="dashboard"><app-account-data />
     <details open>
         <summary>Tutorials</summary>
@@ -32,8 +36,3 @@
         <app-system-scan />
     </details>
 </main>
-
-@if (api.errorMessage(); as e) {
-<h1>Error</h1>
-<pre>{{ api.errorMessage()  }}</pre>
-}

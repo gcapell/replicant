@@ -26,6 +26,22 @@
                         @if(d.device_type == "mining_drone"){
                             <app-move-device deviceCode="d.device_code"/>
                             <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
+
+                            <select #resource>
+                            <option value="" disabled selected>resource...</option>
+                            @for(r of ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"]; track r){
+                                <option [value]="r">{{r}}</option>
+                            }
+                            </select>
+                            <select #site>
+                            @if(salvageSites(d.location); as sites){
+                                <option value="" disabled selected>site...</option>
+                                @for(s of sites; track s){
+                                    <option [value]="s">{{s}}</option>
+                                }
+                            }
+                            </select>
+                            <button type="button" (click)="api.startMining(d.device_code,resource.value,site.value)">Mine</button>
                         }
                         @if(d.device_type == "survey_drone"){
                             <app-move-device deviceCode="d.device_code"/>
