@@ -8,9 +8,10 @@ import {Location} from './location/location';
 import {Replicant} from './replicant/replicant';
 import { Blueprints } from './blueprints/blueprints';
 import {Devices} from './devices/devices';
+import {SystemScan} from './system-scan/system-scan';
 
 @Component({
-  imports: [ Tutorials,Messages,Events,AccountData,Location,Replicant,Blueprints,Devices],
+  imports: [ Tutorials,Messages,Events,AccountData,Location,Replicant,Blueprints,Devices,SystemScan],
   selector: 'app-root',
   styleUrl: './app.scss',
   templateUrl: './app.html',
