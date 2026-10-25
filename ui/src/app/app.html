@@ -2,37 +2,48 @@
 <h1>Error</h1>
 <pre>{{ api.errorMessage() | json  }}</pre>
 }
-<main class="dashboard"><app-account-data />
-    <details open>
-        <summary>Tutorials</summary>
-        <app-tutorials />
-    </details>
-    <details open>
-        <summary>Messages</summary>
-        <app-messages />
-    </details>
-    <details open>
-        <summary>Events</summary>
-        <app-events />
-    </details>
-    <details open>
-        <summary>Location</summary>
-        <app-location />
-    </details>
-    <details open>
-        <summary>Replicant</summary>
-        <app-replicant />
-    </details>
-    <details open>
-        <summary>Blueprints</summary>
-        <app-blueprints />
-    </details>
-    <details open>
-        <summary>Devices</summary>
-        <app-devices />
-    </details>
+<main class="dashboard">
+    <div class="col">
         <details open>
-        <summary>System Scan</summary>
-        <app-system-scan />
-    </details>
+            <summary>Account</summary>
+            <app-account-data />
+        </details>
+        <details open>
+            <summary>Replicant</summary>
+            <app-replicant />
+        </details>
+        <details open>
+            <summary>Tutorials</summary>
+            <app-tutorials />
+        </details>
+        <details open>
+            <summary>Messages</summary>
+            <app-messages />
+        </details>
+        <details open>
+            <summary>Events</summary>
+            <app-events />
+        </details>
+    </div>
+    <div class="col">
+        <details open>
+            <summary>System Scan</summary>
+            <app-system-scan />
+        </details>
+        <details open>
+            <summary>Location</summary>
+            <app-location />
+        </details>
+    </div>
+    <div class="col">
+        <details open>
+            <summary>Devices</summary>
+            <app-devices />
+        </details>
+
+        <details open>
+            <summary>Blueprints</summary>
+            <app-blueprints />
+        </details>
+    </div>
 </main>
