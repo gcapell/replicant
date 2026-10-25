@@ -110,25 +110,26 @@
                             <button type="button" (click)="api.emptyTransport(d.device_code, resource.value)">Empty</button>
                         }
                         @case("ami_survey_controller"){
-                            <select #survey_drones multiple>
-                                @for(d of dt.devices; track d.device_code){
-                                    @if(d.device_type === "survey_drone"){
+                            @let orphans = dt.orphan_survey_drones;
+                            @if(orphans.length){
+                                <select #drones multiple>
+                                    @for(d of orphans; track d.device_code){
                                         <option [value]="d.device_code">{{d.device_code}}@{{d.location}}</option>
                                     }
-                                }
-                            </select>
-                            <button type="button" (click)="adopt(d.device_code, survey_drones)">Adopt</button>
+                                </select>
+                                <button type="button" (click)="adopt(d.device_code, drones)">Adopt</button>
+                            }
                         }
                         @case("ami_transport_controller"){
-                            <select #transport_drones multiple>
-                                @for(d of dt.devices; track d.device_code){
-                                    @if(d.device_type === "transport_drone"){
+                            @let orphans = dt.orphan_transport_drones;
+                            @if(orphans.length){
+                                <select #drones multiple>
+                                    @for(d of orphans; track d.device_code){
                                         <option [value]="d.device_code">{{d.device_code}}@{{d.location}}</option>
                                     }
-                                }
-                            </select>
-                            <button type="button" (click)="adopt(d.device_code, transport_drones)">Adopt</button>
-                            <br>
+                                </select>
+                                <button type="button" (click)="adopt(d.device_code, drones)">Adopt</button>
+                            }
 
                             <form [formGroup]="form" (ngSubmit)="setDeliveryDirective(d.device_code)">
                                 src: <select formControlName="collect">

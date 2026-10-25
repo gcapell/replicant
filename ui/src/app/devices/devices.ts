@@ -17,6 +17,9 @@ interface DeviceTree {
   devices: Device[];
   controlled: Record<string, Device[]>; // devices controlled by this ID
   stowed: Record<string, Device[]>;  // devices stowed in this ID
+  orphan_survey_drones: Device[];
+  orphan_transport_drones: Device[];
+  orphan_miner_drones: Device[];
 }
 
 @Component({
@@ -50,16 +53,34 @@ export class Devices {
     const controlled: Record<string, Device[]> = {};
     const stowed: Record<string, Device[]> = {};
     const devices: Device[] = [];
+    const orphan_miner_drones: Device[] = [];
+    const orphan_survey_drones: Device[] = [];
+    const orphan_transport_drones: Device[] = [];
+
     for (const d of deviceList) {
       if (d.controller_device_code) {
         (controlled[d.controller_device_code] ??= []).push(d);
-      } else if (d.stowed_in_device_code) {
-        (stowed[d.stowed_in_device_code] ??= []).push(d);
       } else {
-        devices.push(d);
+        // device not controlled by AMI
+        if (d.stowed_in_device_code) {
+          (stowed[d.stowed_in_device_code] ??= []).push(d);
+        } else {
+          devices.push(d);
+        }
+        switch (d.device_type) {
+          case "mining_drone":
+            orphan_miner_drones.push(d);
+            break;
+          case "survey_drone":
+            orphan_survey_drones.push(d);
+            break;
+          case "transport_drone": orphan_transport_drones.push(d);
+            break;
+        }
       }
+
     }
-    return { devices, controlled, stowed };
+    return { devices, controlled, stowed, orphan_miner_drones, orphan_survey_drones, orphan_transport_drones };
   });
 
   form = this.fb.nonNullable.group({
