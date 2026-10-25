@@ -301,6 +301,7 @@ interface Travel {
     departed_at: string;
     final_destination:string;
     route_eta_seconds: string;
+    eta_seconds: string;
     stage: string;
     type: string;
 }
@@ -337,5 +338,5 @@ export interface AdoptTransportResult{
 }
 
 export interface SetDeliveryDirectiveResult {
-    
+
 }

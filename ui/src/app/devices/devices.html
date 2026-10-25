@@ -24,14 +24,23 @@
                             <br>controlled:
                             <ul>
                             @for (c of controlled; track c.device_code){
-                                <li>{{c.device_code}}@{{c.location}}({{c.status}})</li>
+                                <li>{{c.device_code}}@{{c.location}}({{c.status}})
+                                    @if(c.travel; as t){
+                                        -> {{t.final_destination}} in {{t.eta_seconds}}s
+                                    }
+                                    @if(c.cargo_used){
+                                        carrying @for(cgo of c.cargo; track cgo.resource_type){
+                                            {{cgo.quantity}} {{cgo.resource_type}},
+                                        }
+                                    }
+                                </li>
                             }
                             </ul>
                         }
                     </td>
                     <td>{{d.location}}</td>
                     <td>{{d.status}}
-                               @if(d.cargo){
+                               @if(d.cargo_used){
                                 <ul>
                                     @for(c of d.cargo; track c.resource_type){
                                         <li>{{c.resource_type}}:{{c.quantity}}</li>
