@@ -376,3 +376,4 @@ export interface SetDirectiveResult {
 export interface ReleaseDronesResult {
 
 }
+export interface PatrolResult{}

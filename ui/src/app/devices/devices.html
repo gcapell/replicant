@@ -70,6 +70,9 @@
                     <!-- <td><app-bulleted-list [items]="d.features"/></td> -->
                     <td>
                         @switch(d.device_type){
+                        @case("maintenance_drone"){
+                            <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>
+                        }
                         @case("heaven_vessel"){
                             <app-move-device [deviceCode]="d.device_code"/>
                         }
@@ -239,6 +242,13 @@
 }
 @if (api.releaseDronesResult(); as r){
     <h3>release drones result</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ r | json }}</pre>
+    </details>
+}
+@if (api.patrolResult(); as r){
+    <h3>patrol result</h3>
     <details>
     <summary>Raw JSON</summary>
     <pre>{{ r | json }}</pre>

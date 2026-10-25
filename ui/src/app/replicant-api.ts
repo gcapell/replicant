@@ -5,7 +5,8 @@ import { AccountData, ScanDroneResult, DeactivateDroneResult,
     SearchResult, Tutorials, TutorialDetail, SendDroneResult, 
     StartMiningResult, ReplicantScanResult, BlueprintsList,
     StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
-    SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult} from './model';
+    SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult,
+    PatrolResult} from './model';
 import { EventList } from './eventmodel';
 
 @Service()
@@ -37,6 +38,7 @@ export class ReplicantApi {
     readonly completeEventResult = signal<CompleteEventResult | null> (null);
     readonly setDirectiveResult = signal<SetDirectiveResult | null> (null);
     readonly releaseDronesResult = signal<ReleaseDronesResult | null> (null);
+    readonly patrolResult = signal<PatrolResult | null> (null);
     
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
@@ -184,6 +186,12 @@ export class ReplicantApi {
             `/v1/devices/${drone}`,
             { "command": "travel", "destination": loc },
             this.sendDroneResult);
+    }
+    patrol(drone: string) {
+        this.postAndUpdate(
+            `/v1/devices/${drone}`,
+            { "command": "set_directive", "directive": "patrol" },
+            this.patrolResult);
     }
     fillTransport(drone:string, resource:string) {
         this.postAndUpdate(`/v1/devices/${drone}`,
