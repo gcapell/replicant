@@ -118,6 +118,8 @@
                         @case("ami_mining_controller"){
                             <app-adopt [orphans]="dt.orphan_mining_drones" 
                             (adopt)="api.adoptDrones(d.device_code, $event)"/>
+                            <app-release [children]="dt.controlled[d.device_code]" 
+                            (release)="api.releaseDrones(d.device_code, $event)"/>
                              <button type="button" (click)="gatherEvenly(d.device_code)">gather evenly</button>
                         }
                         @case("ami_transport_controller"){
@@ -158,6 +160,12 @@
                                 <button type="button" (click)="addItem()">Add resource</button>
                                 <button type="submit" [disabled]="form.invalid">Set delivery</button>
                                 </form>
+                                <select #consolidateDst>
+                                    @for(d of api.destinations(); track d){
+                                        <option [value]="d">{{d}}</option>
+                                    }
+                                </select>
+                                <button type="button" (click)="consolidate(d.device_code, consolidateDst.value)">consolidate to</button>
                         }
                         }
                     </td>
@@ -224,6 +232,13 @@
 }
 @if (api.setDirectiveResult(); as r){
     <h3>set directive result</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ r | json }}</pre>
+    </details>
+}
+@if (api.releaseDronesResult(); as r){
+    <h3>release drones result</h3>
     <details>
     <summary>Raw JSON</summary>
     <pre>{{ r | json }}</pre>

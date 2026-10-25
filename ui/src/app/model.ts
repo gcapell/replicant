@@ -371,3 +371,7 @@ export interface CompleteEventResult {
 export interface SetDirectiveResult {
 
 }
+
+export interface ReleaseDronesResult {
+    
+}

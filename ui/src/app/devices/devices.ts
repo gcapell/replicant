@@ -6,6 +6,7 @@ import { MoveDevice } from '../shared/move-device/move-device';
 import { Device } from '../model';
 import { humanizeSeconds } from '../format-duration';
 import { Adopt } from '../shared/adopt/adopt';
+import { Release } from '../shared/release/release';
 
 @Pipe({ name: 'humanizeSeconds', standalone: true })
 export class HumanizeSecondsPipe implements PipeTransform {
@@ -24,7 +25,7 @@ interface DeviceTree {
 }
 
 @Component({
-  imports: [JsonPipe, MoveDevice, ReactiveFormsModule, HumanizeSecondsPipe, KeyValuePipe, Adopt],
+  imports: [JsonPipe, MoveDevice, ReactiveFormsModule, HumanizeSecondsPipe, KeyValuePipe, Adopt, Release],
   selector: 'app-devices',
   styleUrl: './devices.scss',
   templateUrl: './devices.html',
@@ -114,5 +115,8 @@ export class Devices {
   }
   gatherEvenly(controller:string){
     this.api.setDirective(controller, "gather_evenly", {})
+  }
+  consolidate(controller:string, dst:string){
+    this.api.setDirective(controller, "consolidate", {deliver: dst})
   }
 }
