@@ -293,6 +293,23 @@ export interface Device {
     cargo: ResourceCount[];
     cargo_capacity:number;
     cargo_used:number;
+
+    ami_directive_status: string;
+    ami_directive: AMIDirective;
+    printing: PrintingStatus;
+}
+
+interface PrintingStatus{
+    completes_at: string;
+    device_type: string;
+    eta_seconds: number;
+    progress_percent: number;
+    started_at: string;
+    // tags
+}
+
+interface AMIDirective {
+
 }
 
 interface Travel {

@@ -40,12 +40,18 @@
                     </td>
                     <td>{{d.location}}</td>
                     <td>{{d.status}}
-                               @if(d.cargo_used){
+                            @if(d.cargo_used){
                                 <ul>
                                     @for(c of d.cargo; track c.resource_type){
                                         <li>{{c.resource_type}}:{{c.quantity}}</li>
                                     }
                                 </ul>
+                            }
+                            @if(d.ami_directive_status === "active"){
+                                <pre>{{d.ami_directive | json}}</pre>
+                            }
+                            @if(d.printing?.eta_seconds; as s) {
+                                printing ETA {{s | humanizeSeconds}}
                             }
                     </td>
                     <td>@if(d.stow_capacity){
@@ -59,6 +65,9 @@
                     <!-- <td><app-bulleted-list [items]="d.features"/></td> -->
                     <td>
                         @switch(d.device_type){
+                        @case("heaven_vessel"){
+                            <app-move-device [deviceCode]="d.device_code"/>
+                        }
                         @case("mining_drone"){
                             <app-move-device [deviceCode]="d.device_code"/>
                             <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
