@@ -271,7 +271,7 @@ export interface DeviceList {
     next_cursor: number;
 }
 
-interface Device {
+export interface Device {
     available_commands: string[];
     device_code:string;
     device_type:string;
@@ -280,6 +280,8 @@ interface Device {
     in_control_range: boolean;
     location:string;
     operational_capacity: number;
+    controller_device_code: string;
+    stowed_in_device_code: string;
     // print_queue
     replicant_code: string;
     status: string;
@@ -331,5 +333,5 @@ export interface EmptyTransportResult{
 
 }
 export interface AdoptTransportResult{
-    
+
 }

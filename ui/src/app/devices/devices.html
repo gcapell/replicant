@@ -1,16 +1,34 @@
 <button (click)="api.listDevices()">Load</button>
-@if (api.deviceList(); as dl) {
+@if (deviceTree(); as dt) {
     <h1>Devices</h1>
     <details>
     <summary>Raw JSON</summary>
-    <pre>{{ dl | json }}</pre>
+    <pre>{{ dt | json }}</pre>
     </details>
 
     <table>
         <tbody>
-            @for (d of dl.devices; track d.device_code){
+            @for (d of dt.devices; track d.device_code){
                 <tr>
-                    <td>{{d.device_type}} {{d.device_code}}</td>
+                    <td>
+                        {{d.device_type}} {{d.device_code}}
+                        @if(dt.stowed[d.device_code]; as stowed){
+                            <br>stowed:
+                            <ul>
+                            @for (s of stowed; track s.device_code){
+                                <li>{{s.device_code}}({{s.device_type}})</li>
+                            }
+                            </ul>
+                        }
+                        @if(dt.controlled[d.device_code]; as controlled){
+                            <br>controlled:
+                            <ul>
+                            @for (c of controlled; track c.device_code){
+                                <li>{{c.device_code}}@{{c.location}}({{c.status}})</li>
+                            }
+                            </ul>
+                        }
+                    </td>
                     <td>{{d.location}}</td>
                     <td>{{d.status}}
                                @if(d.cargo){
@@ -70,7 +88,7 @@
                         }
                         @case("ami_transport_controller"){
                             <select #transport_drones multiple>
-                                @for(d of dl.devices; track d.device_code){
+                                @for(d of dt.devices; track d.device_code){
                                     @if(d.device_type === "transport_drone"){
                                         <option [value]="d.device_code">{{d.device_code}}@{{d.location}}</option>
                                     }
