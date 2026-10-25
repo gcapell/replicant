@@ -330,3 +330,6 @@ export interface FillTransportResult{
 export interface EmptyTransportResult{
 
 }
+export interface AdoptTransportResult{
+    
+}

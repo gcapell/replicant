@@ -20,4 +20,8 @@ export class Devices {
       ?.filter(s => !s.depleted)
       .map(s => s.designation) ?? [];
   }
+  adopt(controller:string, select: HTMLSelectElement){
+    const codes = Array.from(select.selectedOptions, o => o.value);
+    this.api.adoptTransport(controller, codes);
+  }
 }
