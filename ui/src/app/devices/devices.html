@@ -109,6 +109,16 @@
                             <button type="button" (click)="api.fillTransport(d.device_code, resource.value)">Fill</button>
                             <button type="button" (click)="api.emptyTransport(d.device_code, resource.value)">Empty</button>
                         }
+                        @case("ami_survey_controller"){
+                            <select #survey_drones multiple>
+                                @for(d of dt.devices; track d.device_code){
+                                    @if(d.device_type === "survey_drone"){
+                                        <option [value]="d.device_code">{{d.device_code}}@{{d.location}}</option>
+                                    }
+                                }
+                            </select>
+                            <button type="button" (click)="adopt(d.device_code, survey_drones)">Adopt</button>
+                        }
                         @case("ami_transport_controller"){
                             <select #transport_drones multiple>
                                 @for(d of dt.devices; track d.device_code){
