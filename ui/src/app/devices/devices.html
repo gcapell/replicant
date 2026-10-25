@@ -53,6 +53,11 @@
                             @if(d.printing?.eta_seconds; as s) {
                                 printing ETA {{s | humanizeSeconds}}
                             }
+                            @if(d.status === "waiting_for_resources"){
+                                @for(wf of d.waiting_for|keyvalue; track wf.key){
+                                    {{wf.key}} {{wf.value.have}}/{{wf.value.need}},
+                                }
+                            }
                     </td>
                     <td>@if(d.stow_capacity){
                         {{d.stow_used}}/{{d.stow_capacity}}

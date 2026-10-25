@@ -1,7 +1,7 @@
 import { Component, inject, computed, Pipe, PipeTransform } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ReplicantApi } from '../replicant-api';
-import { JsonPipe } from '@angular/common';
+import { JsonPipe, KeyValuePipe } from '@angular/common';
 import { MoveDevice } from '../shared/move-device/move-device';
 import { Device } from '../model';
 import { humanizeSeconds } from '../format-duration';
@@ -20,7 +20,7 @@ interface DeviceTree {
 }
 
 @Component({
-  imports: [JsonPipe, MoveDevice, ReactiveFormsModule, HumanizeSecondsPipe],
+  imports: [JsonPipe, MoveDevice, ReactiveFormsModule, HumanizeSecondsPipe, KeyValuePipe],
   selector: 'app-devices',
   styleUrl: './devices.scss',
   templateUrl: './devices.html',

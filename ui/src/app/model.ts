@@ -73,6 +73,7 @@ export interface Location {
 interface LocationEvent {
     broadcast_message: string;
     description:string;
+    designation: string;
     category:string;
     event_type:string;
     location:string;
@@ -297,8 +298,14 @@ export interface Device {
     ami_directive_status: string;
     ami_directive: AMIDirective;
     printing: PrintingStatus;
+
+    waiting_for: Record<ResourceType,WaitingForStat>;
 }
 
+interface WaitingForStat {
+    have:number;
+    need:number;
+}
 interface PrintingStatus{
     completes_at: string;
     device_type: string;
@@ -355,5 +362,9 @@ export interface AdoptTransportResult{
 }
 
 export interface SetDeliveryDirectiveResult {
+
+}
+
+export interface CompleteEventResult {
 
 }

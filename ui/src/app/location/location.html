@@ -45,6 +45,13 @@
             </table>
 
         }
+
+        <h3>complete</h3>
+        <button type="button" (click)="api.completeEvent(loc.location,e.designation)">Complete</button>
+
+        @if(api.completeEventResult(); as r){
+            <pre>{{r | json}}</pre>
+        }
     }
     @if (loc.devices; as d) {
         <h2>Devices</h2>
