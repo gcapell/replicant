@@ -357,7 +357,7 @@ export interface FillTransportResult{
 export interface EmptyTransportResult{
 
 }
-export interface AdoptTransportResult{
+export interface AdoptDronesResult{
 
 }
 
@@ -369,5 +369,5 @@ export interface CompleteEventResult {
 
 }
 export interface SetDirectiveResult {
-    
+
 }

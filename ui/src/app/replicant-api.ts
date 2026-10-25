@@ -4,7 +4,7 @@ import { AccountData, ScanDroneResult, DeactivateDroneResult,
     DeviceList, Replicant, Location, MessageList, 
     SearchResult, Tutorials, TutorialDetail, SendDroneResult, 
     StartMiningResult, ReplicantScanResult, BlueprintsList,
-    StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptTransportResult,
+    StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
     SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult} from './model';
 import { EventList } from './eventmodel';
 
@@ -32,7 +32,7 @@ export class ReplicantApi {
     readonly startPrintingResult = signal<StartPrintingResult | null>(null);
     readonly fillTransportResult = signal<FillTransportResult | null > (null);
     readonly emptyTransportResult = signal<EmptyTransportResult | null > (null);
-    readonly adoptTransportResult = signal<AdoptTransportResult | null> (null);
+    readonly adoptDronesResult = signal<AdoptDronesResult | null> (null);
     readonly setDeliveryDirectiveResult = signal<SetDeliveryDirectiveResult | null> (null);
     readonly completeEventResult = signal<CompleteEventResult | null> (null);
     readonly setDirectiveResult = signal<SetDirectiveResult | null> (null);
@@ -195,10 +195,10 @@ export class ReplicantApi {
             },
             this.emptyTransportResult);
     }
-    adoptTransport(controller:string, drones:string[]) {
+    adoptDrones(controller:string, drones:string[]) {
         this.postAndUpdate(`/v1/devices/${controller}`,
             {command: "adopt", devices: drones},
-            this.adoptTransportResult);
+            this.adoptDronesResult);
     }
     completeEvent(location:string, eventDesignation:string) {
         this.postAndUpdate(`/v1/locations/${location}/events/${eventDesignation}`,

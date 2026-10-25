@@ -5,6 +5,7 @@ import { JsonPipe, KeyValuePipe } from '@angular/common';
 import { MoveDevice } from '../shared/move-device/move-device';
 import { Device } from '../model';
 import { humanizeSeconds } from '../format-duration';
+import { Adopt } from '../shared/adopt/adopt';
 
 @Pipe({ name: 'humanizeSeconds', standalone: true })
 export class HumanizeSecondsPipe implements PipeTransform {
@@ -19,11 +20,11 @@ interface DeviceTree {
   stowed: Record<string, Device[]>;  // devices stowed in this ID
   orphan_survey_drones: Device[];
   orphan_transport_drones: Device[];
-  orphan_miner_drones: Device[];
+  orphan_mining_drones: Device[];
 }
 
 @Component({
-  imports: [JsonPipe, MoveDevice, ReactiveFormsModule, HumanizeSecondsPipe, KeyValuePipe],
+  imports: [JsonPipe, MoveDevice, ReactiveFormsModule, HumanizeSecondsPipe, KeyValuePipe, Adopt],
   selector: 'app-devices',
   styleUrl: './devices.scss',
   templateUrl: './devices.html',
@@ -40,12 +41,6 @@ export class Devices {
       ?.filter(s => !s.depleted)
       .map(s => s.designation) ?? [];
   }
-  adopt(controller: string, select: HTMLSelectElement) {
-    const codes = Array.from(select.selectedOptions, o => o.value);
-    this.api.adoptTransport(controller, codes);
-  }
-
-
   deviceTree = computed<DeviceTree | null>(() => {
     const deviceList = this.api.deviceList()?.devices;
     if (!deviceList?.length) return null;
@@ -53,7 +48,7 @@ export class Devices {
     const controlled: Record<string, Device[]> = {};
     const stowed: Record<string, Device[]> = {};
     const devices: Device[] = [];
-    const orphan_miner_drones: Device[] = [];
+    const orphan_mining_drones: Device[] = [];
     const orphan_survey_drones: Device[] = [];
     const orphan_transport_drones: Device[] = [];
 
@@ -69,7 +64,7 @@ export class Devices {
         }
         switch (d.device_type) {
           case "mining_drone":
-            orphan_miner_drones.push(d);
+            orphan_mining_drones.push(d);
             break;
           case "survey_drone":
             orphan_survey_drones.push(d);
@@ -80,7 +75,7 @@ export class Devices {
       }
 
     }
-    return { devices, controlled, stowed, orphan_miner_drones, orphan_survey_drones, orphan_transport_drones };
+    return { devices, controlled, stowed, orphan_mining_drones, orphan_survey_drones, orphan_transport_drones };
   });
 
   form = this.fb.nonNullable.group({
@@ -107,7 +102,6 @@ export class Devices {
     const requirement = Object.fromEntries(v.items.map(i => [i.resource, i.amount]));
     this.api.setDeliveryDirective(controller, v.collect, v.deliver, requirement);
   }
-
   surveySystem(controller:string){
     this.api.setDirective(controller, "survey_system", {
       planets:"all",
@@ -117,5 +111,8 @@ export class Devices {
   }
   searchBelt(controller:string){
     this.api.setDirective(controller, "belt_search", {})
+  }
+  gatherEvenly(controller:string){
+    this.api.setDirective(controller, "gather_evenly", {})
   }
 }
