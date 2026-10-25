@@ -368,3 +368,6 @@ export interface SetDeliveryDirectiveResult {
 export interface CompleteEventResult {
 
 }
+export interface SetDirectiveResult {
+    
+}

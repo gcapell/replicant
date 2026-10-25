@@ -107,4 +107,15 @@ export class Devices {
     const requirement = Object.fromEntries(v.items.map(i => [i.resource, i.amount]));
     this.api.setDeliveryDirective(controller, v.collect, v.deliver, requirement);
   }
+
+  surveySystem(controller:string){
+    this.api.setDirective(controller, "survey_system", {
+      planets:"all",
+      moons:"all",
+      recall:true,
+    })
+  }
+  searchBelt(controller:string){
+    this.api.setDirective(controller, "belt_search", {})
+  }
 }

@@ -119,6 +119,8 @@
                                 </select>
                                 <button type="button" (click)="adopt(d.device_code, drones)">Adopt</button>
                             }
+                            <button type="button" (click)="surveySystem(d.device_code)">System</button>
+                            <button type="button" (click)="searchBelt(d.device_code)">Belt</button>
                         }
                         @case("ami_transport_controller"){
                             @let orphans = dt.orphan_transport_drones;
@@ -224,6 +226,13 @@
 }
 @if (api.setDeliveryDirectiveResult(); as r){
     <h3>set delivery directive result</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ r | json }}</pre>
+    </details>
+}
+@if (api.setDirectiveResult(); as r){
+    <h3>set directive result</h3>
     <details>
     <summary>Raw JSON</summary>
     <pre>{{ r | json }}</pre>
