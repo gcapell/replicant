@@ -124,7 +124,10 @@ export class ReplicantApi {
         this.fetchAndUpdate(`/v1/tutorials/${slug}`, this.tutorialDetail);
     }
     listMessages() {
-        this.fetchAndUpdate(`/v1/messages`, this.messageList);
+        this.fetchAllPages(`/v1/messages`, this.messageList, (acc, extra) => ({
+            ...extra,
+            messages: [...acc.messages, ...extra.messages],
+        }))
     }
     listEvents() {
         this.fetchAndUpdate('/v1/events', this.eventList);

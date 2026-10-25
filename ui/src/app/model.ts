@@ -157,6 +157,7 @@ interface TutorialStep {
 
 export interface MessageList {
     messages: Message[];
+    next_cursor: number;
 }
 interface Message {
     body: string;
@@ -373,5 +374,5 @@ export interface SetDirectiveResult {
 }
 
 export interface ReleaseDronesResult {
-    
+
 }
