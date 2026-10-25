@@ -95,6 +95,42 @@
                                 }
                             </select>
                             <button type="button" (click)="adopt(d.device_code, transport_drones)">Adopt</button>
+                            <br>
+
+                            <form [formGroup]="form" (ngSubmit)="setDeliveryDirective(d.device_code)">
+                                src: <select formControlName="collect">
+                                    @for(d of api.destinations(); track d){
+                                        <option [value]="d">{{d}}</option>
+                                    }
+                                </select>
+                                    dst: <select formControlName="deliver">
+                                    @for(d of api.destinations(); track d){
+                                        <option [value]="d">{{d}}</option>
+                                    }
+                                </select>
+
+                                <div formArrayName="items">
+                                    @for (item of form.controls.items.controls; track item; let i = $index) {
+                                    <div [formGroupName]="i">
+                                        <select formControlName="resource" placeholder="resource">
+                                        @for(r of api.resources; track r){
+                                            <option [value]="r">{{r}}</option>
+                                        }
+                                        </select>
+                                        <input type="number" formControlName="amount" min="1" />
+                                        <button
+                                        type="button"
+                                        (click)="removeItem(i)"
+                                        [disabled]="form.controls.items.length === 1">
+                                        Remove
+                                        </button>
+                                    </div>
+                                    }
+                                </div>
+
+                                <button type="button" (click)="addItem()">Add resource</button>
+                                <button type="submit" [disabled]="form.invalid">Set delivery</button>
+                                </form>
                         }
                         }
                     </td>
@@ -147,6 +183,13 @@
 }
 @if (api.adoptTransportResult(); as r){
     <h3>adopt transport result</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ r | json }}</pre>
+    </details>
+}
+@if (api.setDeliveryDirectiveResult(); as r){
+    <h3>set delivery directive result</h3>
     <details>
     <summary>Raw JSON</summary>
     <pre>{{ r | json }}</pre>

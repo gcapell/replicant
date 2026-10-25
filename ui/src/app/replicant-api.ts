@@ -1,10 +1,11 @@
-import { Service, signal, inject, WritableSignal } from '@angular/core';
+import { Service, signal, inject, WritableSignal , computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { AccountData, ScanDroneResult, DeactivateDroneResult, 
     DeviceList, Replicant, Location, MessageList, 
     SearchResult, Tutorials, TutorialDetail, SendDroneResult, 
     StartMiningResult, ReplicantScanResult, BlueprintsList,
-    StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptTransportResult } from './model';
+    StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptTransportResult,
+    SetDeliveryDirectiveResult} from './model';
 import { EventList } from './eventmodel';
 
 @Service()
@@ -32,6 +33,8 @@ export class ReplicantApi {
     readonly fillTransportResult = signal<FillTransportResult | null > (null);
     readonly emptyTransportResult = signal<EmptyTransportResult | null > (null);
     readonly adoptTransportResult = signal<AdoptTransportResult | null> (null);
+readonly setDeliveryDirectiveResult = signal<SetDeliveryDirectiveResult | null> (null);
+    
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
         this.http.get<T>(path, {
@@ -195,11 +198,41 @@ export class ReplicantApi {
             {command: "adopt", devices: drones},
             this.adoptTransportResult);
     }
+    setDeliveryDirective(controller:string, src:string, dst:string, requirement:Record<string,number>){
+        this.postAndUpdate(`/v1/devices/${controller}`,
+            {
+                command: "set_directive", 
+                directive: "delivery",
+                configuration: {
+                    route: {
+                        collect: src,
+                        deliver: dst,
+                    },
+                    requirement: requirement,
+                }
+            },
+            this.setDeliveryDirectiveResult);
+    }
     scanDrone(drone: string) {
         this.postAndUpdate(
             `/v1/devices/${drone}`,
             { "command": "scan" },
             this.scanDroneResult);
     }
+    resources = ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"];
 
+    destinations = computed<string[] | null>(() => {
+        const scan = this.replicantScanResult();
+        if (!scan) {
+            return null;
+        }
+        const reply:string[] = [];
+        for (const p of scan.planets) {
+            reply.push(p.designation);
+        }
+        for (const b of scan.asteroid_belt.belts) {
+            reply.push(b.designation);
+        }
+        return reply;
+    });
 }

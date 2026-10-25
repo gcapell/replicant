@@ -1,7 +1,7 @@
 <select #destination>
     <option value="" disabled selected>move to...</option>
-    @for ( p of api.replicantScanResult()?.planets; track p.designation){
-        <option [value]="p.designation">{{p.designation}}</option>
+    @for ( d of (api.destinations() ?? []); track d){
+        <option [value]="d">{{d}}</option>
     }
 </select>
 <button type="button" (click)="api.sendDrone(deviceCode(), destination.value)">Send</button>

@@ -335,3 +335,7 @@ export interface EmptyTransportResult{
 export interface AdoptTransportResult{
 
 }
+
+export interface SetDeliveryDirectiveResult {
+    
+}
