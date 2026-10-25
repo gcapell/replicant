@@ -67,6 +67,46 @@ export interface Location {
     position: Position;
     inventory: ResourceCount[];
     resource_sites: ResourceSite[];
+    location_event: LocationEvent;
+}
+
+interface LocationEvent {
+    broadcast_message: string;
+    description:string;
+    category:string;
+    event_type:string;
+    location:string;
+    title:string;
+    tier:number;
+    progress: LocationEventProgress;
+    rewards: LocationEventRewards;
+}
+
+interface LocationEventProgress {
+    options: LocationEventOption[];
+}
+
+interface LocationEventOption{
+    // devices: ???
+    met: boolean;
+    name: string;
+    resources: LocationEventResource[];
+}
+
+interface LocationEventResource{
+    resource_type:string;
+    current: number;
+    required:number;
+    met:boolean;
+}
+
+type ResourceType = "carbon" | "conductive" | "rares" | "silicates" | "structural" | "volatiles";
+
+interface LocationEventRewards {
+    civilisation_points: number;
+    completion_achievement: string;
+    xp: number;
+    resources: Record<ResourceType,number>;
 }
 
 interface ResourceSite{

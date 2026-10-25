@@ -6,6 +6,46 @@
     <pre>{{ loc| json }}</pre>
     </details>
 
+    @if (loc.location_event; as e){
+        <h2>Event: {{e.title}}</h2>
+
+        <details>
+            <summary>tier {{e.tier}} {{e.category}}: {{e.broadcast_message}}</summary>
+            {{e.description}}
+        </details>
+
+        <h3>reward</h3>
+        <ul>
+            <li>civ points: {{e.rewards.civilisation_points}}</li>
+            <li>achievement: {{e.rewards.completion_achievement}}</li>
+            <li>xp: {{e.rewards.xp}}</li>
+            <li>resources:
+                 <app-kv-table [items]="e.rewards.resources"/>
+            </li>
+        </ul>
+
+        <h3>requirements</h3>
+        @for(o of e.progress.options; track o.name){
+            <h4>{{o.name}}</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>resource</th>
+                        <th>amt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for(r of o.resources; track r.resource_type){
+                        <tr>
+                            <td>{{r.resource_type}} @if(r.met){✅}</td>
+                            <td>{{r.current}}/{{r.required}}</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+        }
+    }
     @if (loc.devices; as d) {
         <h2>Devices</h2>
         <table>
@@ -14,7 +54,6 @@
                     <th>Code</th>
                     <th>Type</th>
                     <th>Status</th>
-                    <th>Command</th>
                 </tr>
             </thead>
             <tbody>
@@ -23,20 +62,6 @@
                 <td>{{ s.device_code }}</td>
                 <td>{{ s.device_type }}</td>
                 <td>{{ s.status }}</td>
-                <td>
-                    @switch (s.device_type){
-                        @case('survey_drone'){
-                            <button type="button" class="link" (click)="api.search(s.device_code)">
-                            Search
-                            </button> 
-                        }
-                        @case('mining_drone'){
-                            <button type="button" class="link" (click)="api.startMining(s.device_code)">
-                            Start Mining
-                            </button> 
-                        }
-                    }
-                </td>
             </tr>
             }
         </tbody>
