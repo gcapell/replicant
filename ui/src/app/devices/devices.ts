@@ -66,6 +66,7 @@ export class Devices {
           case "survey_drone":
             orphan_survey_drones.push(d);
             break;
+          case "transport_hauler":
           case "transport_drone": orphan_transport_drones.push(d);
             break;
         }
@@ -123,7 +124,7 @@ export class Devices {
   }
   setSalvageDirective(controller: string, dst: string) {
     this.api.setDirective(controller, "gather_salvage", {
-      // recall: true,
+      recall: false,
       location: dst,
     })
   }
