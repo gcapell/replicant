@@ -379,3 +379,5 @@ export interface ReleaseDronesResult {
 export interface PatrolResult{}
 export interface DeployResult{}
 export interface MarkReadResult{}
+
+export interface LocationList {}

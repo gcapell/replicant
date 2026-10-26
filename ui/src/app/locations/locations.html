@@ -1,1 +1,8 @@
-<p>locations works!</p>
+ <button type="button" class="link" (click)="api.locations()">Fetch</button> 
+
+ @if (api.locationList(); as locs) {
+     <details>
+        <summary>Raw JSON</summary>
+        <pre>{{ locs| json }}</pre>
+    </details>
+}

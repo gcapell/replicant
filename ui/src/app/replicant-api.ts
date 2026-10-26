@@ -6,7 +6,7 @@ import { AccountData, ScanDroneResult, DeactivateDroneResult,
     StartMiningResult, ReplicantScanResult, BlueprintsList,
     StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
     SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult,
-    PatrolResult, DeployResult, MarkReadResult} from './model';
+    PatrolResult, DeployResult, MarkReadResult, LocationList} from './model';
 import { EventList } from './eventmodel';
 
 @Service()
@@ -41,6 +41,7 @@ export class ReplicantApi {
     readonly patrolResult = signal<PatrolResult | null> (null);
     readonly deployResult = signal<DeployResult | null> (null);
     readonly markReadResult = signal <MarkReadResult | null > (null);
+    readonly locationList = signal <LocationList | null > (null);
     
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
@@ -119,6 +120,9 @@ export class ReplicantApi {
 
     loadReplicant(id: string) {
         this.fetchAndUpdate(`/v1/replicants/${id}`, this.replicant);
+    }
+    locations(){
+        this.fetchAndUpdate(`/v1/locations`, this.locationList);
     }
     loadLocation(id: string) {
         this.fetchAndUpdate(`/v1/locations/${id}`, this.location);
