@@ -380,4 +380,14 @@ export interface PatrolResult{}
 export interface DeployResult{}
 export interface MarkReadResult{}
 
-export interface LocationList {}
+export interface LocationList {
+    locations: Record<string, LocationSummary>;
+}
+
+interface LocationSummary{
+    devices:number;
+    location_events: number;
+    replicants: number;
+    resource_sites:number;
+    resources: number;
+}
