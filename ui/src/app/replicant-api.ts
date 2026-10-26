@@ -6,7 +6,7 @@ import { AccountData, ScanDroneResult, DeactivateDroneResult,
     StartMiningResult, ReplicantScanResult, BlueprintsList,
     StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
     SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult,
-    PatrolResult} from './model';
+    PatrolResult, DeployResult, MarkReadResult} from './model';
 import { EventList } from './eventmodel';
 
 @Service()
@@ -39,9 +39,12 @@ export class ReplicantApi {
     readonly setDirectiveResult = signal<SetDirectiveResult | null> (null);
     readonly releaseDronesResult = signal<ReleaseDronesResult | null> (null);
     readonly patrolResult = signal<PatrolResult | null> (null);
+    readonly deployResult = signal<DeployResult | null> (null);
+    readonly markReadResult = signal <MarkReadResult | null > (null);
     
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
+        console.log("GET", path);
         this.http.get<T>(path, {
             headers: {
                 'Authorization': `Bearer ${this.token()}`
@@ -73,6 +76,7 @@ export class ReplicantApi {
         merge: (soFar: T, page: T) => T,
         cursor: number | null,
     ) {
+        console.log("GET", path);
         this.http.get<T>(path, {
             headers: {
                 'Authorization': `Bearer ${this.token()}`,
@@ -125,11 +129,8 @@ export class ReplicantApi {
     loadTutorial(slug: string) {
         this.fetchAndUpdate(`/v1/tutorials/${slug}`, this.tutorialDetail);
     }
-    listMessages() {
-        this.fetchAllPages(`/v1/messages`, this.messageList, (acc, extra) => ({
-            ...extra,
-            messages: [...acc.messages, ...extra.messages],
-        }))
+    listUnreadMessages() {
+        this.fetchAndUpdate(`/v1/messages?unread_only=true`, this.messageList)
     }
     listEvents() {
         this.fetchAndUpdate('/v1/events', this.eventList);
@@ -156,6 +157,17 @@ export class ReplicantApi {
             { "command": "search" },
             this.searchResult);
     }
+    markMessagesRead(ml: MessageList){
+        const ids :number[] = [];
+        for (const m of ml.messages){
+            ids.push(m.id);
+        }
+        this.postAndUpdate(
+            `/v1/messages/read`,
+            { "ids": ids },
+            this.markReadResult);
+    }
+
     startMining(id: string, resource:string,site:string) {
         this.postAndUpdate( `/v1/devices/${id}`,{
             command: "start_mining", 
@@ -192,6 +204,12 @@ export class ReplicantApi {
             `/v1/devices/${drone}`,
             { "command": "set_directive", "directive": "patrol" },
             this.patrolResult);
+    }
+    deploy(drone:string){
+        this.postAndUpdate(
+            `/v1/devices/${drone}`,
+            { "command": "deploy" },
+            this.deployResult);
     }
     fillTransport(drone:string, resource:string) {
         this.postAndUpdate(`/v1/devices/${drone}`,

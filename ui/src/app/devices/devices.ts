@@ -54,15 +54,11 @@ export class Devices {
     const orphan_transport_drones: Device[] = [];
 
     for (const d of deviceList) {
+      let free = true;
       if (d.controller_device_code) {
         (controlled[d.controller_device_code] ??= []).push(d);
+        free = false;
       } else {
-        // device not controlled by AMI
-        if (d.stowed_in_device_code) {
-          (stowed[d.stowed_in_device_code] ??= []).push(d);
-        } else {
-          devices.push(d);
-        }
         switch (d.device_type) {
           case "mining_drone":
             orphan_mining_drones.push(d);
@@ -74,7 +70,13 @@ export class Devices {
             break;
         }
       }
-
+      if (d.stowed_in_device_code) {
+        free = false;
+        (stowed[d.stowed_in_device_code] ??= []).push(d);
+      }
+      if (free) {
+        devices.push(d);
+      }
     }
     return { devices, controlled, stowed, orphan_mining_drones, orphan_survey_drones, orphan_transport_drones };
   });
@@ -103,20 +105,26 @@ export class Devices {
     const requirement = Object.fromEntries(v.items.map(i => [i.resource, i.amount]));
     this.api.setDeliveryDirective(controller, v.collect, v.deliver, requirement);
   }
-  surveySystem(controller:string){
+  surveySystem(controller: string) {
     this.api.setDirective(controller, "survey_system", {
-      planets:"all",
-      moons:"all",
-      recall:true,
+      planets: "all",
+      moons: "all",
+      recall: true,
     })
   }
-  searchBelt(controller:string){
+  searchBelt(controller: string) {
     this.api.setDirective(controller, "belt_search", {})
   }
-  gatherEvenly(controller:string){
+  gatherEvenly(controller: string) {
     this.api.setDirective(controller, "gather_evenly", {})
   }
-  consolidate(controller:string, dst:string){
-    this.api.setDirective(controller, "consolidate", {deliver: dst})
+  consolidate(controller: string, dst: string) {
+    this.api.setDirective(controller, "consolidate", { deliver: dst })
+  }
+  setSalvageDirective(controller: string, dst: string) {
+    this.api.setDirective(controller, "gather_salvage", {
+      recall: true,
+      location: dst,
+    })
   }
 }

@@ -16,7 +16,10 @@
                             <br>stowed:
                             <ul>
                             @for (s of stowed; track s.device_code){
-                                <li>{{s.device_code}}({{s.device_type}})</li>
+                                <li>
+                                    {{s.device_code}}({{s.device_type}})
+                                    <button type="button" (click)="api.deploy(s.device_code)">deploy</button>
+                                </li>
                             }
                             </ul>
                         }
@@ -124,6 +127,12 @@
                             <app-release [children]="dt.controlled[d.device_code]" 
                             (release)="api.releaseDrones(d.device_code, $event)"/>
                              <button type="button" (click)="gatherEvenly(d.device_code)">gather evenly</button>
+                             <select #salvageDst>
+                                    @for(d of api.destinations(); track d){
+                                        <option [value]="d">{{d}}</option>
+                                    }
+                                </select>
+                                <button type="button" (click)="setSalvageDirective(d.device_code, salvageDst.value)">salvage</button>
                         }
                         @case("ami_transport_controller"){
                              <app-adopt [orphans]="dt.orphan_transport_drones" 
@@ -249,6 +258,13 @@
 }
 @if (api.patrolResult(); as r){
     <h3>patrol result</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ r | json }}</pre>
+    </details>
+}
+@if (api.deployResult(); as r){
+    <h3>deploy result</h3>
     <details>
     <summary>Raw JSON</summary>
     <pre>{{ r | json }}</pre>

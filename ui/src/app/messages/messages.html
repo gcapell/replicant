@@ -1,4 +1,4 @@
-<button (click)="api.listMessages()">Load</button>
+<button (click)="api.listUnreadMessages()">Load</button>
 @if (api.messageList(); as ml) {
     <h1>Messages</h1>
     <details>
@@ -16,4 +16,5 @@
         </li>
     }
     </ul>
+    <button type="button" (click)="api.markMessagesRead(ml)">mark read</button>
 }
