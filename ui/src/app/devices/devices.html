@@ -128,7 +128,7 @@
                             (release)="api.releaseDrones(d.device_code, $event)"/>
                              <button type="button" (click)="gatherEvenly(d.device_code)">gather evenly</button>
                              <select #salvageDst>
-                                    @for(d of api.destinations(); track d){
+                                    @for(d of api.salvageSites(); track d){
                                         <option [value]="d">{{d}}</option>
                                     }
                                 </select>

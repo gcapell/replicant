@@ -1,12 +1,14 @@
-import { Service, signal, inject, WritableSignal , computed } from '@angular/core';
+import { Service, signal, inject, WritableSignal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { AccountData, ScanDroneResult, DeactivateDroneResult, 
-    DeviceList, Replicant, Location, MessageList, 
-    SearchResult, Tutorials, TutorialDetail, SendDroneResult, 
+import {
+    AccountData, ScanDroneResult, DeactivateDroneResult,
+    DeviceList, Replicant, Location, MessageList,
+    SearchResult, Tutorials, TutorialDetail, SendDroneResult,
     StartMiningResult, ReplicantScanResult, BlueprintsList,
     StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
     SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult,
-    PatrolResult, DeployResult, MarkReadResult, LocationList} from './model';
+    PatrolResult, DeployResult, MarkReadResult, LocationList
+} from './model';
 import { EventList } from './eventmodel';
 
 @Service()
@@ -31,18 +33,18 @@ export class ReplicantApi {
     readonly deactivateDroneResult = signal<DeactivateDroneResult | null>(null);
     readonly scanDroneResult = signal<ScanDroneResult | null>(null);
     readonly startPrintingResult = signal<StartPrintingResult | null>(null);
-    readonly fillTransportResult = signal<FillTransportResult | null > (null);
-    readonly emptyTransportResult = signal<EmptyTransportResult | null > (null);
-    readonly adoptDronesResult = signal<AdoptDronesResult | null> (null);
-    readonly setDeliveryDirectiveResult = signal<SetDeliveryDirectiveResult | null> (null);
-    readonly completeEventResult = signal<CompleteEventResult | null> (null);
-    readonly setDirectiveResult = signal<SetDirectiveResult | null> (null);
-    readonly releaseDronesResult = signal<ReleaseDronesResult | null> (null);
-    readonly patrolResult = signal<PatrolResult | null> (null);
-    readonly deployResult = signal<DeployResult | null> (null);
-    readonly markReadResult = signal <MarkReadResult | null > (null);
-    readonly locationList = signal <LocationList | null > (null);
-    
+    readonly fillTransportResult = signal<FillTransportResult | null>(null);
+    readonly emptyTransportResult = signal<EmptyTransportResult | null>(null);
+    readonly adoptDronesResult = signal<AdoptDronesResult | null>(null);
+    readonly setDeliveryDirectiveResult = signal<SetDeliveryDirectiveResult | null>(null);
+    readonly completeEventResult = signal<CompleteEventResult | null>(null);
+    readonly setDirectiveResult = signal<SetDirectiveResult | null>(null);
+    readonly releaseDronesResult = signal<ReleaseDronesResult | null>(null);
+    readonly patrolResult = signal<PatrolResult | null>(null);
+    readonly deployResult = signal<DeployResult | null>(null);
+    readonly markReadResult = signal<MarkReadResult | null>(null);
+    readonly locationList = signal<LocationList | null>(null);
+
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
         console.log("GET", path);
@@ -121,9 +123,22 @@ export class ReplicantApi {
     loadReplicant(id: string) {
         this.fetchAndUpdate(`/v1/replicants/${id}`, this.replicant);
     }
-    locations(){
+    salvageSites = computed<string[]>(() =>
+        Object.entries(this.locationList()?.locations ?? {})
+            .filter(([, meta]) => meta.resource_sites)
+            .map(([loc,]) => loc)
+    )
+
+
+    locations() {
         this.fetchAndUpdate(`/v1/locations`, this.locationList);
+        const locs = this.locationList();
+        if (!locs) {
+            return
+        }
+
     }
+
     loadLocation(id: string) {
         this.fetchAndUpdate(`/v1/locations/${id}`, this.location);
     }
@@ -161,9 +176,9 @@ export class ReplicantApi {
             { "command": "search" },
             this.searchResult);
     }
-    markMessagesRead(ml: MessageList){
-        const ids :number[] = [];
-        for (const m of ml.messages){
+    markMessagesRead(ml: MessageList) {
+        const ids: number[] = [];
+        for (const m of ml.messages) {
             ids.push(m.id);
         }
         this.postAndUpdate(
@@ -172,15 +187,15 @@ export class ReplicantApi {
             this.markReadResult);
     }
 
-    startMining(id: string, resource:string,site:string) {
-        this.postAndUpdate( `/v1/devices/${id}`,{
-            command: "start_mining", 
-            resource_type: resource , 
+    startMining(id: string, resource: string, site: string) {
+        this.postAndUpdate(`/v1/devices/${id}`, {
+            command: "start_mining",
+            resource_type: resource,
             ...(site && { target: site }),
         }, this.startMiningResult);
     }
-    startPrinting(replicant:string, device_type:string){
-        this.postAndUpdate( `/v1/replicants/${replicant}/print`,{
+    startPrinting(replicant: string, device_type: string) {
+        this.postAndUpdate(`/v1/replicants/${replicant}/print`, {
             device_type: device_type,
         }, this.startPrintingResult);
     }
@@ -209,45 +224,47 @@ export class ReplicantApi {
             { "command": "set_directive", "directive": "patrol" },
             this.patrolResult);
     }
-    deploy(drone:string){
+    deploy(drone: string) {
         this.postAndUpdate(
             `/v1/devices/${drone}`,
             { "command": "deploy" },
             this.deployResult);
     }
-    fillTransport(drone:string, resource:string) {
+    fillTransport(drone: string, resource: string) {
         this.postAndUpdate(`/v1/devices/${drone}`,
-            {command: "collect_resources",
-                resources: {[resource]: 20},
+            {
+                command: "collect_resources",
+                resources: { [resource]: 20 },
             },
             this.fillTransportResult);
     }
-    emptyTransport(drone:string, resource:string) {
+    emptyTransport(drone: string, resource: string) {
         this.postAndUpdate(`/v1/devices/${drone}`,
-            {command: "deposit_resources",
-                resources: {[resource]: 20},
+            {
+                command: "deposit_resources",
+                resources: { [resource]: 20 },
             },
             this.emptyTransportResult);
     }
-    adoptDrones(controller:string, drones:string[]) {
+    adoptDrones(controller: string, drones: string[]) {
         this.postAndUpdate(`/v1/devices/${controller}`,
-            {command: "adopt", devices: drones},
+            { command: "adopt", devices: drones },
             this.adoptDronesResult);
     }
-    releaseDrones(controller:string, drones:string[]) {
+    releaseDrones(controller: string, drones: string[]) {
         this.postAndUpdate(`/v1/devices/${controller}`,
-            {command: "release", devices: drones},
+            { command: "release", devices: drones },
             this.releaseDronesResult);
     }
-    completeEvent(location:string, eventDesignation:string) {
+    completeEvent(location: string, eventDesignation: string) {
         this.postAndUpdate(`/v1/locations/${location}/events/${eventDesignation}`,
             {},
             this.completeEventResult);
     }
-    setDeliveryDirective(controller:string, src:string, dst:string, requirement:Record<string,number>){
+    setDeliveryDirective(controller: string, src: string, dst: string, requirement: Record<string, number>) {
         this.postAndUpdate(`/v1/devices/${controller}`,
             {
-                command: "set_directive", 
+                command: "set_directive",
                 directive: "delivery",
                 configuration: {
                     route: {
@@ -259,10 +276,10 @@ export class ReplicantApi {
             },
             this.setDeliveryDirectiveResult);
     }
-    setDirective(controller:string, directive:string, configuration:any){
+    setDirective(controller: string, directive: string, configuration: any) {
         this.postAndUpdate(`/v1/devices/${controller}`,
             {
-                command: "set_directive", 
+                command: "set_directive",
                 directive: directive,
                 configuration: configuration,
             },
@@ -281,7 +298,7 @@ export class ReplicantApi {
         if (!scan) {
             return null;
         }
-        const reply:string[] = [];
+        const reply: string[] = [];
         for (const p of scan.planets) {
             reply.push(p.designation);
         }
