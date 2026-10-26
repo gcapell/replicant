@@ -123,7 +123,7 @@ export class Devices {
   }
   setSalvageDirective(controller: string, dst: string) {
     this.api.setDirective(controller, "gather_salvage", {
-      recall: true,
+      // recall: true,
       location: dst,
     })
   }
