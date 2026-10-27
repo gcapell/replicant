@@ -7,19 +7,22 @@
                 <th>loc</th>
                 <th>resources</th>
                 <th>sites</th>
+                <th>events</th>
             </tr>
         </thead>
         <tbody>
             @for (kv of locs.locations |keyvalue; track kv.key){
-                @if(kv.value.resources || kv.value.resource_sites){
+                @let v = kv.value;
+                @if(v.resources || v.resource_sites || v.location_events){
                     <tr>
                         <td>
                             <button type="button" class="link" 
                                     (click)="api.loadLocation(kv.key)">inventory</button>
                             {{kv.key}}
                         </td>
-                        <td>{{kv.value.resources}}</td>
-                        <td>{{kv.value.resource_sites}}</td>
+                        <td>{{v.resources}}</td>
+                        <td>{{v.resource_sites}}</td>
+                        <td>{{v.location_events}}</td>
                     </tr>
                 }
             }

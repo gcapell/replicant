@@ -7,7 +7,7 @@ import {
     StartMiningResult, ReplicantScanResult, BlueprintsList,
     StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
     SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult,
-    PatrolResult, DeployResult, MarkReadResult, LocationList
+    PatrolResult, DeployResult, MarkReadResult, LocationList, StowResult,
 } from './model';
 import { EventList } from './eventmodel';
 
@@ -42,6 +42,7 @@ export class ReplicantApi {
     readonly releaseDronesResult = signal<ReleaseDronesResult | null>(null);
     readonly patrolResult = signal<PatrolResult | null>(null);
     readonly deployResult = signal<DeployResult | null>(null);
+        readonly stowResult = signal<StowResult | null>(null);
     readonly markReadResult = signal<MarkReadResult | null>(null);
     readonly locationList = signal<LocationList | null>(null);
 
@@ -229,6 +230,12 @@ export class ReplicantApi {
             `/v1/devices/${drone}`,
             { "command": "deploy" },
             this.deployResult);
+    }
+    stow(drone: string) {
+        this.postAndUpdate(
+            `/v1/devices/${drone}`,
+            { "command": "stow" },
+            this.stowResult);
     }
     fillTransport(drone: string, resource: string) {
         this.postAndUpdate(`/v1/devices/${drone}`,

@@ -179,6 +179,10 @@
                                 </select>
                                 <button type="button" (click)="consolidate(d.device_code, consolidateDst.value)">consolidate to</button>
                         }
+
+                        }
+                        @if (!d.stowed_in_device_code && d.available_commands.includes("stow")){
+                            <button type="button" (click)="api.stow(d.device_code)">stow</button>
                         }
                     </td>
 
@@ -265,6 +269,13 @@
 }
 @if (api.deployResult(); as r){
     <h3>deploy result</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ r | json }}</pre>
+    </details>
+}
+@if (api.stowResult(); as r){
+    <h3>stow result</h3>
     <details>
     <summary>Raw JSON</summary>
     <pre>{{ r | json }}</pre>
