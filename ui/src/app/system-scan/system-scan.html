@@ -20,6 +20,36 @@
         }
         </ul>
     }
+    @if(r.shops){
+        <h3>Shops</h3>
+        @for(s of r.shops; track s.shop_name){
+            <h4>{{s.shop_name}} @ {{s.location}} - {{s.owner_name}}</h4>
+            <ul>
+                @for(t of s.trades; track $index){
+                    <li>
+                        {{t.name}}({{t.current_stock}})
+                        @for(d of t.rewards.devices | keyvalue; track d.key){
+                            {{d.key}}@if(d.value>1){(x{{d.value}})},
+                        }
+                        @for(r of t.rewards.resources | keyvalue; track r.key){
+                            {{r.value}} {{r.key}},
+                        }
+                        for
+                        @for(d of t.criteria.devices | keyvalue; track d.key){
+                            {{d.key}}@if(d.value>1){(x{{d.value}})},
+                        }
+                        @for(r of t.criteria.resources | keyvalue; track r.key){
+                            {{r.value}} {{r.key}},
+                        }                      
+
+    
+ 
+   
+                    </li>
+                }
+            </ul>
+        }
+    }
 
     @if(r.life_detected){<p>life detected!</p>}
     @if(r.mining_bonus_pct){<p>mining bonus {{r.mining_bonus_pct}}%</p>}

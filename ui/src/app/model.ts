@@ -199,7 +199,24 @@ interface SystemObject{
     object_type: string;
     status:string;
 }
-interface Shop{}
+interface Shop{
+    location:string;
+    owner_name:string;
+    shop_name:string;
+    trades: Trade[];
+}
+interface Trade{
+    name:string;
+    trade_code:string;
+    rewards: TradeGood;
+    criteria: TradeGood;
+    current_stock: number;
+}
+
+interface TradeGood{
+    resources: Record<ResourceType,number>;
+    devices: Record<string, number>;
+}
 
 interface ReplicantFoundByScan{
     last_active:string;
