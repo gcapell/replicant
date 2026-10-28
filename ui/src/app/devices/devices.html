@@ -6,191 +6,196 @@
     <pre>{{ dt | json }}</pre>
     </details>
 
+    @for (system of dt.by_system | keyvalue;; track system.key){
+        <button type="button" (click)="toggle_system_visible(system.key)" >{{system.key}}</button>
+    }
     <table>
         <tbody>
             @for (system of dt.by_system | keyvalue;; track system.key){
-                <h3>{{system.key}}</h3>
-                @for (id of system.value; track id) {
-                    @let d = dt.by_id[id];
-                    <tr>
-                        <td>
-                            {{d.device_type}} {{d.device_code}}
-                            @if(dt.stowed[d.device_code]; as stowed){
-                                <br>stowed:
-                                <ul>
-                                @for (s of stowed; track s){
-                                    <li>
-                                        {{s}}({{dt.by_id[s].device_type}})
-                                        <button type="button" (click)="api.deploy(s)">deploy</button>
-                                    </li>
-                                }
-                                </ul>
-                            }
-                            @if(dt.controlled[d.device_code]; as controlled){
-                                <br>controlled:
-                                <ul>
-                                @for (cid of controlled; track cid){
-                                    @let c = dt.by_id[cid];
-                                    <li>{{c.device_code}}@{{c.location}}({{c.status}})
-                                        @if(c.travel; as t){
-                                            -> {{t.final_destination}} in {{t.eta_seconds}}s
-                                        }
-                                        @if(c.cargo_used){
-                                            carrying @for(cgo of c.cargo; track cgo.resource_type){
-                                                {{cgo.quantity}} {{cgo.resource_type}},
-                                            }
-                                        }
-                                    </li>
-                                }
-                                </ul>
-                            }
-                        </td>
-                        <td>{{d.location}}</td>
-                        <td>{{d.status}}
-                                @if(d.cargo_used){
+                @if(system_visible().has(system.key)){
+                    <h3>{{system.key}}</h3>
+                    @for (id of system.value; track id) {
+                        @let d = dt.by_id[id];
+                        <tr>
+                            <td>
+                                {{d.device_type}} {{d.device_code}}
+                                @if(dt.stowed[d.device_code]; as stowed){
+                                    <br>stowed:
                                     <ul>
-                                        @for(c of d.cargo; track c.resource_type){
-                                            <li>{{c.resource_type}}:{{c.quantity}}</li>
-                                        }
+                                    @for (s of stowed; track s){
+                                        <li>
+                                            {{s}}({{dt.by_id[s].device_type}})
+                                            <button type="button" (click)="api.deploy(s)">deploy</button>
+                                        </li>
+                                    }
                                     </ul>
                                 }
-                                @if(d.ami_directive_status === "active"){
-                                    <pre>{{d.ami_directive | json}}</pre>
-                                }
-                                @if(d.printing?.eta_seconds; as s) {
-                                    printing ETA {{s | humanizeSeconds}}
-                                }
-                                @if(d.status === "waiting_for_resources"){
-                                    @for(wf of d.waiting_for|keyvalue; track wf.key){
-                                        {{wf.key}} {{wf.value.have}}/{{wf.value.need}},
-                                    }
-                                }
-                        </td>
-                        <td>@if(d.stow_capacity){
-                            {{d.stow_used}}/{{d.stow_capacity}}
-                        }</td>
-                        @if(d.status == "travelling"){
-                            {{d.travel.origin}}->{{d.travel.final_destination}} in 
-                            {{d.travel.route_eta_seconds}}s
-                            ({{d.travel.type}}/{{d.travel.stage}})
-                        }
-                        <!-- <td><app-bulleted-list [items]="d.features"/></td> -->
-                        <td>
-                            @switch(d.device_type){
-                            @case("maintenance_drone"){
-                                <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>
-                            }
-                            @case("heaven_vessel"){
-                                <app-move-device [deviceCode]="d.device_code"/>
-                            }
-                            @case("mining_drone"){
-                                <app-move-device [deviceCode]="d.device_code"/>
-                                <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
-
-                                <select #resource>
-                                <option value="" disabled selected>resource...</option>
-                                @for(r of ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"]; track r){
-                                    <option [value]="r">{{r}}</option>
-                                }
-                                </select>
-                                <select #site>
-                                @if(salvageSites(d.location); as sites){
-                                    <option value="" disabled selected>site...</option>
-                                    @for(s of sites; track s){
-                                        <option [value]="s">{{s}}</option>
-                                    }
-                                }
-                                </select>
-                                <button type="button" (click)="api.startMining(d.device_code,resource.value,site.value)">Mine</button>
-                            }
-                            @case("survey_drone"){
-                                <app-move-device [deviceCode]="d.device_code"/>
-                                <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
-                                <button type="button" (click)="api.scanDrone(d.device_code)">Scan</button>
-                            }
-                            @case("transport_drone"){
-                                <app-move-device [deviceCode]="d.device_code"/>
-                                <select #resource>
-                                <option value="" disabled selected>resource...</option>
-                                @for(r of ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"]; track r){
-                                    <option [value]="r">{{r}}</option>
-                                }
-                                </select>
-                                <button type="button" (click)="api.fillTransport(d.device_code, resource.value)">Fill</button>
-                                <button type="button" (click)="api.emptyTransport(d.device_code, resource.value)">Empty</button>
-                            }
-                            @case("ami_survey_controller"){
-                                <app-adopt [orphans]="dt.orphan_survey_drones" [device_by_id]="dt.by_id"
-                                (adopt)="api.adoptDrones(d.device_code, $event)"/>
-                                <button type="button" (click)="surveySystem(d.device_code)">System</button>
-                                <button type="button" (click)="searchBelt(d.device_code)">Belt</button>
-                            }
-                            @case("ami_mining_controller"){
-                                <app-adopt [orphans]="dt.orphan_mining_drones" [device_by_id]="dt.by_id"
-                                (adopt)="api.adoptDrones(d.device_code, $event)"/>
-                                <app-release [children]="dt.controlled[d.device_code]" [device_by_id]="dt.by_id"
-                                (release)="api.releaseDrones(d.device_code, $event)"/>
-                                <button type="button" (click)="gatherEvenly(d.device_code)">gather evenly</button>
-                                <select #salvageDst>
-                                        @for(d of api.salvageSites(); track d){
-                                            <option [value]="d">{{d}}</option>
-                                        }
-                                    </select>
-                                    <button type="button" (click)="setSalvageDirective(d.device_code, salvageDst.value)">salvage</button>
-                            }
-                            @case("ami_transport_controller"){
-                                <app-adopt [orphans]="dt.orphan_transport_drones" [device_by_id]="dt.by_id"
-                                (adopt)="api.adoptDrones(d.device_code, $event)"/>
-
-                                <form [formGroup]="form" (ngSubmit)="setDeliveryDirective(d.device_code)">
-                                    src: <select formControlName="collect">
-                                        @for(d of api.destinations(); track d){
-                                            <option [value]="d">{{d}}</option>
-                                        }
-                                    </select>
-                                        dst: <select formControlName="deliver">
-                                        @for(d of api.destinations(); track d){
-                                            <option [value]="d">{{d}}</option>
-                                        }
-                                    </select>
-
-                                    <div formArrayName="items">
-                                        @for (item of form.controls.items.controls; track item; let i = $index) {
-                                        <div [formGroupName]="i">
-                                            <select formControlName="resource" placeholder="resource">
-                                            @for(r of api.resources; track r){
-                                                <option [value]="r">{{r}}</option>
+                                @if(dt.controlled[d.device_code]; as controlled){
+                                    <br>controlled:
+                                    <ul>
+                                    @for (cid of controlled; track cid){
+                                        @let c = dt.by_id[cid];
+                                        <li>{{c.device_code}}@{{c.location}}({{c.status}})
+                                            @if(c.travel; as t){
+                                                -> {{t.final_destination}} in {{t.eta_seconds}}s
                                             }
-                                            </select>
-                                            <input type="number" formControlName="amount" min="1" />
-                                            <button
-                                            type="button"
-                                            (click)="removeItem(i)"
-                                            [disabled]="form.controls.items.length === 1">
-                                            Remove
-                                            </button>
-                                        </div>
+                                            @if(c.cargo_used){
+                                                carrying @for(cgo of c.cargo; track cgo.resource_type){
+                                                    {{cgo.quantity}} {{cgo.resource_type}},
+                                                }
+                                            }
+                                        </li>
+                                    }
+                                    </ul>
+                                }
+                            </td>
+                            <td>{{d.location}}</td>
+                            <td>{{d.status}}
+                                    @if(d.cargo_used){
+                                        <ul>
+                                            @for(c of d.cargo; track c.resource_type){
+                                                <li>{{c.resource_type}}:{{c.quantity}}</li>
+                                            }
+                                        </ul>
+                                    }
+                                    @if(d.ami_directive_status === "active"){
+                                        <pre>{{d.ami_directive | json}}</pre>
+                                    }
+                                    @if(d.printing?.eta_seconds; as s) {
+                                        printing ETA {{s | humanizeSeconds}}
+                                    }
+                                    @if(d.status === "waiting_for_resources"){
+                                        @for(wf of d.waiting_for|keyvalue; track wf.key){
+                                            {{wf.key}} {{wf.value.have}}/{{wf.value.need}},
                                         }
-                                    </div>
+                                    }
+                            </td>
+                            <td>@if(d.stow_capacity){
+                                {{d.stow_used}}/{{d.stow_capacity}}
+                            }</td>
+                            @if(d.status == "travelling"){
+                                {{d.travel.origin}}->{{d.travel.final_destination}} in 
+                                {{d.travel.route_eta_seconds}}s
+                                ({{d.travel.type}}/{{d.travel.stage}})
+                            }
+                            <!-- <td><app-bulleted-list [items]="d.features"/></td> -->
+                            <td>
+                                @switch(d.device_type){
+                                @case("maintenance_drone"){
+                                    <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>
+                                }
+                                @case("heaven_vessel"){
+                                    <app-move-device [deviceCode]="d.device_code"/>
+                                }
+                                @case("mining_drone"){
+                                    <app-move-device [deviceCode]="d.device_code"/>
+                                    <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
 
-                                    <button type="button" (click)="addItem()">Add resource</button>
-                                    <button type="submit" [disabled]="form.invalid">Set delivery</button>
-                                    </form>
-                                    <select #consolidateDst>
-                                        @for(d of api.destinations(); track d){
-                                            <option [value]="d">{{d}}</option>
-                                        }
+                                    <select #resource>
+                                    <option value="" disabled selected>resource...</option>
+                                    @for(r of ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"]; track r){
+                                        <option [value]="r">{{r}}</option>
+                                    }
                                     </select>
-                                    <button type="button" (click)="consolidate(d.device_code, consolidateDst.value)">consolidate to</button>
-                            }
+                                    <select #site>
+                                    @if(salvageSites(d.location); as sites){
+                                        <option value="" disabled selected>site...</option>
+                                        @for(s of sites; track s){
+                                            <option [value]="s">{{s}}</option>
+                                        }
+                                    }
+                                    </select>
+                                    <button type="button" (click)="api.startMining(d.device_code,resource.value,site.value)">Mine</button>
+                                }
+                                @case("survey_drone"){
+                                    <app-move-device [deviceCode]="d.device_code"/>
+                                    <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
+                                    <button type="button" (click)="api.scanDrone(d.device_code)">Scan</button>
+                                }
+                                @case("transport_drone"){
+                                    <app-move-device [deviceCode]="d.device_code"/>
+                                    <select #resource>
+                                    <option value="" disabled selected>resource...</option>
+                                    @for(r of ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"]; track r){
+                                        <option [value]="r">{{r}}</option>
+                                    }
+                                    </select>
+                                    <button type="button" (click)="api.fillTransport(d.device_code, resource.value)">Fill</button>
+                                    <button type="button" (click)="api.emptyTransport(d.device_code, resource.value)">Empty</button>
+                                }
+                                @case("ami_survey_controller"){
+                                    <app-adopt [orphans]="dt.orphan_survey_drones" [device_by_id]="dt.by_id"
+                                    (adopt)="api.adoptDrones(d.device_code, $event)"/>
+                                    <button type="button" (click)="surveySystem(d.device_code)">System</button>
+                                    <button type="button" (click)="searchBelt(d.device_code)">Belt</button>
+                                }
+                                @case("ami_mining_controller"){
+                                    <app-adopt [orphans]="dt.orphan_mining_drones" [device_by_id]="dt.by_id"
+                                    (adopt)="api.adoptDrones(d.device_code, $event)"/>
+                                    <app-release [children]="dt.controlled[d.device_code]" [device_by_id]="dt.by_id"
+                                    (release)="api.releaseDrones(d.device_code, $event)"/>
+                                    <button type="button" (click)="gatherEvenly(d.device_code)">gather evenly</button>
+                                    <select #salvageDst>
+                                            @for(d of api.salvageSites(); track d){
+                                                <option [value]="d">{{d}}</option>
+                                            }
+                                        </select>
+                                        <button type="button" (click)="setSalvageDirective(d.device_code, salvageDst.value)">salvage</button>
+                                }
+                                @case("ami_transport_controller"){
+                                    <app-adopt [orphans]="dt.orphan_transport_drones" [device_by_id]="dt.by_id"
+                                    (adopt)="api.adoptDrones(d.device_code, $event)"/>
 
-                            }
-                            @if (!d.stowed_in_device_code && d.available_commands.includes("stow")){
-                                <button type="button" (click)="api.stow(d.device_code)">stow</button>
-                            }
-                        </td>
+                                    <form [formGroup]="form" (ngSubmit)="setDeliveryDirective(d.device_code)">
+                                        src: <select formControlName="collect">
+                                            @for(d of api.destinations(); track d){
+                                                <option [value]="d">{{d}}</option>
+                                            }
+                                        </select>
+                                            dst: <select formControlName="deliver">
+                                            @for(d of api.destinations(); track d){
+                                                <option [value]="d">{{d}}</option>
+                                            }
+                                        </select>
 
-                    </tr>
+                                        <div formArrayName="items">
+                                            @for (item of form.controls.items.controls; track item; let i = $index) {
+                                            <div [formGroupName]="i">
+                                                <select formControlName="resource" placeholder="resource">
+                                                @for(r of api.resources; track r){
+                                                    <option [value]="r">{{r}}</option>
+                                                }
+                                                </select>
+                                                <input type="number" formControlName="amount" min="1" />
+                                                <button
+                                                type="button"
+                                                (click)="removeItem(i)"
+                                                [disabled]="form.controls.items.length === 1">
+                                                Remove
+                                                </button>
+                                            </div>
+                                            }
+                                        </div>
+
+                                        <button type="button" (click)="addItem()">Add resource</button>
+                                        <button type="submit" [disabled]="form.invalid">Set delivery</button>
+                                        </form>
+                                        <select #consolidateDst>
+                                            @for(d of api.destinations(); track d){
+                                                <option [value]="d">{{d}}</option>
+                                            }
+                                        </select>
+                                        <button type="button" (click)="consolidate(d.device_code, consolidateDst.value)">consolidate to</button>
+                                }
+
+                                }
+                                @if (!d.stowed_in_device_code && d.available_commands.includes("stow")){
+                                    <button type="button" (click)="api.stow(d.device_code)">stow</button>
+                                }
+                            </td>
+
+                        </tr>
+                    }
                 }
             }
         </tbody>

@@ -15,7 +15,7 @@
         <tbody>
             @for (kv of locs.locations |keyvalue; track kv.key){
                 @let v = kv.value;
-                @if(true || v.resources || v.resource_sites || v.location_events || v.replicants || v.devices){
+                <!-- @if(true || v.resources || v.resource_sites || v.location_events || v.replicants || v.devices){ -->
                     <tr>
                         <td>
                             <button type="button" class="link" 
@@ -28,7 +28,7 @@
                         <td>{{v.replicants}}</td>
                         <td>{{v.devices}}</td>
                     </tr>
-                }
+                <!-- } -->
             }
         </tbody>
 

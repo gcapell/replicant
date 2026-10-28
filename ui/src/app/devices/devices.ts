@@ -1,4 +1,4 @@
-import { Component, inject, computed, Pipe, PipeTransform } from '@angular/core';
+import { Component, inject, computed, signal, Pipe, PipeTransform } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ReplicantApi } from '../replicant-api';
 import { JsonPipe, KeyValuePipe } from '@angular/common';
@@ -45,6 +45,7 @@ export class Devices {
       ?.filter(s => !s.depleted)
       .map(s => s.designation) ?? [];
   }
+  system_visible = signal<Set<string>>(new Set<string>());
   deviceTree = computed<DeviceTree | null>(() => {
     const deviceList = this.api.deviceList()?.devices;
     if (!deviceList?.length) return null;
@@ -107,6 +108,17 @@ export class Devices {
   }
   removeItem(i: number) {
     this.form.controls.items.removeAt(i);
+  }
+  toggle_system_visible(system:string) {
+    this.system_visible.update(current=>{
+      const next = new Set(current);
+      if (next.has(system)){
+        next.delete(system);
+      } else {
+        next.add(system);
+      }
+      return next;
+    });
   }
 
   setDeliveryDirective(controller: string) {
