@@ -6,9 +6,15 @@
     <pre>{{ dt | json }}</pre>
     </details>
 
-    @for (system of dt.by_system | keyvalue;; track system.key){
-        <button type="button" (click)="toggle_system_visible(system.key)" >{{system.key}}</button>
-    }
+    <nav class="toc">
+        @for (system of dt.by_system | keyvalue;; track system.key){
+            <button 
+                type="button" 
+                (click)="toggle_system_visible(system.key)"
+                [class.active]="system_visible().has(system.key)"
+            >{{system.key}}</button>
+        }
+    </nav>
     <table>
         <tbody>
             @for (system of dt.by_system | keyvalue;; track system.key){
