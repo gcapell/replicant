@@ -14,7 +14,8 @@ export interface ChildDrone {
 
 
 export class Release {
-  children = input.required<ChildDrone[]>();
+  children = input.required<string[]>();
+  device_by_id = input.required<Record<string,ChildDrone>>();
   release = output<string[]>();
 
   selected(select: HTMLSelectElement): string[] {

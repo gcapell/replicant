@@ -16,13 +16,16 @@ export class HumanizeSecondsPipe implements PipeTransform {
 }
 
 interface DeviceTree {
-  devices: Device[];
-  controlled: Record<string, Device[]>; // devices controlled by this ID
-  stowed: Record<string, Device[]>;  // devices stowed in this ID
-  orphan_survey_drones: Device[];
-  orphan_transport_drones: Device[];
-  orphan_mining_drones: Device[];
+  controlled: Record<string, string[]>; // devices controlled by this ID
+  stowed: Record<string, string[]>;  // devices stowed in this ID
+  orphan_survey_drones: string[];
+  orphan_transport_drones: string[];
+  orphan_mining_drones: string[];
+  by_system: Record<string, string[]>; // System -> device IDs
+  by_id: Record<string, Device>;
 }
+
+const systemOf = (loc: string): string  => loc?.split("-", 1)[0];
 
 @Component({
   imports: [JsonPipe, MoveDevice, ReactiveFormsModule, HumanizeSecondsPipe, KeyValuePipe, Adopt, Release],
@@ -46,40 +49,46 @@ export class Devices {
     const deviceList = this.api.deviceList()?.devices;
     if (!deviceList?.length) return null;
 
-    const controlled: Record<string, Device[]> = {};
-    const stowed: Record<string, Device[]> = {};
+    const controlled: Record<string, string[]> = {};
+    const stowed: Record<string, string[]> = {};
     const devices: Device[] = [];
-    const orphan_mining_drones: Device[] = [];
-    const orphan_survey_drones: Device[] = [];
-    const orphan_transport_drones: Device[] = [];
+    const orphan_mining_drones: string[] = [];
+    const orphan_survey_drones: string[] = [];
+    const orphan_transport_drones: string[] = [];
+    const by_system: Record<string, string[]> = {};
+    const by_id: Record<string, Device> = {};
 
     for (const d of deviceList) {
+      by_id[d.device_code] = d;
       let free = true;
       if (d.controller_device_code) {
-        (controlled[d.controller_device_code] ??= []).push(d);
+        (controlled[d.controller_device_code] ??= []).push(d.device_code);
         free = false;
       } else {
         switch (d.device_type) {
           case "mining_drone":
-            orphan_mining_drones.push(d);
+            orphan_mining_drones.push(d.device_code);
             break;
           case "survey_drone":
-            orphan_survey_drones.push(d);
+            orphan_survey_drones.push(d.device_code);
             break;
           case "transport_hauler":
-          case "transport_drone": orphan_transport_drones.push(d);
+          case "transport_drone": orphan_transport_drones.push(d.device_code);
             break;
         }
       }
       if (d.stowed_in_device_code) {
         free = false;
-        (stowed[d.stowed_in_device_code] ??= []).push(d);
+        (stowed[d.stowed_in_device_code] ??= []).push(d.device_code);
       }
-      if (free) {
-        devices.push(d);
+      if (free && d.location) {
+        const system = systemOf(d.location);
+        (by_system[system] ??= []).push(d.device_code);
       }
     }
-    return { devices, controlled, stowed, orphan_mining_drones, orphan_survey_drones, orphan_transport_drones };
+    return { controlled, stowed, 
+      orphan_mining_drones, orphan_survey_drones, orphan_transport_drones, 
+      by_system, by_id};
   });
 
   form = this.fb.nonNullable.group({

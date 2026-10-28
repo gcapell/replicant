@@ -1,7 +1,7 @@
 @if (orphans().length) {
     <select #drones multiple>
-    @for (d of orphans(); track d.device_code) {
-        <option [value]="d.device_code">{{ d.device_code }}@{{ d.location }}</option>
+    @for (d of orphans(); track d) {
+        <option [value]="d">{{ d }}@{{ device_by_id()[d]?.location }}</option>
     }
     </select>
     <button type="button" (click)="adopt.emit(selected(drones))">Adopt</button>

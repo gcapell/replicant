@@ -12,7 +12,8 @@ export interface OrphanDrone {
   templateUrl: './adopt.html',
 })
 export class Adopt {
-  orphans = input.required<OrphanDrone[]>();
+  orphans = input.required<string[]>();
+  device_by_id = input.required<Record<string,OrphanDrone>>();
   adopt = output<string[]>();
 
   selected(select: HTMLSelectElement): string[] {
