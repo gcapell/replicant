@@ -1,0 +1,10 @@
+curl -H "Authorization: Bearer $API_KEY" \
+  "https://api.replicant.space/v1/accounts/events?status=completed" 
+
+curl -H "Authorization: Bearer $API_KEY" \
+     -H "Content-type: application/json" \
+    -X POST  \
+    "https://api.replicant.space/v1/devices/3B9BB396" \
+    -d '{"command":"travel", "destination":"OTHYONAL-3-L5"}' 
+
+

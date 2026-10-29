@@ -97,6 +97,7 @@
                                     <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>
                                 }
                                 @case("ftl_relay"){
+                                    <app-move-device [deviceCode]="d.device_code"/>
                                     <button type="button" (click)="api.activateRelay(d.device_code)">activate</button>
                                 }
                                 @case("heaven_vessel"){
