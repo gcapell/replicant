@@ -68,11 +68,17 @@
                                         <pre>{{d.ami_directive | json}}</pre>
                                     }
                                     @if(d.printing?.eta_seconds; as s) {
-                                        printing ETA {{s | humanizeSeconds}}
+                                        ETA {{s | humanizeSeconds}}
                                     }
                                     @if(d.status === "waiting_for_resources"){
                                         @for(wf of d.waiting_for|keyvalue; track wf.key){
                                             {{wf.key}} {{wf.value.have}}/{{wf.value.need}},
+                                        }
+                                    }
+                                    @if(d.print_queue?.length){
+                                        print queue:
+                                        @for (item of d.print_queue; track item.device_type){
+                                            {{item.device_type}} {{ $last ? '': ','}}
                                         }
                                     }
                             </td>
@@ -92,6 +98,19 @@
                                 }
                                 @case("heaven_vessel"){
                                     <app-move-device [deviceCode]="d.device_code"/>
+                                }
+                                @case("autofactory"){
+                                    @if (api.blueprintList(); as bps) {
+                                        <select #blueprint>
+                                        <option value="" disabled selected>resource...</option>
+                                        @for(bp of bps.blueprints; track bp.device_type){
+                                            <option [value]="bp.device_type">{{bp.device_type}}</option>
+                                        }
+                                        </select>
+                                        <button type="button" 
+                                                (click)="api.enqueuePrint(d.device_code,blueprint.value,1)">
+                                                Print</button>
+                                    }
                                 }
                                 @case("mining_drone"){
                                     <app-move-device [deviceCode]="d.device_code"/>

@@ -200,6 +200,13 @@ export class ReplicantApi {
             device_type: device_type,
         }, this.startPrintingResult);
     }
+    enqueuePrint(id: string, device_type: string, quantity:number) {
+        this.postAndUpdate(`/v1/devices/${id}`, {
+            command: "enqueue_print",
+            device_type: device_type,
+            quantity: quantity,
+        }, this.startPrintingResult);
+    }
     scan(id: string) {
         this.postAndUpdate(
             `/v1/replicants/${id}/scan`,

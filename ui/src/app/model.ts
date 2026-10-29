@@ -318,6 +318,12 @@ export interface Device {
     printing: PrintingStatus;
 
     waiting_for: Record<ResourceType,WaitingForStat>;
+
+    print_queue: DevicePrintQueueItem[];
+}
+
+interface DevicePrintQueueItem{
+    device_type: string;
 }
 
 interface WaitingForStat {
