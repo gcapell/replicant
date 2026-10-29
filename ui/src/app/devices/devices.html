@@ -96,6 +96,9 @@
                                 @case("maintenance_drone"){
                                     <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>
                                 }
+                                @case("ftl_relay"){
+                                    <button type="button" (click)="api.activateRelay(d.device_code)">activate</button>
+                                }
                                 @case("heaven_vessel"){
                                     <app-move-device [deviceCode]="d.device_code"/>
                                 }
@@ -310,6 +313,13 @@
 }
 @if (api.stowResult(); as r){
     <h3>stow result</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ r | json }}</pre>
+    </details>
+}
+@if (api.activateRelayResult(); as r){
+    <h3>activate relay result</h3>
     <details>
     <summary>Raw JSON</summary>
     <pre>{{ r | json }}</pre>

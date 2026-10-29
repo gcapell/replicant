@@ -403,6 +403,7 @@ export interface PatrolResult{}
 export interface DeployResult{}
 export interface MarkReadResult{}
 export interface StowResult{}
+export interface ActivateRelayResult{}
 
 export interface LocationList {
     locations: Record<string, LocationSummary>;

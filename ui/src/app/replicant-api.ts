@@ -7,7 +7,7 @@ import {
     StartMiningResult, ReplicantScanResult, BlueprintsList,
     StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
     SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult,
-    PatrolResult, DeployResult, MarkReadResult, LocationList, StowResult,
+    PatrolResult, DeployResult, MarkReadResult, LocationList, StowResult, ActivateRelayResult,
 } from './model';
 import { EventList } from './eventmodel';
 
@@ -44,6 +44,7 @@ export class ReplicantApi {
     readonly deployResult = signal<DeployResult | null>(null);
         readonly stowResult = signal<StowResult | null>(null);
     readonly markReadResult = signal<MarkReadResult | null>(null);
+    readonly activateRelayResult = signal<ActivateRelayResult | null> (null);
     readonly locationList = signal<LocationList | null>(null);
 
 
@@ -212,6 +213,12 @@ export class ReplicantApi {
             `/v1/replicants/${id}/scan`,
             null,
             this.replicantScanResult);
+    }
+    activateRelay(id:string){
+        this.postAndUpdate(
+            `/v1/devices/${id}`,
+            { "command": "activate" },
+            this.activateRelayResult);
     }
     deactivateDrone(id: string) {
         console.log("deactivate");
