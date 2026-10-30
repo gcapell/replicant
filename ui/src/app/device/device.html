@@ -77,22 +77,15 @@
 
 <!-- controls -->
 <div>
+@if(d.available_commands.includes('travel')){
+    <app-move-device [deviceCode]="d.device_code"/>
+}
 @switch(d.device_type){
 @case("maintenance_drone"){
     <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>
 }
 @case("ftl_relay"){
-    <app-move-device [deviceCode]="d.device_code"/>
     <button type="button" (click)="api.activateRelay(d.device_code)">activate</button>
-}
-@case("orbital_mirror"){
-    <app-move-device [deviceCode]="d.device_code"/>
-}
-@case("orbital_shade"){
-    <app-move-device [deviceCode]="d.device_code"/>
-}
-@case("heaven_vessel"){
-    <app-move-device [deviceCode]="d.device_code"/>
 }
 @case("autofactory"){
     @if (api.blueprintList(); as bps) {
@@ -108,7 +101,6 @@
     }
 }
 @case("mining_drone"){
-    <app-move-device [deviceCode]="d.device_code"/>
     <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
 
     <select #resource>
@@ -128,12 +120,10 @@
     <button type="button" (click)="api.startMining(d.device_code,resource.value,site.value)">Mine</button>
 }
 @case("survey_drone"){
-    <app-move-device [deviceCode]="d.device_code"/>
     <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
     <button type="button" (click)="api.scanDrone(d.device_code)">Scan</button>
 }
 @case("transport_drone"){
-    <app-move-device [deviceCode]="d.device_code"/>
     <select #resource>
     <option value="" disabled selected>resource...</option>
     @for(r of ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"]; track r){
@@ -144,7 +134,6 @@
     <button type="button" (click)="api.emptyTransport(d.device_code, resource.value)">Empty</button>
 }
 @case("ami_survey_controller"){
-    <app-move-device [deviceCode]="d.device_code"/>
     <app-adopt [orphans]="dt.orphan_survey_drones" [device_by_id]="dt.by_id"
     (adopt)="api.adoptDrones(d.device_code, $event)"/>
     <button type="button" (click)="surveySystem(d.device_code)">System</button>
