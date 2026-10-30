@@ -251,19 +251,19 @@ export class ReplicantApi {
             { "command": "stow" },
             this.stowResult);
     }
-    fillTransport(drone: string, resource: string) {
+    collectResources(drone: string, resource: string, amount:string) {
         this.postAndUpdate(`/v1/devices/${drone}`,
             {
                 command: "collect_resources",
-                resources: { [resource]: 20 },
+                resources: { [resource]: Number(amount) },
             },
             this.fillTransportResult);
     }
-    emptyTransport(drone: string, resource: string) {
+    depositResources(drone: string, resource: string, amount:string) {
         this.postAndUpdate(`/v1/devices/${drone}`,
             {
                 command: "deposit_resources",
-                resources: { [resource]: 20 },
+                resources: { [resource]: Number(amount) },
             },
             this.emptyTransportResult);
     }

@@ -9,6 +9,9 @@
 
 {{d.location}} {{d.status}}
 
+@if(d.cargo_used){
+    {{d.cargo_used}}/{{d.cargo_capacity}}
+}
 <div>
 @if(dt.stowed[d.device_code]; as stowed){
     <br>stowed:
@@ -100,6 +103,17 @@
                 Print</button>
     }
 }
+@if(d.features.includes('transport')){
+    <select #resource>
+    <option value="" disabled selected>resource...</option>
+    @for(r of ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"]; track r){
+        <option [value]="r">{{r}}</option>
+    }
+    </select>
+    <input type="number" #amount>
+    <button type="button" (click)="api.collectResources(d.device_code, resource.value, amount.value)">Collect</button>
+    <button type="button" (click)="api.depositResources(d.device_code, resource.value, amount.value)">Deposit</button>
+}
 @switch(d.device_type){
 @case("maintenance_drone"){
     <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>
@@ -129,16 +143,6 @@
 @case("survey_drone"){
     <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
     <button type="button" (click)="api.scanDrone(d.device_code)">Scan</button>
-}
-@case("transport_drone"){
-    <select #resource>
-    <option value="" disabled selected>resource...</option>
-    @for(r of ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"]; track r){
-        <option [value]="r">{{r}}</option>
-    }
-    </select>
-    <button type="button" (click)="api.fillTransport(d.device_code, resource.value)">Fill</button>
-    <button type="button" (click)="api.emptyTransport(d.device_code, resource.value)">Empty</button>
 }
 @case("ami_survey_controller"){
     <app-adopt [orphans]="dt.orphan_survey_drones" [device_by_id]="dt.by_id"
