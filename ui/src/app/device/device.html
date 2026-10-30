@@ -58,9 +58,11 @@
 }
 @if(d.print_queue?.length){
     print queue:
+    <ul>
     @for (item of d.print_queue; track item.device_type){
-        {{item.device_type}} {{ $last ? '': ','}}
+        <li>{{item.device_type}}</li>
     }
+    </ul>
 }
 </div>
 
