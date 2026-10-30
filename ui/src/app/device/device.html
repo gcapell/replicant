@@ -87,14 +87,7 @@
 @if(d.available_commands.includes('travel')){
     <app-move-device [deviceCode]="d.device_code"/>
 }
-@switch(d.device_type){
-@case("maintenance_drone"){
-    <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>
-}
-@case("ftl_relay"){
-    <button type="button" (click)="api.activateRelay(d.device_code)">activate</button>
-}
-@case("autofactory"){
+@if(d.features.includes('print')){
     @if (api.blueprintList(); as bps) {
         <select #blueprint>
         <option value="" disabled selected>resource...</option>
@@ -106,6 +99,13 @@
                 (click)="api.enqueuePrint(d.device_code,blueprint.value,1)">
                 Print</button>
     }
+}
+@switch(d.device_type){
+@case("maintenance_drone"){
+    <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>
+}
+@case("ftl_relay"){
+    <button type="button" (click)="api.activateRelay(d.device_code)">activate</button>
 }
 @case("mining_drone"){
     <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
