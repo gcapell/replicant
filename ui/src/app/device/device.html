@@ -116,6 +116,18 @@
         <button type="button" (click)="api.collectResources(d.device_code, resource.value, amount.value)">Collect</button>
         <button type="button" (click)="api.depositResources(d.device_code, resource.value, amount.value)">Deposit</button>
     }
+    @if(d.features.includes('attach')){
+        @let ns = dt.location_neighbors[d.device_code];
+        @if (ns.length){
+            <select #neighbor>
+                <option value="" disabled selected>attach...</option>
+                 @for(n of ns; track n){
+                    <option [value]="n">{{n}}</option>
+                }
+             </select>
+             <button type="button" (click)="api.attach(d.device_code, neighbor.value)">attach</button>
+        }
+    }
     @switch(d.device_type){
     @case("maintenance_drone"){
         <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>

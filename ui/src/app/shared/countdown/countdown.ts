@@ -60,7 +60,7 @@ export class Countdown implements OnChanges, OnDestroy {
       return [`${m}m`, 10 * second];
     }
     if (m > 0) {
-      return [`${m}m ${s}s`, 5 * second];
+      return [`${m}m ${s%60}s`, 5 * second];
     }
     return [`${s}s`, 1 * second];
   }

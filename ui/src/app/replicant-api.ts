@@ -8,6 +8,7 @@ import {
     StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
     SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult,
     PatrolResult, DeployResult, MarkReadResult, LocationList, StowResult, ActivateRelayResult,
+    CommandResult,
 } from './model';
 import { EventList } from './eventmodel';
 
@@ -46,6 +47,7 @@ export class ReplicantApi {
     readonly markReadResult = signal<MarkReadResult | null>(null);
     readonly activateRelayResult = signal<ActivateRelayResult | null> (null);
     readonly locationList = signal<LocationList | null>(null);
+    readonly commandResult = signal<CommandResult|null>(null);
 
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
@@ -305,6 +307,14 @@ export class ReplicantApi {
                 configuration: configuration,
             },
             this.setDirectiveResult);
+    }
+    attach(attacher: string, attached: string) {
+        this.postAndUpdate(`/v1/devices/${attacher}`,
+            {
+                command: "attach",
+                device: attached,
+            },
+            this.commandResult);
     }
     scanDrone(drone: string) {
         this.postAndUpdate(

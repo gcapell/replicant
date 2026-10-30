@@ -423,6 +423,7 @@ export interface DeployResult{}
 export interface MarkReadResult{}
 export interface StowResult{}
 export interface ActivateRelayResult{}
+export interface CommandResult{};
 
 export interface LocationList {
     locations: Record<string, LocationSummary>;

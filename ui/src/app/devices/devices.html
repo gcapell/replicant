@@ -119,3 +119,10 @@
     <pre>{{ r | json }}</pre>
     </details>
 }
+@if (api.commandResult(); as r){
+    <h3>command result</h3>
+    <details>
+    <summary>Raw JSON</summary>
+    <pre>{{ r | json }}</pre>
+    </details>
+}

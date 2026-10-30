@@ -31,8 +31,15 @@ export class Devices {
     const by_system: Record<string, string[]> = {};
     const by_id: Record<string, Device> = {};
 
+    // id -> other IDs at same location (for attachment etc)
+    const location_neighbors: Record<string, string[]> = {}; 
+
+    // location -> deviceIDs.
+    const by_location: Record<string, string[]> = {}
+
     for (const d of deviceList) {
       by_id[d.device_code] = d;
+      (by_location[d.location] ??= []).push(d.device_code);
       let free = true;
       if (d.controller_device_code) {
         (controlled[d.controller_device_code] ??= []).push(d.device_code);
@@ -59,9 +66,16 @@ export class Devices {
         (by_system[system] ??= []).push(d.device_code);
       }
     }
+    Object.entries(by_location).forEach(([loc, deviceIDs]) => {
+      deviceIDs.forEach((id, i)=>{
+        const others = [...deviceIDs.slice(0, i), ...deviceIDs.slice(i + 1)];
+        location_neighbors[id] = others;
+      });
+    });
+
     return { controlled, stowed, 
       orphan_mining_drones, orphan_survey_drones, orphan_transport_drones, 
-      by_system, by_id};
+      by_system, by_id, location_neighbors};
   });
 
   toggle_system_visible(system:string) {

@@ -23,6 +23,7 @@ export interface DeviceTree {
   orphan_mining_drones: string[];
   by_system: Record<string, string[]>; // System -> device IDs
   by_id: Record<string, Device>;
+  location_neighbors: Record<string, string[]>;  // deviceID -> other deviceIDs at same location.
 }
 
 @Component({
