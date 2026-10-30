@@ -7,6 +7,7 @@ import { Device } from '../model';
 import { humanizeSeconds } from '../format-duration';
 import { Adopt } from '../shared/adopt/adopt';
 import { Release } from '../shared/release/release';
+import {Directive} from '../shared/directive/directive';
 
 @Pipe({ name: 'humanizeSeconds', standalone: true })
 export class HumanizeSecondsPipe implements PipeTransform {
@@ -28,7 +29,7 @@ interface DeviceTree {
 const systemOf = (loc: string): string  => loc?.split("-", 1)[0];
 
 @Component({
-  imports: [JsonPipe, MoveDevice, ReactiveFormsModule, HumanizeSecondsPipe, KeyValuePipe, Adopt, Release],
+  imports: [JsonPipe, MoveDevice, ReactiveFormsModule, HumanizeSecondsPipe, KeyValuePipe, Adopt, Release,Directive],
   selector: 'app-devices',
   styleUrl: './devices.scss',
   templateUrl: './devices.html',

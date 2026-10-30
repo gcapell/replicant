@@ -5,6 +5,27 @@ curl -H "Authorization: Bearer $API_KEY" \
      -H "Content-type: application/json" \
     -X POST  \
     "https://api.replicant.space/v1/devices/3B9BB396" \
-    -d '{"command":"travel", "destination":"OTHYONAL-3-L5"}' 
+    -d '{"command":"travel", "destination":"OTHYONAL-BELT-1"}' 
 
 
+# Stars 
+curl -H "Authorization: Bearer $API_KEY" \
+  "https://api.replicant.space/v1/replicants/4698E8E6/stars?per_page=20" 
+
+curl -H "Authorization: Bearer $API_KEY" \
+  "https://api.replicant.space/v1/locations/ALWRENAN" 
+
+# bobnet
+curl -H "Authorization: Bearer $API_KEY" \
+  "https://api.replicant.space/v1/devices/78D64763/channels" 
+
+
+curl -H "Authorization: Bearer $API_KEY" \
+  "https://api.replicant.space/v1/devices/78D64763/messages?latest=true&limit=20&include_npcs=false" 
+
+# Travel
+curl  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-type: application/json" \
+  -X POST  \
+  "https://api.replicant.space/v1/devices/B77A0F1E" \
+  -d '{"command":"travel", "destination":"ALWRENAN-BELT-1"}'  

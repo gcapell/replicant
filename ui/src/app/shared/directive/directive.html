@@ -1,0 +1,5 @@
+@let d = directive();
+AMI:{{d.name}}
+@if(hasConfig()){
+    , {{d.config | json}}
+}

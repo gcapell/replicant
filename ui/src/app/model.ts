@@ -339,9 +339,12 @@ interface PrintingStatus{
     // tags
 }
 
-interface AMIDirective {
-
+export interface AMIDirective {
+    name:string;
+    config: AMIDirectiveConfig;
 }
+
+interface AMIDirectiveConfig{}
 
 interface Travel {
     final_arrives_at: string;

@@ -65,7 +65,7 @@
                                         </ul>
                                     }
                                     @if(d.ami_directive_status === "active"){
-                                        <pre>{{d.ami_directive | json}}</pre>
+                                        <app-directive [directive]="d.ami_directive"/>
                                     }
                                     @if(d.printing?.eta_seconds; as s) {
                                         ETA {{s | humanizeSeconds}}
@@ -99,6 +99,12 @@
                                 @case("ftl_relay"){
                                     <app-move-device [deviceCode]="d.device_code"/>
                                     <button type="button" (click)="api.activateRelay(d.device_code)">activate</button>
+                                }
+                                @case("orbital_mirror"){
+                                    <app-move-device [deviceCode]="d.device_code"/>
+                                }
+                                @case("orbital_shade"){
+                                    <app-move-device [deviceCode]="d.device_code"/>
                                 }
                                 @case("heaven_vessel"){
                                     <app-move-device [deviceCode]="d.device_code"/>
@@ -153,6 +159,7 @@
                                     <button type="button" (click)="api.emptyTransport(d.device_code, resource.value)">Empty</button>
                                 }
                                 @case("ami_survey_controller"){
+                                    <app-move-device [deviceCode]="d.device_code"/>
                                     <app-adopt [orphans]="dt.orphan_survey_drones" [device_by_id]="dt.by_id"
                                     (adopt)="api.adoptDrones(d.device_code, $event)"/>
                                     <button type="button" (click)="surveySystem(d.device_code)">System</button>
