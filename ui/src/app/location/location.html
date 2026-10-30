@@ -77,7 +77,7 @@
 
 
 
-    @if (loc.inventory; as i) {
+    @if (loc.inventory.length) {
         <h2>Inventory</h2>
         <table>
             <thead>
@@ -87,7 +87,7 @@
                 </tr>
             </thead>
             <tbody>
-            @for (r of i; track r.resource_type) {
+            @for (r of loc.inventory; track r.resource_type) {
             <tr>
                 <td>{{ r.resource_type }}</td>
                 <td>{{ r.quantity }}</td>
@@ -97,9 +97,9 @@
         </table>
     }
 
-    @if (loc.resource_sites; as rs){
+    @if (loc.resource_sites.length){
         <h2>Resource sites</h2>
-        @for (r of rs; track r.designation) {
+        @for (r of loc.resource_sites; track r.designation) {
             <p>{{r.name}}</p>
             <app-kv-table [items]="r.resources_remaining_pct"/>
         }
