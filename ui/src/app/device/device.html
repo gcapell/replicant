@@ -1,7 +1,12 @@
 @let d = device();
 @let dt = deviceTree();
 
-<h4>{{d.device_type}} {{d.device_code}}</h4>
+
+<div class="tooltip">
+    <h2>{{d.device_type}} {{d.device_code}}</h2>
+    <pre class="tooltip-text">{{d |json}}</pre>
+</div>
+
 {{d.location}} {{d.status}}
 
 <div>

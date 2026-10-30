@@ -2,6 +2,9 @@ curl -H "Authorization: Bearer $API_KEY" \
   "https://api.replicant.space/v1/accounts/events?status=completed" 
 
 curl -H "Authorization: Bearer $API_KEY" \
+  "https://api.replicant.space/v1/accounts/reputation" 
+
+curl -H "Authorization: Bearer $API_KEY" \
      -H "Content-type: application/json" \
     -X POST  \
     "https://api.replicant.space/v1/devices/3B9BB396" \
@@ -27,5 +30,5 @@ curl -H "Authorization: Bearer $API_KEY" \
 curl  -H "Authorization: Bearer $API_KEY" \
   -H "Content-type: application/json" \
   -X POST  \
-  "https://api.replicant.space/v1/devices/B77A0F1E" \
-  -d '{"command":"travel", "destination":"ALWRENAN-BELT-1"}'  
+  "https://api.replicant.space/v1/devices/3B9BB396" \
+  -d '{"command":"travel", "destination":"ALWRENAN-1-L5"}'  
