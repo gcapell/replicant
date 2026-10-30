@@ -10,4 +10,5 @@ import { ReplicantApi } from '../../replicant-api';
 export class MoveDevice {
     protected readonly api = inject(ReplicantApi);
     deviceCode = input.required<string>();
+    destinations = input.required<string[]>();
 }

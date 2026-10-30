@@ -14,6 +14,7 @@ export interface ReplicantSummary {
     hosted_device_code: string;
     name: string;
     replicant_code: string;
+    
 }
 
 export interface Replicant {
@@ -29,6 +30,13 @@ export interface Replicant {
     replicant_code: string;
     status: string;
     stowed_devices: StowedDevice[];
+    travel: ReplicantTravel;
+}
+
+interface ReplicantTravel {
+    arrives_at: string;
+    destination:string;
+    origin:string;
 }
 
 interface CurrentlyPrinting {

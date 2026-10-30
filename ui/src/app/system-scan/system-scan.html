@@ -25,9 +25,9 @@
         @for(s of r.shops; track s.shop_name){
             <h4>{{s.shop_name}} @ {{s.location}} - {{s.owner_name}}</h4>
             <ul>
-                @for(t of s.trades; track $index){
+                @for(t of s.trades; track t.trade_code){
                     <li>
-                        {{t.name}}({{t.current_stock}})
+                        {{t.name}}({{t.current_stock}}) - 
                         @for(d of t.rewards.devices | keyvalue; track d.key){
                             {{d.key}}@if(d.value>1){(x{{d.value}})},
                         }
@@ -40,7 +40,8 @@
                         }
                         @for(r of t.criteria.resources | keyvalue; track r.key){
                             {{r.value}} {{r.key}},
-                        }                         
+                        }
+                        ({{t.trade_code}})                 
                     </li>
                 }
             </ul>

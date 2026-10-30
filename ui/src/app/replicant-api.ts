@@ -314,7 +314,16 @@ export class ReplicantApi {
     }
     resources = ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"];
 
-    destinations = computed<string[] | null>(() => {
+    surgeDestinations = computed<string[] | null>(()=>{
+        const locations = this.locationList();
+        if (!locations) {
+            return null;
+        }
+        return Object.entries(locations.locations).map(
+            ([loc, summary]) => loc
+        );
+    });
+    scanDestinations = computed<string[] | null>(() => {
         const scan = this.replicantScanResult();
         if (!scan) {
             return null;
@@ -328,4 +337,10 @@ export class ReplicantApi {
         }
         return reply;
     });
+    allDestinations = computed<string[] | null>(()=>
+        [...new Set([
+            ...(this.surgeDestinations() ?? []),
+            ...(this.scanDestinations() ?? [])
+        ])].sort()
+    );
 }

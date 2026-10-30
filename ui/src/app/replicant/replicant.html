@@ -6,6 +6,9 @@
     <pre>{{ r | json }}</pre>
     </details>
 
+    @if (r.travel?.arrives_at; as eta){
+        {{r.travel.origin}} -> {{r.travel.destination}} in <app-countdown [deadline]="eta"/>
+    }
     @if (r.stowed_devices; as d) {
         <h2>Stowed Devices</h2>
         <ul>

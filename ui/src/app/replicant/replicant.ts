@@ -2,11 +2,12 @@ import { Component, inject } from '@angular/core';
 import { ReplicantApi } from '../replicant-api';
 import { JsonPipe } from '@angular/common';
 import { Starmap, Star } from '../starmap/starmap';
+import { Countdown } from '../shared/countdown/countdown';
 
 
 
 @Component({
-  imports: [JsonPipe, Starmap],
+  imports: [JsonPipe, Starmap, Countdown],
   selector: 'app-replicant',
   styleUrl: './replicant.scss',
   templateUrl: './replicant.html',

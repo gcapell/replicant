@@ -1,6 +1,6 @@
 <select #destination>
     <option value="" disabled selected>move to...</option>
-    @for ( d of (api.destinations() ?? []); track d){
+    @for ( d of destinations() ?? []; track d){
         <option [value]="d">{{d}}</option>
     }
 </select>
