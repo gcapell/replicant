@@ -100,6 +100,14 @@ interface LocationEventOption{
     met: boolean;
     name: string;
     resources: LocationEventResource[];
+    devices: LocationEventDevice[];
+}
+
+interface LocationEventDevice{
+    device_type: string;
+    current: number;
+    required:number;
+    met:boolean;
 }
 
 interface LocationEventResource{

@@ -41,6 +41,12 @@
                             <td>{{r.current}}/{{r.required}}</td>
                         </tr>
                     }
+                    @for(d of o.devices; track d.device_type){
+                        <tr>
+                            <td>{{d.device_type}}@if(d.met){✅}</td>
+                            <td>{{d.current}}/{{d.required}}</td>
+                        </tr>
+                    }
                 </tbody>
             </table>
 
