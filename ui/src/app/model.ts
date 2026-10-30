@@ -324,6 +324,8 @@ export interface Device {
     stow_used: number;
     stowed_devices: StowedDevice[];
     travel: Travel;
+    attached_to_device_code: string;
+    attached_devices: AttachedDevice[];
 
     cargo: ResourceCount[];
     cargo_capacity:number;
@@ -336,6 +338,11 @@ export interface Device {
     waiting_for: Record<ResourceType,WaitingForStat>;
 
     print_queue: DevicePrintQueueItem[];
+}
+
+interface AttachedDevice{
+    device_code:string;
+    device_type:string;
 }
 
 interface DevicePrintQueueItem{

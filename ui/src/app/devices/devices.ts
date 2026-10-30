@@ -39,11 +39,13 @@ export class Devices {
 
     for (const d of deviceList) {
       by_id[d.device_code] = d;
-      (by_location[d.location] ??= []).push(d.device_code);
+
       let free = true;
       if (d.controller_device_code) {
         (controlled[d.controller_device_code] ??= []).push(d.device_code);
         free = false;
+      } else if  (d.attached_to_device_code) {
+        free = false; 
       } else {
         switch (d.device_type) {
           case "mining_drone":
@@ -64,6 +66,7 @@ export class Devices {
       if (free && d.location) {
         const system = systemOf(d.location);
         (by_system[system] ??= []).push(d.device_code);
+        (by_location[d.location] ??= []).push(d.device_code);
       }
     }
     Object.entries(by_location).forEach(([loc, deviceIDs]) => {

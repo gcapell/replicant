@@ -24,6 +24,15 @@
     }
     </ul>
 }
+@if(d.attached_devices?.length>0){
+    <ul>
+        @for(a of d.attached_devices; track a.device_code){
+            <li>
+                {{a.device_type}} {{a.device_code}}
+            </li>
+        }
+    </ul>
+}
 @if(dt.controlled[d.device_code]; as controlled){
     <br>controlled:
     <ul>
