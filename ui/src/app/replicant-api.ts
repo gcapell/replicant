@@ -55,15 +55,24 @@ export class ReplicantApi {
 
     async listDevicesAsync(){
         console.log("list async");
-        const deviceList = await this.listLocationDevices("MIRETH");
-        console.log("got devicelist", deviceList);
+        let next_cursor = 0;
+        do {
+            const deviceList = await this.listLocationDevices("OTHYONAL", next_cursor);
+            this.processDeviceList(deviceList)
+            next_cursor = deviceList.next_cursor;
+        } while(next_cursor);
     }
 
-    async listLocationDevices(loc:string):Promise<DeviceList>{
+    processDeviceList(dl:DeviceList){
+        for (const d of dl.devices){
+            console.log("device", d.device_type, d.device_code, d.location);
+        }
+    }
+
+    async listLocationDevices(location:string, cursor:number):Promise<DeviceList>{
+        console.log("cursor", cursor);
         return firstValueFrom(
-            this.http.get<DeviceList>(
-                `/v1/devices?location=${loc}`
-            )
+            this.http.get<DeviceList>(`/v1/devices`, {params: {location,cursor}})
         );
     }
 
