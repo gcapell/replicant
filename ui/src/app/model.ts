@@ -266,6 +266,7 @@ interface OuterSystem{
 
 interface AsteroidBelts {
     belts: AsteroidBelt[];
+    present: boolean;
 }
 
 interface AsteroidBelt{

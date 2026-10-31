@@ -350,9 +350,12 @@ export class ReplicantApi {
         for (const p of scan.planets) {
             reply.push(p.designation);
         }
-        for (const b of scan.asteroid_belt.belts) {
-            reply.push(b.designation);
+        if (scan.asteroid_belt.present) {
+            for (const b of scan.asteroid_belt.belts) {
+                reply.push(b.designation);
+            }
         }
+
         return reply;
     });
     allDestinations = computed<string[] | null>(()=>
