@@ -14,6 +14,8 @@ import { EventList } from './eventmodel';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from './auth';
 
+type Params = Record<string, string | number | boolean>;
+
 @Service()
 export class ReplicantApi {
     readonly token = signal(localStorage.getItem('token') ?? '');
@@ -46,34 +48,36 @@ export class ReplicantApi {
     readonly releaseDronesResult = signal<ReleaseDronesResult | null>(null);
     readonly patrolResult = signal<PatrolResult | null>(null);
     readonly deployResult = signal<DeployResult | null>(null);
-        readonly stowResult = signal<StowResult | null>(null);
+    readonly stowResult = signal<StowResult | null>(null);
     readonly markReadResult = signal<MarkReadResult | null>(null);
-    readonly activateRelayResult = signal<ActivateRelayResult | null> (null);
+    readonly activateRelayResult = signal<ActivateRelayResult | null>(null);
     readonly locationList = signal<LocationList | null>(null);
-    readonly commandResult = signal<CommandResult|null>(null);
+    readonly commandResult = signal<CommandResult | null>(null);
 
 
-    async listDevicesAsync(){
-        console.log("list async");
-        let next_cursor = 0;
-        do {
-            const deviceList = await this.listLocationDevices("OTHYONAL", next_cursor);
-            this.processDeviceList(deviceList)
-            next_cursor = deviceList.next_cursor;
-        } while(next_cursor);
-    }
 
-    processDeviceList(dl:DeviceList){
-        for (const d of dl.devices){
-            console.log("device", d.device_type, d.device_code, d.location);
+
+    async listDevicesAsync() {
+        for await (const dl of this.pages<DeviceList>(`/v1/devices`, {location:"OTHYONAL"})){
+            for (const d of dl.devices) {
+                console.log("device", d.device_type, d.device_code, d.location);
+            }
         }
     }
 
-    async listLocationDevices(location:string, cursor:number):Promise<DeviceList>{
-        console.log("cursor", cursor);
-        return firstValueFrom(
-            this.http.get<DeviceList>(`/v1/devices`, {params: {location,cursor}})
-        );
+    async *pages<T extends { next_cursor?: number | null }>(
+        url: string,
+        params: Params = {},
+    ): AsyncGenerator<T> {
+        let cursor: string | number | null | undefined;
+        do {
+            console.log("cursor", cursor);
+            const page = await firstValueFrom(
+                this.http.get<T>(url, { params: cursor != null ? { ...params, cursor } : params }),
+            );
+            yield page;
+            cursor = page.next_cursor;
+        } while (cursor != null);
     }
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
@@ -141,17 +145,17 @@ export class ReplicantApi {
         });
     }
 
-    systemOf = (loc: string): string  => loc?.split("-", 1)[0];
+    systemOf = (loc: string): string => loc?.split("-", 1)[0];
 
     loadReplicant(id: string) {
         this.fetchAndUpdate(`/v1/replicants/${id}`, this.replicant);
     }
 
     // system -> salvage sites
-    salvageSites = computed<Record<string,string[]>>(() => {
-        const reply :Record<string, string[]> = {};
+    salvageSites = computed<Record<string, string[]>>(() => {
+        const reply: Record<string, string[]> = {};
         Object.entries(this.locationList()?.locations ?? {})
-            .forEach( ([loc,details], i) => {
+            .forEach(([loc, details], i) => {
                 if (details.resource_sites) {
                     (reply[this.systemOf(loc)] ??= []).push(loc);
                 }
@@ -230,7 +234,7 @@ export class ReplicantApi {
             device_type: device_type,
         }, this.startPrintingResult);
     }
-    enqueuePrint(id: string, device_type: string, quantity:number) {
+    enqueuePrint(id: string, device_type: string, quantity: number) {
         this.postAndUpdate(`/v1/devices/${id}`, {
             command: "enqueue_print",
             device_type: device_type,
@@ -243,7 +247,7 @@ export class ReplicantApi {
             null,
             this.replicantScanResult);
     }
-    activateRelay(id:string){
+    activateRelay(id: string) {
         this.postAndUpdate(
             `/v1/devices/${id}`,
             { "command": "activate" },
@@ -280,7 +284,7 @@ export class ReplicantApi {
             { "command": "stow" },
             this.stowResult);
     }
-    collectResources(drone: string, resource: string, amount:string) {
+    collectResources(drone: string, resource: string, amount: string) {
         this.postAndUpdate(`/v1/devices/${drone}`,
             {
                 command: "collect_resources",
@@ -288,7 +292,7 @@ export class ReplicantApi {
             },
             this.fillTransportResult);
     }
-    depositResources(drone: string, resource: string, amount:string) {
+    depositResources(drone: string, resource: string, amount: string) {
         this.postAndUpdate(`/v1/devices/${drone}`,
             {
                 command: "deposit_resources",
@@ -351,7 +355,7 @@ export class ReplicantApi {
     }
     resources = ["carbon", "conductive", "rares", "silicates", "structural", "volatiles"];
 
-    surgeDestinations = computed<string[] | null>(()=>{
+    surgeDestinations = computed<string[] | null>(() => {
         const locations = this.locationList();
         if (!locations) {
             return null;
@@ -377,7 +381,7 @@ export class ReplicantApi {
 
         return reply;
     });
-    allDestinations = computed<string[] | null>(()=>
+    allDestinations = computed<string[] | null>(() =>
         [...new Set([
             ...(this.surgeDestinations() ?? []),
             ...(this.scanDestinations() ?? [])
