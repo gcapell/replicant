@@ -22,11 +22,11 @@
                                     (click)="api.loadLocation(kv.key)">inventory</button>
                             {{kv.key}}
                         </td>
-                        <td>{{v.resources}}</td>
-                        <td>{{v.resource_sites}}</td>
-                        <td>{{v.location_events}}</td>
-                        <td>{{v.replicants}}</td>
-                        <td>{{v.devices}}</td>
+                        <td>{{v.resources || ""}}</td>
+                        <td>{{v.resource_sites || ""}}</td>
+                        <td>{{v.location_events || ""}}</td>
+                        <td>{{v.replicants || ""}}</td>
+                        <td>{{v.devices || ""}}</td>
                     </tr>
                 <!-- } -->
             }

@@ -63,10 +63,11 @@ export class Devices {
         free = false;
         (stowed[d.stowed_in_device_code] ??= []).push(d.device_code);
       }
-      if (free && d.location) {
-        const system = systemOf(d.location);
+      if (free) {
+        const loc = d.location || "travelling";
+        const system = systemOf(loc);
         (by_system[system] ??= []).push(d.device_code);
-        (by_location[d.location] ??= []).push(d.device_code);
+        (by_location[loc] ??= []).push(d.device_code);
       }
     }
     Object.entries(by_location).forEach(([loc, deviceIDs]) => {
