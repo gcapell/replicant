@@ -17,14 +17,15 @@ const systemOf = (loc: string): string => loc?.split("-", 1)[0];
 export class Devices {
   protected readonly api = inject(ReplicantApi);
 
+  readonly systemNames = computed(() => {
+  const locations = this.api.locationList()?.locations ?? {};
+  return [...new Set(Object.keys(locations).map(systemOf))].sort();
+});
+
   system_visible = signal<Set<string>>(new Set<string>());
   deviceTree = computed<DeviceTree | null>(() => {
 
-    const system_names = [
-      ...new Set(
-        Object.keys(this.api.locationList()?.locations ?? {}).map(systemOf)
-      ),
-    ].sort();
+
 
     const deviceList = this.api.deviceList()?.devices;
     if (!deviceList?.length) return null;
@@ -85,7 +86,7 @@ export class Devices {
     });
 
     return {
-      controlled, stowed, system_names,
+      controlled, stowed,
       orphan_mining_drones, orphan_survey_drones, orphan_transport_drones,
       by_system, by_id, location_neighbors
     };

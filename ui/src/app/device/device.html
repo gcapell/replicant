@@ -76,7 +76,7 @@
 @if(d.print_queue?.length){
     print queue:
     <ul>
-    @for (item of d.print_queue; track item.device_type){
+    @for (item of d.print_queue; track $index){
         <li>{{item.device_type}}</li>
     }
     </ul>

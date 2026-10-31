@@ -18,7 +18,6 @@ export interface DeviceTree {
   by_system: Record<string, string[]>; // System -> device IDs
   by_id: Record<string, Device>;
   location_neighbors: Record<string, string[]>;  // deviceID -> other deviceIDs at same location.
-  system_names: string[];
 }
 
 @Component({

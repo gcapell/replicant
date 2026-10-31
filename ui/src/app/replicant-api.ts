@@ -11,6 +11,7 @@ import {
     CommandResult,
 } from './model';
 import { EventList } from './eventmodel';
+import { firstValueFrom } from 'rxjs';
 
 @Service()
 export class ReplicantApi {
@@ -49,6 +50,25 @@ export class ReplicantApi {
     readonly locationList = signal<LocationList | null>(null);
     readonly commandResult = signal<CommandResult|null>(null);
 
+
+    async listDevicesAsync(){
+        console.log("list async");
+        const deviceList = await this.listLocationDevices("MIRETH");
+        console.log("got devicelist", deviceList);
+    }
+
+    async listLocationDevices(loc:string):Promise<DeviceList>{
+        return firstValueFrom(
+            this.http.get<DeviceList>(
+                `/v1/devices?location=${loc}`,
+                {
+                    headers:{
+                         'Authorization': `Bearer ${this.token()}`,
+                    },
+                }
+            )
+        );
+    }
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
         console.log("GET", path);
