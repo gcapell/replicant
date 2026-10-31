@@ -123,16 +123,24 @@ export class ReplicantApi {
         });
     }
 
+    systemOf = (loc: string): string  => loc?.split("-", 1)[0];
 
     loadReplicant(id: string) {
         this.fetchAndUpdate(`/v1/replicants/${id}`, this.replicant);
     }
-    salvageSites = computed<string[]>(() =>
-        Object.entries(this.locationList()?.locations ?? {})
-            .filter(([, meta]) => meta.resource_sites)
-            .map(([loc,]) => loc)
-    )
 
+    // system -> salvage sites
+    salvageSites = computed<Record<string,string[]>>(() => {
+        const reply :Record<string, string[]> = {};
+        Object.entries(this.locationList()?.locations ?? {})
+            .forEach( ([loc,details], i) => {
+                if (details.resource_sites) {
+                    (reply[this.systemOf(loc)] ??= []).push(loc);
+                }
+            });
+        console.log("salvageSites", reply);
+        return reply;
+    });
 
     locations() {
         this.fetchAndUpdate(`/v1/locations`, this.locationList);

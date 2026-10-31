@@ -178,8 +178,8 @@
         (release)="api.releaseDrones(d.device_code, $event)"/>
         <button type="button" (click)="gatherEvenly(d.device_code)">gather evenly</button>
         <select #salvageDst>
-                @for(d of api.salvageSites(); track d){
-                    <option [value]="d">{{d}}</option>
+                @for(s of api.salvageSites()[api.systemOf(d.location)]; track s){
+                    <option [value]="s">{{s}}</option>
                 }
             </select>
             <button type="button" (click)="setSalvageDirective(d.device_code, salvageDst.value)">salvage</button>
