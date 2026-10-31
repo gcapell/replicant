@@ -3,13 +3,13 @@ import { ReactiveFormsModule } from '@angular/forms';
 import { ReplicantApi } from '../replicant-api';
 import { JsonPipe, KeyValuePipe } from '@angular/common';
 import { Device } from '../model';
-import {DeviceComponent,DeviceTree} from '../device/device';
+import { DeviceComponent, DeviceTree } from '../device/device';
 
 
-const systemOf = (loc: string): string  => loc?.split("-", 1)[0];
+const systemOf = (loc: string): string => loc?.split("-", 1)[0];
 
 @Component({
-  imports: [ ReactiveFormsModule, KeyValuePipe,DeviceComponent,JsonPipe],
+  imports: [ReactiveFormsModule, KeyValuePipe, DeviceComponent, JsonPipe],
   selector: 'app-devices',
   styleUrl: './devices.scss',
   templateUrl: './devices.html',
@@ -19,6 +19,13 @@ export class Devices {
 
   system_visible = signal<Set<string>>(new Set<string>());
   deviceTree = computed<DeviceTree | null>(() => {
+
+    const system_names = [
+      ...new Set(
+        Object.keys(this.api.locationList()?.locations ?? {}).map(systemOf)
+      ),
+    ].sort();
+
     const deviceList = this.api.deviceList()?.devices;
     if (!deviceList?.length) return null;
 
@@ -32,7 +39,7 @@ export class Devices {
     const by_id: Record<string, Device> = {};
 
     // id -> other IDs at same location (for attachment etc)
-    const location_neighbors: Record<string, string[]> = {}; 
+    const location_neighbors: Record<string, string[]> = {};
 
     // location -> deviceIDs.
     const by_location: Record<string, string[]> = {}
@@ -44,8 +51,8 @@ export class Devices {
       if (d.controller_device_code) {
         (controlled[d.controller_device_code] ??= []).push(d.device_code);
         free = false;
-      } else if  (d.attached_to_device_code) {
-        free = false; 
+      } else if (d.attached_to_device_code) {
+        free = false;
       } else {
         switch (d.device_type) {
           case "mining_drone":
@@ -71,26 +78,28 @@ export class Devices {
       }
     }
     Object.entries(by_location).forEach(([loc, deviceIDs]) => {
-      deviceIDs.forEach((id, i)=>{
+      deviceIDs.forEach((id, i) => {
         const others = [...deviceIDs.slice(0, i), ...deviceIDs.slice(i + 1)];
         location_neighbors[id] = others;
       });
     });
 
-    return { controlled, stowed, 
-      orphan_mining_drones, orphan_survey_drones, orphan_transport_drones, 
-      by_system, by_id, location_neighbors};
+    return {
+      controlled, stowed, system_names,
+      orphan_mining_drones, orphan_survey_drones, orphan_transport_drones,
+      by_system, by_id, location_neighbors
+    };
   });
 
-  toggle_system_visible(system:string) {
-    this.system_visible.update(current=>{
+  toggle_system_visible(system: string) {
+    this.system_visible.update(current => {
       const next = new Set(current);
-      if (next.has(system)){
+      if (next.has(system)) {
         next.delete(system);
       } else {
         next.add(system);
       }
       return next;
     });
-  } 
+  }
 }

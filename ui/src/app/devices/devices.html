@@ -7,12 +7,12 @@
     </details>
 
     <nav class="toc">
-        @for (system of dt.by_system | keyvalue;; track system.key){
+        @for (system of dt.system_names; track system){
             <button 
                 type="button" 
-                (click)="toggle_system_visible(system.key)"
-                [class.active]="system_visible().has(system.key)"
-            >{{system.key}}</button>
+                (click)="toggle_system_visible(system)"
+                [class.active]="system_visible().has(system)"
+            >{{system}}</button>
         }
     </nav>
     @for (system of dt.by_system | keyvalue;; track system.key){

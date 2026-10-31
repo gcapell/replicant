@@ -1,4 +1,4 @@
-@if (children().length) {
+@if (children()?.length) {
     <select #drones multiple>
     @for (d of children(); track d) {
         <option [value]="d">{{ d }}@{{device_by_id()[d].location}}</option>
