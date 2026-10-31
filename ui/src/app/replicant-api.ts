@@ -12,11 +12,13 @@ import {
 } from './model';
 import { EventList } from './eventmodel';
 import { firstValueFrom } from 'rxjs';
+import { AuthService } from './auth';
 
 @Service()
 export class ReplicantApi {
     readonly token = signal(localStorage.getItem('token') ?? '');
     protected readonly http = inject(HttpClient);
+    protected readonly auth = inject(AuthService);
 
     readonly accountData = signal<AccountData | null>(null);
     readonly replicant = signal<Replicant | null>(null);
@@ -60,23 +62,14 @@ export class ReplicantApi {
     async listLocationDevices(loc:string):Promise<DeviceList>{
         return firstValueFrom(
             this.http.get<DeviceList>(
-                `/v1/devices?location=${loc}`,
-                {
-                    headers:{
-                         'Authorization': `Bearer ${this.token()}`,
-                    },
-                }
+                `/v1/devices?location=${loc}`
             )
         );
     }
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {
         console.log("GET", path);
-        this.http.get<T>(path, {
-            headers: {
-                'Authorization': `Bearer ${this.token()}`
-            }
-        }).subscribe({
+        this.http.get<T>(path).subscribe({
             next: (data) => {
                 target.set(data);
             },
@@ -105,9 +98,6 @@ export class ReplicantApi {
     ) {
         console.log("GET", path);
         this.http.get<T>(path, {
-            headers: {
-                'Authorization': `Bearer ${this.token()}`,
-            },
             params: cursor !== null ? { cursor } : {},
         }).subscribe({
             next: (page) => {
@@ -128,7 +118,6 @@ export class ReplicantApi {
         console.log("POST", body, "to", path);
         this.http.post<T>(path, body, {
             headers: {
-                'Authorization': `Bearer ${this.token()}`,
                 'Content-Type': 'application/json',
             }
         }).subscribe({
@@ -200,6 +189,7 @@ export class ReplicantApi {
     loadAccount(token: string) {
         localStorage.setItem('token', token);
         this.token.set(token);
+        this.auth.token.set(token);
         this.fetchAndUpdate(`/v1/accounts/me`, this.accountData);
     }
     search(id: string) {
