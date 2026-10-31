@@ -65,8 +65,8 @@
 @if(d.ami_directive_status === "active"){
     <app-directive [directive]="d.ami_directive"/>
 }
-@if(d.printing?.eta_seconds; as s) {
-    ETA {{s | humanizeSeconds}}
+@if(d.printing?.completes_at; as deadline) {
+    printed in <app-countdown [deadline]="deadline"/>
 }
 @if(d.status === "waiting_for_resources"){
     @for(wf of d.waiting_for|keyvalue; track wf.key){
@@ -88,15 +88,13 @@
     {{d.stow_used}}/{{d.stow_capacity}}
 }</td>
 @if(d.status == "travelling"){
-    {{d.travel.origin}}->{{d.travel.final_destination}} in 
-    {{d.travel.route_eta_seconds}}s
-    ({{d.travel.type}}/{{d.travel.stage}})
+    {{d.travel.origin}}->{{d.travel.final_destination}} in <app-countdown [deadline]="d.travel.final_arrives_at"/>
 }
 </div>
 
 <!-- controls -->
 <div>
-@if(d.in_control_range){
+@if(d.in_control_range && d.location){
     @if(d.available_commands.includes('travel')){
         @let dest = d.features.includes('surge') ? api.allDestinations() : api.scanDestinations();
         <app-move-device [deviceCode]="d.device_code" [destinations]="dest ?? []"/>
@@ -237,7 +235,7 @@
         <button type="button" (click)="api.stow(d.device_code)">stow</button>
     }
 } @else {
-    out of control range.
+    out of range or travelling.
 }
 </div>
  

@@ -7,14 +7,8 @@ import { Device } from '../model';
 import { Adopt } from '../shared/adopt/adopt';
 import { Release } from '../shared/release/release';
 import {Directive} from '../shared/directive/directive';
-import { humanizeSeconds } from '../format-duration';
+import { Countdown } from '../shared/countdown/countdown';
 
-@Pipe({ name: 'humanizeSeconds', standalone: true })
-export class HumanizeSecondsPipe implements PipeTransform {
-  transform(value: number): string {
-    return humanizeSeconds(value);
-  }
-}
 export interface DeviceTree {
   controlled: Record<string, string[]>; // devices controlled by this ID
   stowed: Record<string, string[]>;  // devices stowed in this ID
@@ -29,7 +23,8 @@ export interface DeviceTree {
 @Component({
   imports: [
         MoveDevice, ReactiveFormsModule, JsonPipe,
-        KeyValuePipe, Adopt, Release,Directive, HumanizeSecondsPipe,
+        KeyValuePipe, Adopt, Release,Directive,
+        Countdown,
   ],
   selector: 'app-device',
   styleUrl: './device.scss',
