@@ -17,15 +17,8 @@ const systemOf = (loc: string): string => loc?.split("-", 1)[0];
 export class Devices {
   protected readonly api = inject(ReplicantApi);
 
-  readonly systemNames = computed(() => {
-  const locations = this.api.locationList()?.locations ?? {};
-  return [...new Set(Object.keys(locations).map(systemOf))].sort();
-});
-
-  system_visible = signal<Set<string>>(new Set<string>());
+  selected_system = signal<string>("");
   deviceTree = computed<DeviceTree | null>(() => {
-
-
 
     const deviceList = this.api.deviceList()?.devices;
     if (!deviceList?.length) return null;
@@ -92,15 +85,8 @@ export class Devices {
     };
   });
 
-  toggle_system_visible(system: string) {
-    this.system_visible.update(current => {
-      const next = new Set(current);
-      if (next.has(system)) {
-        next.delete(system);
-      } else {
-        next.add(system);
-      }
-      return next;
-    });
+  async select_system(system: string) {
+    this.selected_system.set(system);
+    await this.api.listDevicesAsync(system);
   }
 }

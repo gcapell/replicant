@@ -8,13 +8,21 @@ import {
     StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
     SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult,
     PatrolResult, DeployResult, MarkReadResult, LocationList, StowResult, ActivateRelayResult,
-    CommandResult,
+    CommandResult, Device,
 } from './model';
 import { EventList } from './eventmodel';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from './auth';
 
 type Params = Record<string, string | number | boolean>;
+
+function pushTo<K, V>(m: Map<K, V[]>, key: K, value: V): void {
+    const list = m.get(key);
+    if (list) list.push(value);
+    else m.set(key, [value]);
+}
+
+const systemOf = (loc: string): string => loc?.split("-", 1)[0];
 
 @Service()
 export class ReplicantApi {
@@ -54,14 +62,45 @@ export class ReplicantApi {
     readonly locationList = signal<LocationList | null>(null);
     readonly commandResult = signal<CommandResult | null>(null);
 
+    id2device: Map<string, WritableSignal<Device>> = new Map();          // deviceId -> signal<Device>
+    system2deviceIDs: Map<string, WritableSignal<string[]>> = new Map();  // systemId -> signal<string[]>
 
+    readonly systemNames = computed(() => {
+        const locations = this.locationList()?.locations ?? {};
+        return [...new Set(Object.keys(locations).map(systemOf))].sort();
+    });
 
+    devicesInSystem(system: string): WritableSignal<string[]> {
+        let ids = this.system2deviceIDs.get(system);
+        if (!ids) {
+            ids = signal<string[]>([]);
+            this.system2deviceIDs.set(system, ids);
+        }
+        return ids;
+    }
 
-    async listDevicesAsync() {
-        for await (const dl of this.pages<DeviceList>(`/v1/devices`, {location:"OTHYONAL"})){
+    async listDevicesAsync(system: string) {
+        const ids: string[] = [];
+        for await (const dl of this.pages<DeviceList>(`/v1/devices`, { location: system })) {
             for (const d of dl.devices) {
                 console.log("device", d.device_type, d.device_code, d.location);
+                let s = this.id2device.get(d.device_code);
+                if (s) {
+                    s.set(d);
+                } else {
+                    s = signal<Device>(d);
+                    this.id2device.set(d.device_code, s);
+                }
+                s.set(d);
+                ids.push(d.device_code);
             }
+        }
+        let idsSignal = this.system2deviceIDs.get(system)
+        if (idsSignal) {
+            idsSignal.set(ids);
+        } else {
+            idsSignal = signal<string[]>(ids);
+            this.system2deviceIDs.set(system, idsSignal);
         }
     }
 

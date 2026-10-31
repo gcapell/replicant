@@ -1,11 +1,24 @@
 <button (click)="api.listDevices()">Load</button>
-<button (click)="api.listDevicesAsync()">Async</button>
+<button (click)="api.listDevicesAsync('ETHENIEL')">Async</button>
+
+
+    <h4>othyonal</h4>
+    <ul>
+        @for (id of api.devicesInSystem(selected_system())(); track id){
+            <li>
+                {{id}}
+                {{api.id2device.get(id)?.()?.device_type}}
+            </li>
+        }
+    </ul>
+
+
 <nav class="toc">
-    @for (system of systemNames(); track system){
+    @for (system of api.systemNames(); track system){
         <button 
             type="button" 
-            (click)="toggle_system_visible(system)"
-            [class.active]="system_visible().has(system)"
+            (click)="select_system(system)"
+            [class.active]="selected_system() === system"
         >{{system}}</button>
     }
 </nav>
@@ -18,7 +31,7 @@
 
 
     @for (system of dt.by_system | keyvalue;; track system.key){
-        @if(system_visible().has(system.key)){
+        @if(selected_system() === system.key){
             <h3>{{system.key}}</h3>
             @for (id of system.value; track id) {
                 <app-device [device]="dt.by_id[id]" [deviceTree]="dt"/>
