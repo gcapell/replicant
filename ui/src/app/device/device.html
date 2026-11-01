@@ -17,7 +17,7 @@
     @for (s of d.stowed_devices; track s.device_code){
         <li>
             {{s.device_code}} {{s.device_type}}
-            <button type="button" (click)="api.deploy(s.device_code)">deploy</button>
+            <button type="button" (click)="api.deviceCommand(s.device_code, 'deploy')">deploy</button>
         </li>
     }
     </ul>
@@ -70,6 +70,9 @@
 }
 @if(d.printing?.completes_at; as deadline) {
     printed in <app-countdown [deadline]="deadline"/>
+}
+@if(d.prospect?.completes_at; as deadline) {
+    completes in <app-countdown [deadline]="deadline"/>
 }
 @if(d.status === "waiting_for_resources"){
     @for(wf of d.waiting_for|keyvalue; track wf.key){
@@ -126,6 +129,9 @@
         <button type="button" (click)="api.collectResources(d.device_code, resource.value, amount.value)">Collect</button>
         <button type="button" (click)="api.depositResources(d.device_code, resource.value, amount.value)">Deposit</button>
     }
+    @if(d.features.includes('prospect') && d.status === "idle"){
+        <button type="button" (click)="api.deviceCommand(d.device_code, 'prospect')">Prospect</button>
+    }
 
      @if(d.features.includes('attach')){
         @let idsAtLocation = api.location2deviceIDs.get(d.location);
@@ -147,10 +153,10 @@
         <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>
     }
     @case("ftl_relay"){
-        <button type="button" (click)="api.activateRelay(d.device_code)">activate</button>
+        <button type="button" (click)="api.deviceCommand(d.device_code, 'activate')">activate</button>
     }
     @case("mining_drone"){
-        <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
+        <button type="button" (click)="api.deviceCommand(d.device_code, 'deactivate')">Deactivate</button>
 
         <select #resource>
         <option value="" disabled selected>resource...</option>
@@ -169,8 +175,8 @@
         <button type="button" (click)="api.startMining(d.device_code,resource.value,site.value)">Mine</button>
     }
     @case("survey_drone"){
-        <button type="button" (click)="api.deactivateDrone(d.device_code)">Deactivate</button>
-        <button type="button" (click)="api.scanDrone(d.device_code)">Scan</button>
+        <button type="button" (click)="api.deviceCommand(d.device_code, 'deactivate')">Deactivate</button>
+        <button type="button" (click)="api.deviceCommand(d.device_code, 'scan')">Scan</button>
     }
     @case("ami_survey_controller"){
         @let orphans = api.controllableSurveyDrones.get(system());
@@ -258,7 +264,7 @@
     }
 
     @if (!d.stowed_in_device_code && d.available_commands.includes("stow")){
-        <button type="button" (click)="api.stow(d.device_code)">stow</button>
+        <button type="button" (click)="api.deviceCommand(d.device_code, 'stow')">stow</button>
     }
 } @else {
     out of range or travelling.

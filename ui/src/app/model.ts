@@ -339,6 +339,13 @@ export interface Device {
     waiting_for: Record<ResourceType,WaitingForStat>;
 
     print_queue: DevicePrintQueueItem[];
+    prospect: Prospect;
+}
+
+interface Prospect{
+    completes_at: string;
+    // direction?
+    
 }
 
 interface AttachedDevice{

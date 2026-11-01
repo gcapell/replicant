@@ -26,14 +26,6 @@
     </details>
 }
 
-@if (api.deactivateDroneResult(); as r){
-    <h3>DeactivateDroneResult</h3>
-    <details>
-    <summary>Raw JSON</summary>
-    <pre>{{ r | json }}</pre>
-    </details>
-}
-
 @if (api.scanDroneResult(); as r){
     <h3>ScanDroneResult</h3>
     <details>
@@ -91,27 +83,7 @@
     <pre>{{ r | json }}</pre>
     </details>
 }
-@if (api.deployResult(); as r){
-    <h3>deploy result</h3>
-    <details>
-    <summary>Raw JSON</summary>
-    <pre>{{ r | json }}</pre>
-    </details>
-}
-@if (api.stowResult(); as r){
-    <h3>stow result</h3>
-    <details>
-    <summary>Raw JSON</summary>
-    <pre>{{ r | json }}</pre>
-    </details>
-}
-@if (api.activateRelayResult(); as r){
-    <h3>activate relay result</h3>
-    <details>
-    <summary>Raw JSON</summary>
-    <pre>{{ r | json }}</pre>
-    </details>
-}
+
 @if (api.commandResult(); as r){
     <h3>command result</h3>
     <details>

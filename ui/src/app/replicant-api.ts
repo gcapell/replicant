@@ -1,13 +1,13 @@
 import { Service, signal, inject, WritableSignal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import {
-    AccountData, ScanDroneResult, DeactivateDroneResult,
+    AccountData, ScanDroneResult,
     DeviceList, Replicant, Location, MessageList,
-    SearchResult, Tutorials, TutorialDetail, SendDroneResult,
+    Tutorials, TutorialDetail, SendDroneResult,
     StartMiningResult, ReplicantScanResult, BlueprintsList,
     StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
     SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult,
-    PatrolResult, DeployResult, MarkReadResult, LocationList, StowResult, ActivateRelayResult,
+    PatrolResult, MarkReadResult, LocationList,
     CommandResult, Device,
 } from './model';
 import { EventList } from './eventmodel';
@@ -34,6 +34,8 @@ function setSignal<K,V>(m: Map<K,WritableSignal<V>>, key:K, val:V ) {
     }
 }
 
+type DeviceCommand = 'prospect' | 'activate' | 'deactivate' | 'scan' | 'stow' | 'deploy';
+
 @Service()
 export class ReplicantApi {
     readonly token = signal(localStorage.getItem('token') ?? '');
@@ -44,7 +46,6 @@ export class ReplicantApi {
     readonly replicant = signal<Replicant | null>(null);
     readonly location = signal<Location | null>(null);
     readonly errorMessage = signal<unknown>(null);
-    readonly searchResult = signal<SearchResult | null>(null);
     readonly tutorialList = signal<Tutorials | null>(null);
     readonly tutorialDetail = signal<TutorialDetail | null>(null);
     readonly messageList = signal<MessageList | null>(null);
@@ -54,7 +55,6 @@ export class ReplicantApi {
     readonly blueprintList = signal<BlueprintsList | null>(null);
     readonly deviceList = signal<DeviceList | null>(null);
     readonly sendDroneResult = signal<SendDroneResult | null>(null);
-    readonly deactivateDroneResult = signal<DeactivateDroneResult | null>(null);
     readonly scanDroneResult = signal<ScanDroneResult | null>(null);
     readonly startPrintingResult = signal<StartPrintingResult | null>(null);
     readonly fillTransportResult = signal<FillTransportResult | null>(null);
@@ -65,10 +65,7 @@ export class ReplicantApi {
     readonly setDirectiveResult = signal<SetDirectiveResult | null>(null);
     readonly releaseDronesResult = signal<ReleaseDronesResult | null>(null);
     readonly patrolResult = signal<PatrolResult | null>(null);
-    readonly deployResult = signal<DeployResult | null>(null);
-    readonly stowResult = signal<StowResult | null>(null);
     readonly markReadResult = signal<MarkReadResult | null>(null);
-    readonly activateRelayResult = signal<ActivateRelayResult | null>(null);
     readonly locationList = signal<LocationList | null>(null);
     readonly commandResult = signal<CommandResult | null>(null);
 
@@ -288,11 +285,11 @@ export class ReplicantApi {
         this.auth.token.set(token);
         this.fetchAndUpdate(`/v1/accounts/me`, this.accountData);
     }
-    search(id: string) {
+    deviceCommand(id:string, command:DeviceCommand){
         this.postAndUpdate(
             `/v1/devices/${id}`,
-            { "command": "search" },
-            this.searchResult);
+            { "command": command },
+            this.commandResult);
     }
     markMessagesRead(ml: MessageList) {
         const ids: number[] = [];
@@ -330,19 +327,6 @@ export class ReplicantApi {
             null,
             this.replicantScanResult);
     }
-    activateRelay(id: string) {
-        this.postAndUpdate(
-            `/v1/devices/${id}`,
-            { "command": "activate" },
-            this.activateRelayResult);
-    }
-    deactivateDrone(id: string) {
-        console.log("deactivate");
-        this.postAndUpdate(
-            `/v1/devices/${id}`,
-            { "command": "deactivate" },
-            this.deactivateDroneResult);
-    }
     sendDrone(drone: string, loc: string) {
         this.postAndUpdate(
             `/v1/devices/${drone}`,
@@ -354,18 +338,6 @@ export class ReplicantApi {
             `/v1/devices/${drone}`,
             { "command": "set_directive", "directive": "patrol" },
             this.patrolResult);
-    }
-    deploy(drone: string) {
-        this.postAndUpdate(
-            `/v1/devices/${drone}`,
-            { "command": "deploy" },
-            this.deployResult);
-    }
-    stow(drone: string) {
-        this.postAndUpdate(
-            `/v1/devices/${drone}`,
-            { "command": "stow" },
-            this.stowResult);
     }
     collectResources(drone: string, resource: string, amount: string) {
         this.postAndUpdate(`/v1/devices/${drone}`,

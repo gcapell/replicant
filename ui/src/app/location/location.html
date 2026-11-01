@@ -113,10 +113,6 @@
         }
     }
 }
-@if (api.searchResult(); as sr) {
-    <h2>Search Result</h2>
-    <pre>{{ sr | json }}</pre>
-}
 @if (api.startMiningResult(); as sr) {
     <h2>Start Mining Result</h2>
     cycle time: {{sr.cycle_time_seconds}}s
