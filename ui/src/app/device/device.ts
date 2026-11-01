@@ -64,6 +64,8 @@ export class DeviceComponent {
       recall: true,
     })
   }
+  locationNeighbors = (id: string, ids: string[]):string[] => ids.filter( (item) => item !== id);
+
   searchBelt(controller: string) {
     this.api.setDirective(controller, "belt_search", {})
   }

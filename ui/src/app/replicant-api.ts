@@ -430,6 +430,14 @@ export class ReplicantApi {
             },
             this.commandResult);
     }
+    detach(attacher: string, attached: string) {
+        this.postAndUpdate(`/v1/devices/${attacher}`,
+            {
+                command: "detach",
+                device: attached,
+            },
+            this.commandResult);
+    }
     scanDrone(drone: string) {
         this.postAndUpdate(
             `/v1/devices/${drone}`,

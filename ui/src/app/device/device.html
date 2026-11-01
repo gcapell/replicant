@@ -27,9 +27,10 @@
         @for(a of d.attached_devices; track a.device_code){
             <li>
                 {{a.device_type}} {{a.device_code}}
+                <button type="button"  (click)="api.detach(d.device_code,a.device_code)">Detach</button>
             </li>
         }
-    </ul>
+    </ul>    
 }
 @let controlled = api.controlled.get(d.device_code);
 @if(controlled != null){
@@ -126,18 +127,21 @@
         <button type="button" (click)="api.depositResources(d.device_code, resource.value, amount.value)">Deposit</button>
     }
 
-    <!-- @if(d.features.includes('attach')){
-        @let ns = dt.location_neighbors[d.device_code];
-        @if (ns.length){
-            <select #neighbor>
-                <option value="" disabled selected>attach...</option>
-                 @for(n of ns; track n){
-                    <option [value]="n">{{n}}</option>
-                }
-             </select>
-             <button type="button" (click)="api.attach(d.device_code, neighbor.value)">attach</button>
+     @if(d.features.includes('attach')){
+        @let idsAtLocation = api.location2deviceIDs.get(d.location);
+        @if (idsAtLocation != null){
+            @let ns = locationNeighbors(d.device_code, idsAtLocation());
+            @if (ns.length){
+                <select #neighbor>
+                    <option value="" disabled selected>attach...</option>
+                        @for(n of ns; track n){
+                        <option [value]="n">{{n}} {{api.id2device.get(n)?.().device_type}}</option>
+                    }
+                    </select>
+                    <button type="button" (click)="api.attach(d.device_code, neighbor.value)">attach</button>
+            }
         }
-    } -->
+    }
     @switch(d.device_type){
     @case("maintenance_drone"){
         <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>

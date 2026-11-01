@@ -1,5 +1,12 @@
-<button (click)="api.listDevices()">Load</button>
-<button (click)="api.listDevicesAsync('ETHENIEL')">Async</button>
+<nav class="toc">
+    @for (system of api.systemNames(); track system){
+        <button 
+            type="button" 
+            (click)="select_system(system)"
+            [class.active]="selected_system() === system"
+        >{{system}}</button>
+    }
+</nav>
 
 <h1>{{selected_system()}}</h1>
 <ul>
@@ -10,16 +17,6 @@
         }
     }
 </ul>
-
-<nav class="toc">
-    @for (system of api.systemNames(); track system){
-        <button 
-            type="button" 
-            (click)="select_system(system)"
-            [class.active]="selected_system() === system"
-        >{{system}}</button>
-    }
-</nav>
 
 @if (api.sendDroneResult(); as r){
     <h3>SendDroneResult</h3>
