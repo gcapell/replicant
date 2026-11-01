@@ -1,4 +1,4 @@
-import { Component, input, output } from '@angular/core';
+import { Component, input, output, WritableSignal } from '@angular/core';
 
 export interface ChildDrone {
   device_code: string;
@@ -15,7 +15,7 @@ export interface ChildDrone {
 
 export class Release {
   children = input.required<string[]>();
-  device_by_id = input.required<Record<string,ChildDrone>>();
+  device_by_id = input.required<Map<string,WritableSignal<ChildDrone>>>();
   release = output<string[]>();
 
   selected(select: HTMLSelectElement): string[] {

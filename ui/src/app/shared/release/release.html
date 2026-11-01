@@ -1,7 +1,10 @@
 @if (children()?.length) {
     <select #drones multiple>
-    @for (d of children(); track d) {
-        <option [value]="d">{{ d }}@{{device_by_id()[d].location}}</option>
+    @for (id of children(); track id) {
+        @let d = device_by_id().get(id);
+        @if (d != null){
+            <option [value]="id">{{ id }}@{{d().location}}</option>
+        }
     }
     </select>
     <button type="button" (click)="release.emit(selected(drones))">Release</button>

@@ -9,17 +9,6 @@ import { Release } from '../shared/release/release';
 import {Directive} from '../shared/directive/directive';
 import { Countdown } from '../shared/countdown/countdown';
 
-export interface DeviceTree {
-  controlled: Record<string, string[]>; // devices controlled by this ID
-  stowed: Record<string, string[]>;  // devices stowed in this ID
-  orphan_survey_drones: string[];
-  orphan_transport_drones: string[];
-  orphan_mining_drones: string[];
-  by_system: Record<string, string[]>; // System -> device IDs
-  by_id: Record<string, Device>;
-  location_neighbors: Record<string, string[]>;  // deviceID -> other deviceIDs at same location.
-}
-
 @Component({
   imports: [
         MoveDevice, ReactiveFormsModule, JsonPipe,
@@ -33,8 +22,8 @@ export interface DeviceTree {
 export class DeviceComponent {
   protected readonly api = inject(ReplicantApi);
   device=input.required<Device>();
-  deviceTree = input.required<DeviceTree>();
-    private fb = inject(FormBuilder);
+  system=input.required<string>();
+  private fb = inject(FormBuilder);
 
   salvageSites(location: string): string[] {
     const planet = this.api.replicantScanResult()?.planets.find(

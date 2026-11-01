@@ -1,6 +1,4 @@
 @let d = device();
-@let dt = deviceTree();
-
 
 <div class="tooltip">
     <h2>{{d.device_type}} {{d.device_code}}</h2>
@@ -13,13 +11,13 @@
     {{d.cargo_used}}/{{d.cargo_capacity}}
 }
 <div>
-@if(dt.stowed[d.device_code]; as stowed){
+@if(d.stowed_devices?.length>0){
     <br>stowed:
     <ul>
-    @for (s of stowed; track s){
+    @for (s of d.stowed_devices; track s.device_code){
         <li>
-            {{s}}({{dt.by_id[s].device_type}})
-            <button type="button" (click)="api.deploy(s)">deploy</button>
+            {{s.device_code}} {{s.device_type}}
+            <button type="button" (click)="api.deploy(s.device_code)">deploy</button>
         </li>
     }
     </ul>
@@ -33,21 +31,25 @@
         }
     </ul>
 }
-@if(dt.controlled[d.device_code]; as controlled){
+@let controlled = api.controlled.get(d.device_code);
+@if(controlled != null){
     <br>controlled:
     <ul>
-    @for (cid of controlled; track cid){
-        @let c = dt.by_id[cid];
-        <li>{{c.device_code}}@{{c.location}}({{c.status}})
-            @if(c.travel; as t){
-                -> {{t.final_destination}} in {{t.eta_seconds}}s
-            }
-            @if(c.cargo_used){
-                carrying @for(cgo of c.cargo; track cgo.resource_type){
-                    {{cgo.quantity}} {{cgo.resource_type}},
+    @for (cid of controlled(); track cid){
+        @let cs = api.id2device.get(cid);
+        @if(cs != null){
+            @let c = cs();
+            <li>{{c.device_code}}@{{c.location}}({{c.status}})
+                @if(c.travel; as t){
+                    -> {{t.final_destination}} in {{t.eta_seconds}}s
                 }
-            }
-        </li>
+                @if(c.cargo_used){
+                    carrying @for(cgo of c.cargo; track cgo.resource_type){
+                        {{cgo.quantity}} {{cgo.resource_type}},
+                    }
+                }
+            </li>
+        }
     }
     </ul>
 }
@@ -123,7 +125,8 @@
         <button type="button" (click)="api.collectResources(d.device_code, resource.value, amount.value)">Collect</button>
         <button type="button" (click)="api.depositResources(d.device_code, resource.value, amount.value)">Deposit</button>
     }
-    @if(d.features.includes('attach')){
+
+    <!-- @if(d.features.includes('attach')){
         @let ns = dt.location_neighbors[d.device_code];
         @if (ns.length){
             <select #neighbor>
@@ -134,7 +137,7 @@
              </select>
              <button type="button" (click)="api.attach(d.device_code, neighbor.value)">attach</button>
         }
-    }
+    } -->
     @switch(d.device_type){
     @case("maintenance_drone"){
         <button type="button" (click)="api.patrol(d.device_code)">Patrol</button>
@@ -166,19 +169,32 @@
         <button type="button" (click)="api.scanDrone(d.device_code)">Scan</button>
     }
     @case("ami_survey_controller"){
-        <app-adopt [orphans]="dt.orphan_survey_drones" [device_by_id]="dt.by_id"
-        (adopt)="api.adoptDrones(d.device_code, $event)"/>
-        <app-release [children]="dt.controlled[d.device_code]" [device_by_id]="dt.by_id"
+        @let orphans = api.controllableSurveyDrones.get(system());
+        @if (orphans != null) {
+            <app-adopt [orphans]="orphans()" [device_by_id]="api.id2device"
+            (adopt)="api.adoptDrones(d.device_code, $event)"/>
+        }
+        @let controlled = api.controlled.get(d.device_code);
+        @if (controlled != null){
+        <app-release [children]="controlled()" [device_by_id]="api.id2device"
         (release)="api.releaseDrones(d.device_code, $event)"/>
+        }
+
         <button type="button" (click)="surveySystem(d.device_code)">System</button>
         <button type="button" (click)="searchBelt(d.device_code)">Belt</button>
     }
     @case("ami_mining_controller"){
-        <app-adopt [orphans]="dt.orphan_mining_drones" [device_by_id]="dt.by_id"
-        (adopt)="api.adoptDrones(d.device_code, $event)"/>
-
-        <app-release [children]="dt.controlled[d.device_code]" [device_by_id]="dt.by_id"
+        @let orphans = api.controllableMiningDrones.get(system());
+        @if (orphans != null) {
+            <app-adopt [orphans]="orphans()" [device_by_id]="api.id2device"
+            (adopt)="api.adoptDrones(d.device_code, $event)"/>
+        }
+        @let controlled = api.controlled.get(d.device_code);
+        @if (controlled != null){
+        <app-release [children]="controlled()" [device_by_id]="api.id2device"
         (release)="api.releaseDrones(d.device_code, $event)"/>
+        }
+
         <button type="button" (click)="gatherEvenly(d.device_code)">gather evenly</button>
         <select #salvageDst>
                 @for(s of api.salvageSites()[api.systemOf(d.location)]; track s){
@@ -188,8 +204,11 @@
             <button type="button" (click)="setSalvageDirective(d.device_code, salvageDst.value)">salvage</button>
     }
     @case("ami_transport_controller"){
-        <app-adopt [orphans]="dt.orphan_transport_drones" [device_by_id]="dt.by_id"
-        (adopt)="api.adoptDrones(d.device_code, $event)"/>
+        @let orphans = api.controllableTransports.get(system());
+        @if (orphans != null) {
+            <app-adopt [orphans]="orphans()" [device_by_id]="api.id2device"
+            (adopt)="api.adoptDrones(d.device_code, $event)"/>
+        }
 
         <form [formGroup]="form" (ngSubmit)="setDeliveryDirective(d.device_code)">
             src: <select formControlName="collect">
