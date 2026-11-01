@@ -168,12 +168,15 @@
     @case("ami_survey_controller"){
         <app-adopt [orphans]="dt.orphan_survey_drones" [device_by_id]="dt.by_id"
         (adopt)="api.adoptDrones(d.device_code, $event)"/>
+        <app-release [children]="dt.controlled[d.device_code]" [device_by_id]="dt.by_id"
+        (release)="api.releaseDrones(d.device_code, $event)"/>
         <button type="button" (click)="surveySystem(d.device_code)">System</button>
         <button type="button" (click)="searchBelt(d.device_code)">Belt</button>
     }
     @case("ami_mining_controller"){
         <app-adopt [orphans]="dt.orphan_mining_drones" [device_by_id]="dt.by_id"
         (adopt)="api.adoptDrones(d.device_code, $event)"/>
+
         <app-release [children]="dt.controlled[d.device_code]" [device_by_id]="dt.by_id"
         (release)="api.releaseDrones(d.device_code, $event)"/>
         <button type="button" (click)="gatherEvenly(d.device_code)">gather evenly</button>

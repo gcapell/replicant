@@ -24,6 +24,16 @@ function pushTo<K, V>(m: Map<K, V[]>, key: K, value: V): void {
 
 const systemOf = (loc: string): string => loc?.split("-", 1)[0];
 
+function setSignal<K,V>(m: Map<K,WritableSignal<V>>, key:K, val:V ) {
+    let s = m.get(key);
+    if (s) {
+        s.set(val);
+    } else {
+        s = signal<V>(val);
+        m.set(key, s);
+    }
+}
+
 @Service()
 export class ReplicantApi {
     readonly token = signal(localStorage.getItem('token') ?? '');
@@ -62,8 +72,16 @@ export class ReplicantApi {
     readonly locationList = signal<LocationList | null>(null);
     readonly commandResult = signal<CommandResult | null>(null);
 
-    id2device: Map<string, WritableSignal<Device>> = new Map();          // deviceId -> signal<Device>
-    system2deviceIDs: Map<string, WritableSignal<string[]>> = new Map();  // systemId -> signal<string[]>
+    id2device: Map<string, WritableSignal<Device>> = new Map();          // deviceId -> Device
+    system2deviceIDs: Map<string, WritableSignal<string[]>> = new Map();  // systemId -> deviceIDs.  Excludes controlled/stowed devices.
+    location2deviceIDs: Map<string, WritableSignal<string[]>> = new Map();  // locationID -> deviceIDs.  Excludes controlled/stowed devices.
+    controlled: Map<string, WritableSignal<string[]>> = new Map();   // deviceID -> ids of devices controlled
+
+    // system -> ids of controllable devices not currently being controlled.
+    controllableMiningDrones: Map<string, WritableSignal<string[]>> = new Map();
+    controllableSurveyDrones: Map<string, WritableSignal<string[]>> = new Map();
+    controllableTransports: Map<string, WritableSignal<string[]>> = new Map();
+
 
     readonly systemNames = computed(() => {
         const locations = this.locationList()?.locations ?? {};
@@ -81,30 +99,56 @@ export class ReplicantApi {
 
     async listDevicesAsync(system: string) {
         const ids: string[] = [];
-        for await (const dl of this.pages<DeviceList>(`/v1/devices`, { location: system })) {
+        const controlled: Map<string, string[]> = new Map();
+        const controllableMining:string[] = [];
+        const controllableSurvey:string[] = [];
+        const controllableTransport:string[] = [];
+        const location2ids:Map<string, string[]> = new Map();
+
+        for await (const dl of this.pagedGet<DeviceList>(`/v1/devices`, { location: system })) {
             for (const d of dl.devices) {
                 console.log("device", d.device_type, d.device_code, d.location);
-                let s = this.id2device.get(d.device_code);
-                if (s) {
-                    s.set(d);
+                setSignal(this.id2device, d.device_code, d);
+                let free = true;
+                if (d.controller_device_code) {
+                    pushTo(controlled, d.controller_device_code, d.device_code);
+                    free = false
                 } else {
-                    s = signal<Device>(d);
-                    this.id2device.set(d.device_code, s);
+                    switch (d.device_type) {
+                        case "mining_drone":
+                            controllableMining.push(d.device_code);
+                            break;
+                        case "survey_drone":
+                            controllableSurvey.push(d.device_code);
+                            break;
+                    }
+                    if (d.features.includes('transport')) {
+                        controllableTransport.push(d.device_code);
+                    }
                 }
-                s.set(d);
-                ids.push(d.device_code);
+                if (d.attached_to_device_code) {
+                    free = false;
+                }
+                if(free){
+                    ids.push(d.device_code);
+                    pushTo(location2ids, d.location, d.device_code);
+                }
             }
         }
-        let idsSignal = this.system2deviceIDs.get(system)
-        if (idsSignal) {
-            idsSignal.set(ids);
-        } else {
-            idsSignal = signal<string[]>(ids);
-            this.system2deviceIDs.set(system, idsSignal);
+        setSignal(this.system2deviceIDs, system, ids);
+        setSignal(this.controllableMiningDrones, system, controllableMining);
+        setSignal(this.controllableSurveyDrones, system, controllableSurvey);
+        setSignal(this.controllableTransports, system, controllableTransport);
+        for ( const[loc, ids] of location2ids) {
+            setSignal(this.location2deviceIDs, loc, ids);
         }
+        for (const [controller, ids] of controlled) {
+            setSignal(this.controlled, controller, ids);
+        }
+        console.log("system2deviceIDs", this.system2deviceIDs);
     }
 
-    async *pages<T extends { next_cursor?: number | null }>(
+    async *pagedGet<T extends { next_cursor?: number | null }>(
         url: string,
         params: Params = {},
     ): AsyncGenerator<T> {

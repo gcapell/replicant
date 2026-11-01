@@ -1,8 +1,61 @@
 <button (click)="api.listDevices()">Load</button>
 <button (click)="api.listDevicesAsync('ETHENIEL')">Async</button>
 
+<!-- debug -->
+@if(false){
+    <h4>system2deviceIDs</h4>
+    @for(x of api.system2deviceIDs | keyvalue; track x.key){
+        system: {{x.key}}
+        <ul>
+            @for(id of x.value(); track id){
+                <li>{{id}}</li>
+            }
+        </ul>
+    }
+    <h4>id2device</h4>
+    <ul>
+        @for(x of api.id2device|keyvalue; track x.key){
+            <li>{{x.key}} - {{x.value().device_type}}</li>
+        }
+    </ul>
 
-    <h4>othyonal</h4>
+    <h4>location2deviceIDs</h4>
+    <ul>
+        @for(x of api.location2deviceIDs|keyvalue; track x.key){
+            <li>{{x.key}} - {{x.value().join()}}</li>
+        }
+    </ul>
+
+    <h4>controlled</h4>
+    <ul>
+        @for(x of api.controlled|keyvalue; track x.key){
+            <li>{{x.key}} - {{x.value().join()}}</li>
+        }
+    </ul>
+
+
+    <h4>available miners</h4>
+    <ul>
+        @for(x of api.controllableMiningDrones|keyvalue; track x.key){
+            <li>{{x.key}} - {{x.value().join()}}</li>
+        }
+    </ul>
+    <h4>available surveyors</h4>
+    <ul>
+        @for(x of api.controllableSurveyDrones|keyvalue; track x.key){
+            <li>{{x.key}} - {{x.value().join()}}</li>
+        }
+    </ul>
+    <h4>available transports</h4>
+    <ul>
+        @for(x of api.controllableTransports|keyvalue; track x.key){
+            <li>{{x.key}} - {{x.value().join()}}</li>
+        }
+    </ul>
+
+}
+
+    <h4>{{selected_system()}}</h4>
     <ul>
         @for (id of api.devicesInSystem(selected_system())(); track id){
             <li>
