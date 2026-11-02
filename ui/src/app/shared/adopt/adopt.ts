@@ -2,6 +2,7 @@ import { Component, input, output, WritableSignal } from '@angular/core';
 
 export interface OrphanDrone {
   device_code: string;
+  device_type: string;
   location: string;
 }
 

@@ -116,6 +116,7 @@ export class ReplicantApi {
                             controllableMining.push(d.device_code);
                             break;
                         case "survey_drone":
+                        case "belt_surveyor":
                             controllableSurvey.push(d.device_code);
                             break;
                     }

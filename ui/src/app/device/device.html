@@ -40,7 +40,7 @@
         @let cs = api.id2device.get(cid);
         @if(cs != null){
             @let c = cs();
-            <li>{{c.device_code}}@{{c.location}}({{c.status}})
+            <li>{{c.device_code}} {{c.device_type}}@{{c.location}}({{c.status}})
                 @if(c.travel; as t){
                     -> {{t.final_destination}} in {{t.eta_seconds}}s
                 }

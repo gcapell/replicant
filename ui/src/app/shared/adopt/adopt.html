@@ -1,9 +1,10 @@
 @if (orphans().length) {
     <select #drones multiple>
     @for (id of orphans(); track id) {
-        @let d = device_by_id().get(id);
-        @if (d != null){
-            <option [value]="id">{{ id }}@{{ d().location }}</option>
+        @let ds = device_by_id().get(id);
+        @if (ds != null){
+            @let d = ds();
+            <option [value]="id">{{ id }} {{d.device_type}}@{{ d.location }}</option>
         }
     }
     </select>
