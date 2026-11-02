@@ -36,9 +36,9 @@ function setSignal<K, V>(m: Map<K, WritableSignal<V>>, key: K, val: V) {
 
 type DeviceCommand = 'prospect' | 'activate' | 'deactivate' | 'scan' | 'stow' | 'deploy';
 
-interface SystemSummary {
+export interface SystemSummary {
     summary: LocationSummary;
-    locs: string[];
+    children: Map<string,LocationSummary>;
 }
 
 const LOCATION_SUMMARY_KEYS = [
@@ -59,10 +59,10 @@ export function groupBySystem(list: LocationList): Map<string, SystemSummary> {
         const name = systemOf(loc);
         let s = systems.get(name);
         if (!s) {
-            s = { locs: [], summary: emptySummary() };
+            s = { children: new Map(), summary: emptySummary() };
             systems.set(name, s);
         }
-        s.locs.push(loc);
+        s.children.set(loc, summary);
         addSummary(s.summary, summary);
     }
     return systems;

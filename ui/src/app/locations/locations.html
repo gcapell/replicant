@@ -1,59 +1,40 @@
  <button type="button" class="link" (click)="api.locations()">Fetch</button> 
 
- <ul>
- @for (x of api.systems() | keyvalue; track x.key){
-    <li>
-        {{x.key}}: ({{x.value.locs.join()}})
-        <table>
-            <tr>
-                @let s = x.value.summary;
-                <td>devices</td><td>{{s.devices}}</td>
-                <td>events</td><td>{{s.location_events}}</td>
-                <td>replicants</td><td>{{s.replicants}}</td>
-                <td>sites</td><td>{{s.resource_sites}}</td>
-                <td>resources</td><td>{{s.resources}}</td>             
-            </tr>
-        </table>
-    </li>
- }
- </ul>
+<table>
+  <thead>
+    <tr>
+      <th>Location</th>
+      <th>Resources</th>
+      <th>Sites</th>
+      <th>Devices</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (row of rows(); track row.name) {
+      @let s = row.summary;
+      <tr [class.system-row]="row.isSystem" [class.loc-row]="!row.isSystem">
+        <td>
+          @if (row.isSystem) {
+            <button class="toggle" (click)="toggle(row.systemKey)">
+              {{ row.expanded ? '▼' : '▶' }}
+            </button>
+          } @else {
+            <button type="button" class="link"  (click)="api.loadLocation(row.name)">I</button>
+          }
+        {{ row.name }}
+        @if(s.location_events>0 || s.replicants>0){
+            (
+                @if(s.location_events>0){E}
+                @if(s.replicants>0){R}
+            )
+        }
 
- @if (api.locationList(); as locs) {
-    <table>
-        <thead>
-            <tr>
-                <th>loc</th>
-                <th>resources</th>
-                <th>sites</th>
-                <th>events</th>
-                <th>replicants</th>
-                <th>devices</th>
-            </tr>
-        </thead>
-        <tbody>
-            @for (kv of locs.locations |keyvalue; track kv.key){
-                @let v = kv.value;
-                <!-- @if(true || v.resources || v.resource_sites || v.location_events || v.replicants || v.devices){ -->
-                    <tr>
-                        <td>
-                            <button type="button" class="link" 
-                                    (click)="api.loadLocation(kv.key)">inventory</button>
-                            {{kv.key}}
-                        </td>
-                        <td>{{v.resources || ""}}</td>
-                        <td>{{v.resource_sites || ""}}</td>
-                        <td>{{v.location_events || ""}}</td>
-                        <td>{{v.replicants || ""}}</td>
-                        <td>{{v.devices || ""}}</td>
-                    </tr>
-                <!-- } -->
-            }
-        </tbody>
-
-    </table>
-
-     <details>
-        <summary>Raw JSON</summary>
-        <pre>{{ locs| json }}</pre>
-    </details>
-}
+          
+        </td>
+        <td>{{ s.resources || ""}}</td>
+        <td>{{ s.resource_sites || ""}}</td>
+        <td>{{ s.devices || ""}}</td>
+      </tr>
+    }
+  </tbody>
+</table>
