@@ -7,7 +7,7 @@ import {
     StartMiningResult, ReplicantScanResult, BlueprintsList,
     StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
     SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult,
-    PatrolResult, MarkReadResult, LocationList,
+    PatrolResult, MarkReadResult, LocationList, LocationSummary,
     CommandResult, Device,
 } from './model';
 import { EventList } from './eventmodel';
@@ -24,7 +24,7 @@ function pushTo<K, V>(m: Map<K, V[]>, key: K, value: V): void {
 
 const systemOf = (loc: string): string => loc?.split("-", 1)[0];
 
-function setSignal<K,V>(m: Map<K,WritableSignal<V>>, key:K, val:V ) {
+function setSignal<K, V>(m: Map<K, WritableSignal<V>>, key: K, val: V) {
     let s = m.get(key);
     if (s) {
         s.set(val);
@@ -35,6 +35,38 @@ function setSignal<K,V>(m: Map<K,WritableSignal<V>>, key:K, val:V ) {
 }
 
 type DeviceCommand = 'prospect' | 'activate' | 'deactivate' | 'scan' | 'stow' | 'deploy';
+
+interface SystemSummary {
+    summary: LocationSummary;
+    locs: string[];
+}
+
+const LOCATION_SUMMARY_KEYS = [
+    'devices', 'location_events', 'replicants', 'resource_sites', 'resources',
+] as const satisfies readonly (keyof LocationSummary)[];
+
+function emptySummary(): LocationSummary {
+    return { devices: 0, location_events: 0, replicants: 0, resource_sites: 0, resources: 0 };
+}
+
+function addSummary(target: LocationSummary, add: LocationSummary): void {
+    for (const k of LOCATION_SUMMARY_KEYS) target[k] += add[k];
+}
+
+export function groupBySystem(list: LocationList): Map<string, SystemSummary> {
+    const systems = new Map<string, SystemSummary>();
+    for (const [loc, summary] of Object.entries(list.locations)) {
+        const name = systemOf(loc);
+        let s = systems.get(name);
+        if (!s) {
+            s = { locs: [], summary: emptySummary() };
+            systems.set(name, s);
+        }
+        s.locs.push(loc);
+        addSummary(s.summary, summary);
+    }
+    return systems;
+}
 
 @Service()
 export class ReplicantApi {
@@ -93,19 +125,29 @@ export class ReplicantApi {
         }
         return ids;
     }
+    readonly systems = computed(() => {
+        const list = this.locationList();
+        return list ? groupBySystem(list) : new Map<string, SystemSummary>();
+    });
 
     async locations() {
-        const loc = await firstValueFrom(this.http.get<LocationList>(`/v1/locations`));
-        this.locationList.set(loc);
+        try {
+            this.locationList.set(
+                await firstValueFrom(this.http.get<LocationList>('/v1/locations'))
+            );
+        } catch (err) {
+            console.error('Failed to load locations', err);
+            // set an error signal / show a message here
+        }
     }
 
     async listDevicesAsync(system: string) {
         const ids: string[] = [];
         const controlled: Map<string, string[]> = new Map();
-        const controllableMining:string[] = [];
-        const controllableSurvey:string[] = [];
-        const controllableTransport:string[] = [];
-        const location2ids:Map<string, string[]> = new Map();
+        const controllableMining: string[] = [];
+        const controllableSurvey: string[] = [];
+        const controllableTransport: string[] = [];
+        const location2ids: Map<string, string[]> = new Map();
 
         for await (const dl of this.pagedGet<DeviceList>(`/v1/devices`, { location: system })) {
             for (const d of dl.devices) {
@@ -132,7 +174,7 @@ export class ReplicantApi {
                 if (d.attached_to_device_code) {
                     free = false;
                 }
-                if(free){
+                if (free) {
                     ids.push(d.device_code);
                     pushTo(location2ids, d.location, d.device_code);
                 }
@@ -142,7 +184,7 @@ export class ReplicantApi {
         setSignal(this.controllableMiningDrones, system, controllableMining);
         setSignal(this.controllableSurveyDrones, system, controllableSurvey);
         setSignal(this.controllableTransports, system, controllableTransport);
-        for ( const[loc, ids] of location2ids) {
+        for (const [loc, ids] of location2ids) {
             setSignal(this.location2deviceIDs, loc, ids);
         }
         for (const [controller, ids] of controlled) {
@@ -284,7 +326,7 @@ export class ReplicantApi {
         this.auth.token.set(token);
         this.fetchAndUpdate(`/v1/accounts/me`, this.accountData);
     }
-    deviceCommand(id:string, command:DeviceCommand){
+    deviceCommand(id: string, command: DeviceCommand) {
         this.postAndUpdate(
             `/v1/devices/${id}`,
             { "command": command },

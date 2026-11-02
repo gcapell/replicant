@@ -345,7 +345,7 @@ export interface Device {
 interface Prospect{
     completes_at: string;
     // direction?
-    
+
 }
 
 interface AttachedDevice{
@@ -444,7 +444,7 @@ export interface LocationList {
     locations: Record<string, LocationSummary>;
 }
 
-interface LocationSummary{
+export interface LocationSummary{
     devices:number;
     location_events: number;
     replicants: number;

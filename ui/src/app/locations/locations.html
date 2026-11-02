@@ -1,5 +1,23 @@
  <button type="button" class="link" (click)="api.locations()">Fetch</button> 
 
+ <ul>
+ @for (x of api.systems() | keyvalue; track x.key){
+    <li>
+        {{x.key}}: ({{x.value.locs.join()}})
+        <table>
+            <tr>
+                @let s = x.value.summary;
+                <td>devices</td><td>{{s.devices}}</td>
+                <td>events</td><td>{{s.location_events}}</td>
+                <td>replicants</td><td>{{s.replicants}}</td>
+                <td>sites</td><td>{{s.resource_sites}}</td>
+                <td>resources</td><td>{{s.resources}}</td>             
+            </tr>
+        </table>
+    </li>
+ }
+ </ul>
+
  @if (api.locationList(); as locs) {
     <table>
         <thead>
