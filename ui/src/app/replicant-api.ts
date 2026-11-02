@@ -94,6 +94,11 @@ export class ReplicantApi {
         return ids;
     }
 
+    async locations() {
+        const loc = await firstValueFrom(this.http.get<LocationList>(`/v1/locations`));
+        this.locationList.set(loc);
+    }
+
     async listDevicesAsync(system: string) {
         const ids: string[] = [];
         const controlled: Map<string, string[]> = new Map();
@@ -245,14 +250,7 @@ export class ReplicantApi {
         return reply;
     });
 
-    locations() {
-        this.fetchAndUpdate(`/v1/locations`, this.locationList);
-        const locs = this.locationList();
-        if (!locs) {
-            return
-        }
 
-    }
 
     loadLocation(id: string) {
         this.fetchAndUpdate(`/v1/locations/${id}`, this.location);
