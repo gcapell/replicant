@@ -6,14 +6,14 @@ import { MoveDevice } from '../shared/move-device/move-device';
 import { Device } from '../model';
 import { Adopt } from '../shared/adopt/adopt';
 import { Release } from '../shared/release/release';
-import {Directive} from '../shared/directive/directive';
+import { Directive } from '../shared/directive/directive';
 import { Countdown } from '../shared/countdown/countdown';
 
 @Component({
   imports: [
-        MoveDevice, ReactiveFormsModule, JsonPipe,
-        KeyValuePipe, Adopt, Release,Directive,
-        Countdown,
+    MoveDevice, ReactiveFormsModule, JsonPipe,
+    KeyValuePipe, Adopt, Release, Directive,
+    Countdown,
   ],
   selector: 'app-device',
   styleUrl: './device.scss',
@@ -21,8 +21,8 @@ import { Countdown } from '../shared/countdown/countdown';
 })
 export class DeviceComponent {
   protected readonly api = inject(ReplicantApi);
-  device=input.required<Device>();
-  system=input.required<string>();
+  device = input.required<Device>();
+  system = input.required<string>();
   private fb = inject(FormBuilder);
 
   salvageSites(location: string): string[] {
@@ -48,10 +48,32 @@ export class DeviceComponent {
   addItem() {
     this.form.controls.items.push(this.newItem());
   }
+  cruiseDestinations(loc: string): string[] {
+    const promise = this.api.systemScans.get(this.api.systemOf(loc));
+    if (promise == null) {
+      return [];
+    }
+    const reply:string[] = [];
+    const scan = promise();
+    scan.planets.forEach((p) => {
+      if (p.designation !== loc) {
+        reply.push(p.designation);
+      }
+    })
+    if (scan.asteroid_belt.present) {
+      scan.asteroid_belt.belts.forEach((b) => {
+        if (b.designation !== loc) {
+          reply.push(b.designation);
+        }
+      });
+    }
+    return reply;
+  }
+
   removeItem(i: number) {
     this.form.controls.items.removeAt(i);
   }
-   setDeliveryDirective(controller: string) {
+  setDeliveryDirective(controller: string) {
     if (this.form.invalid) return;
     const v = this.form.getRawValue();
     const requirement = Object.fromEntries(v.items.map(i => [i.resource, i.amount]));
@@ -64,7 +86,7 @@ export class DeviceComponent {
       recall: true,
     })
   }
-  locationNeighbors = (id: string, ids: string[]):string[] => ids.filter( (item) => item !== id);
+  locationNeighbors = (id: string, ids: string[]): string[] => ids.filter((item) => item !== id);
 
   searchBelt(controller: string) {
     this.api.setDirective(controller, "belt_search", {})

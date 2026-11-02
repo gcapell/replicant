@@ -102,7 +102,7 @@
 <div>
 @if(d.in_control_range && d.location){
     @if(d.available_commands.includes('travel')){
-        @let dest = d.features.includes('surge') ? api.allDestinations() : api.scanDestinations();
+        @let dest = d.features.includes('surge') ? api.allDestinations() : cruiseDestinations(d.location);
         <app-move-device [deviceCode]="d.device_code" [destinations]="dest ?? []"/>
     }
     @if(d.features.includes('print')){

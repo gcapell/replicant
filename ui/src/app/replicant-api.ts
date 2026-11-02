@@ -22,7 +22,7 @@ function pushTo<K, V>(m: Map<K, V[]>, key: K, value: V): void {
     else m.set(key, [value]);
 }
 
-const systemOf = (loc: string): string => loc?.split("-", 1)[0];
+export const systemOf = (loc: string): string => loc?.split("-", 1)[0];
 
 function setSignal<K, V>(m: Map<K, WritableSignal<V>>, key: K, val: V) {
     let s = m.get(key);
@@ -105,17 +105,12 @@ export class ReplicantApi {
     system2deviceIDs: Map<string, WritableSignal<string[]>> = new Map();  // systemId -> deviceIDs.  Excludes controlled/stowed devices.
     location2deviceIDs: Map<string, WritableSignal<string[]>> = new Map();  // locationID -> deviceIDs.  Excludes controlled/stowed devices.
     controlled: Map<string, WritableSignal<string[]>> = new Map();   // deviceID -> ids of devices controlled
+    systemScans: Map<string, WritableSignal<ReplicantScanResult>> = new Map(); 
 
     // system -> ids of controllable devices not currently being controlled.
     controllableMiningDrones: Map<string, WritableSignal<string[]>> = new Map();
     controllableSurveyDrones: Map<string, WritableSignal<string[]>> = new Map();
     controllableTransports: Map<string, WritableSignal<string[]>> = new Map();
-
-
-    readonly systemNames = computed(() => {
-        const locations = this.locationList()?.locations ?? {};
-        return [...new Set(Object.keys(locations).map(systemOf))].sort();
-    });
 
     devicesInSystem(system: string): WritableSignal<string[]> {
         let ids = this.system2deviceIDs.get(system);
@@ -130,6 +125,8 @@ export class ReplicantApi {
         return list ? groupBySystem(list) : new Map<string, SystemSummary>();
     });
 
+    readonly systemNames = computed(() => Array.from(this.systems().keys()));
+
     async locations() {
         try {
             this.locationList.set(
@@ -138,6 +135,13 @@ export class ReplicantApi {
         } catch (err) {
             console.error('Failed to load locations', err);
             // set an error signal / show a message here
+        }
+        for (const id of this.systemNames()){
+            if (!this.systemScans.has(id)){
+                const systemDetails =  await firstValueFrom(this.http.get<ReplicantScanResult>(`/v1/locations/${id}`));
+                console.log(id, "has", systemDetails.planets.length, "planets");
+                setSignal(this.systemScans, id, systemDetails);
+            }
         }
     }
 
@@ -482,7 +486,6 @@ export class ReplicantApi {
                 reply.push(b.designation);
             }
         }
-
         return reply;
     });
     allDestinations = computed<string[] | null>(() =>
