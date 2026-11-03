@@ -9,11 +9,6 @@ import (
 	"github.com/gcapell/replicant/model"
 )
 
-func dist(a, b model.Position) float64 {
-	dx, dy, dz := a.X-b.X, a.Y-b.Y, a.Z-b.Z
-	return math.Sqrt(dx*dx + dy*dy + dz*dz)
-}
-
 func main() {
 	stars, err := api.Stars("4698E8E6")
 	if err != nil {
@@ -41,7 +36,7 @@ func main() {
 	var bestU, bestE model.Star
 	for _, u := range unexplored {
 		for _, e := range explored {
-			if d := dist(u.Position, e.Position); d < best {
+			if d := u.Position.Distance(e.Position); d < best {
 				best, bestU, bestE = d, u, e
 			}
 		}

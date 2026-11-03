@@ -74,6 +74,9 @@
 @if(d.prospect?.completes_at; as deadline) {
     completes in <app-countdown [deadline]="deadline"/>
 }
+@if(d.compact?.completes_at; as deadline) {
+    compacts in <app-countdown [deadline]="deadline"/>
+}
 @if(d.status === "waiting_for_resources"){
     @for(wf of d.waiting_for|keyvalue; track wf.key){
         {{wf.key}} {{wf.value.have}}/{{wf.value.need}},
@@ -265,6 +268,10 @@
 
     @if (!d.stowed_in_device_code && d.available_commands.includes("stow")){
         <button type="button" (click)="api.deviceCommand(d.device_code, 'stow')">stow</button>
+    }
+    @if (d.features.includes("modular")){
+        <button type="button" (click)="api.deviceCommand(d.device_code, 'compact')">compact</button>
+        <button type="button" (click)="api.deviceCommand(d.device_code, 'unfurl')">unfurl</button>
     }
 } @else {
     out of range or travelling.

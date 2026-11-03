@@ -34,11 +34,13 @@ function setSignal<K, V>(m: Map<K, WritableSignal<V>>, key: K, val: V) {
     }
 }
 
-type DeviceCommand = 'prospect' | 'activate' | 'deactivate' | 'scan' | 'stow' | 'deploy';
+type DeviceCommand = 'prospect' | 'activate' | 'deactivate' | 'scan' | 'stow' | 'deploy' | 'compact' | 'unfurl' |
+    'travel' | 'start_mining' | 'collect_resources' | 'deposit_resources' | 'adopt' | 'release' |
+    'set_directive' | 'attach' | 'detach' | 'enqueue_print';
 
 export interface SystemSummary {
     summary: LocationSummary;
-    children: Map<string,LocationSummary>;
+    children: Map<string, LocationSummary>;
 }
 
 const LOCATION_SUMMARY_KEYS = [
@@ -105,7 +107,7 @@ export class ReplicantApi {
     system2deviceIDs: Map<string, WritableSignal<string[]>> = new Map();  // systemId -> deviceIDs.  Excludes controlled/stowed devices.
     location2deviceIDs: Map<string, WritableSignal<string[]>> = new Map();  // locationID -> deviceIDs.  Excludes controlled/stowed devices.
     controlled: Map<string, WritableSignal<string[]>> = new Map();   // deviceID -> ids of devices controlled
-    systemScans: Map<string, WritableSignal<ReplicantScanResult>> = new Map(); 
+    systemScans: Map<string, WritableSignal<ReplicantScanResult>> = new Map();
 
     // system -> ids of controllable devices not currently being controlled.
     controllableMiningDrones: Map<string, WritableSignal<string[]>> = new Map();
@@ -136,9 +138,9 @@ export class ReplicantApi {
             console.error('Failed to load locations', err);
             // set an error signal / show a message here
         }
-        for (const id of this.systemNames()){
-            if (!this.systemScans.has(id)){
-                const systemDetails =  await firstValueFrom(this.http.get<ReplicantScanResult>(`/v1/locations/${id}`));
+        for (const id of this.systemNames()) {
+            if (!this.systemScans.has(id)) {
+                const systemDetails = await firstValueFrom(this.http.get<ReplicantScanResult>(`/v1/locations/${id}`));
                 console.log(id, "has", systemDetails.planets.length, "planets");
                 setSignal(this.systemScans, id, systemDetails);
             }
