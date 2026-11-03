@@ -58,8 +58,11 @@ export class DeviceComponent {
     scan.planets.forEach((p) => {
       if (p.designation !== loc) {
         reply.push(p.designation);
+      } else {
+        reply.push(p.designation + '-L4');
       }
     })
+    console.log("scan", scan);
     if (scan.asteroid_belt.present) {
       scan.asteroid_belt.belts.forEach((b) => {
         if (b.designation !== loc) {
