@@ -7,13 +7,15 @@ curl -H "Authorization: Bearer $API_KEY" \
 curl -H "Authorization: Bearer $API_KEY" \
      -H "Content-type: application/json" \
     -X POST  \
-    "https://api.replicant.space/v1/devices/3B9BB396" \
-    -d '{"command":"travel", "destination":"OTHYONAL-BELT-1"}' 
+    "https://api.replicant.space/v1/devices/22737B60" \
+    -d '{"command":"travel", "destination":"SYLSHENOS-3-L4"}' 
 
+curl -H "Authorization: Bearer $API_KEY" \
+  "https://api.replicant.space/v1/devices?location=SOL"
 
 # Stars 
 curl -H "Authorization: Bearer $API_KEY" \
-  "https://api.replicant.space/v1/replicants/4698E8E6/stars?per_page=20" 
+  "https://api.replicant.space/v1/replicants/4698E8E6/stars?per_page=6" 
 
 curl -H "Authorization: Bearer $API_KEY" \
   "https://api.replicant.space/v1/locations/ALWRENAN" 
@@ -31,4 +33,74 @@ curl  -H "Authorization: Bearer $API_KEY" \
   -H "Content-type: application/json" \
   -X POST  \
   "https://api.replicant.space/v1/devices/3B9BB396" \
-  -d '{"command":"travel", "destination":"ALWRENAN-1-L5"}'  
+  -d '{"command":"travel", "destination":"PHAKRGAD-OORT"}'  
+
+  
+292BD932
+ 
+replicant: 4698E8E6
+heavenvessel: 3B9BB396
+
+DA4E4077
+# Trade
+
+curl -H "Authorization: Bearer $API_KEY" \
+  "https://api.replicant.space/v1/devices/292BD932" 
+
+riker's controller @ SOL-3-1 : 043CA0A9
+
+curl -H "Authorization: Bearer $API_KEY" \
+  "https://api.replicant.space/v1/replicants/4698E8E6/traders" 
+
+curl  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-type: application/json" \
+  -X POST  \
+  "https://api.replicant.space/v1/devices/043CA0A9/trades/TRD-059539"
+
+
+# bobnet
+curl -X POST https://api.replicant.space/v1/replicants/4698E8E6/message \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{"channel": "#general", "text": "Just bought a belt_surveyor from Riker.  Any clues about what it does?"}'
+
+# decommission
+curl -X POST https://api.replicant.space/v1/devices/E2E5C212 \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{"command": "decommission"}'
+
+# FTL relay
+
+curl -H "Authorization: Bearer $API_KEY" \
+  "https://api.replicant.space/v1/devices/113641F6/network" 
+
+
+# Teleport (OTHYONAL->SOL)
+curl -X POST https://api.replicant.space/v1/replicants/4698E8E6/teleport \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{"target": "394A085A"}'
+
+# Teleport (SOL->OTHYONAL)
+curl -X POST https://api.replicant.space/v1/replicants/4698E8E6/teleport \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{"target": "13E6B2A6"}'
+
+    13E6B2A6
+
+
+# Prospect
+
+curl -X POST https://api.replicant.space/v1/devices/68D1D1CA \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{"command": "prospect"}'
+
+# Search
+
+curl -X POST https://api.replicant.space/v1/devices/B0E5D4A4 \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{"command": "search"}'

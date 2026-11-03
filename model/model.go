@@ -1,21 +1,20 @@
-package main
+package model
 
-import (
-	"fmt"
-	"os"
-	"strings"
-)
+type Position struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	Z float64 `json:"z"`
+}
 
-const API = "https://api.replicant.space/v1"
+type Star struct {
+	Designation string   `json:"designation"`
+	EntryPoint  string   `json:"entry_point"`
+	Explored    bool     `json:"explored"`
+	Position    Position `json:"position"`
+}
 
-var Token string
-
-func init() {
-	token, err := os.ReadFile("token.txt")
-	if err != nil {
-		panic(err)
-	}
-	Token = strings.TrimSpace(string(token))
+type Stars struct {
+	Stars []Star `json:"stars"`
 }
 
 type User struct {
@@ -34,11 +33,6 @@ type ReplicantLocation struct {
 	Code            string `json:"replicant_code"`
 }
 
-type Position struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
-	Z float64 `json:"z"`
-}
 type StowedDevice struct {
 	DeviceCode string `json:"device_code"`
 	DeviceType string `json:"device_type"`
@@ -90,27 +84,6 @@ type Location struct {
 	Inventory     []InventoryItem  `json:"inventory"`
 	Devices       []LocationDevice `json:"devices"`
 	ResourceSites []ResourceSite   `json:"resource_sites"`
-}
-
-func (loc *Location) String() string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "Belt: %+v\n", loc.Belt)
-	fmt.Fprintf(&b, "Inventory\n")
-	for _, i := range loc.Inventory {
-		fmt.Fprintf(&b, "\t%s: %d\n", i.ResourceType, i.Quantity)
-	}
-	fmt.Fprintf(&b, "Devices\n")
-	for _, d := range loc.Devices {
-		fmt.Fprintf(&b, "\t%s(%s) %s\n", d.DeviceType, d.DeviceCode, d.Status)
-	}
-	for _, rs := range loc.ResourceSites {
-		fmt.Fprintf(&b, "ResourceSite: %s\n", rs.Name)
-		for k, v := range rs.Remaining {
-			fmt.Fprintf(&b, "\t%s: %d\n", k, v)
-		}
-	}
-	fmt.Fprintf(&b, "ResourceSites: %+v\n", loc.ResourceSites)
-	return b.String()
 }
 
 type ResourceSite struct {
