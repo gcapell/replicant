@@ -11,7 +11,39 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gcapell/replicant/model"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/json-iterator/go/extra"
 )
+
+func init() {
+	extra.SetNamingStrategy(extra.LowerCaseWithUnderscores)
+}
+
+var iterjson = jsoniter.ConfigCompatibleWithStandardLibrary
+
+type decoder func([]byte) (any, error)
+
+func decode(env Envelope) (any, error) {
+	dec, ok := registry[env.Event]
+	if !ok {
+		return nil, fmt.Errorf("unknown event type %q", env.Event)
+	}
+	return dec(env.Payload)
+}
+
+var registry = map[string]decoder{}
+
+func register[T any](name string) {
+	registry[name] = func(raw []byte) (any, error) {
+		var v T
+		if err := iterjson.Unmarshal(raw, &v); err != nil {
+			return nil, err
+		}
+		return &v, nil
+	}
+}
 
 type rawEvent struct {
 	ID    string
@@ -20,21 +52,21 @@ type rawEvent struct {
 }
 
 type Envelope struct {
-	Version       int             `json:"version"`
-	ID            string          `json:"id"`
-	Category      string          `json:"category"`
-	Event         string          `json:"event"`
-	CreatedAt     time.Time       `json:"created_at"`
-	DeviceCode    string          `json:"device_code"`
-	DeviceType    string          `json:"device_type"`
-	ReplicantCode string          `json:"replicant_code"`
-	Star          string          `json:"star"`
-	Location      string          `json:"location"`
-	Payload       json.RawMessage `json:"payload"`
+	Version       int
+	ID            string
+	Category      string
+	Event         string
+	CreatedAt     time.Time
+	DeviceCode    string
+	DeviceType    string
+	ReplicantCode string
+	Star          string
+	Location      string
+	Payload       json.RawMessage
 }
 
 // readEvents calls fn for each complete event until the stream ends or fn errors.
-func readEvents(r io.Reader, fn func(Envelope) error) error {
+func readEvents(r io.Reader, fn func(Envelope, any) error) error {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64<<10), 1<<20) // allow lines up to 1 MiB
 
@@ -51,10 +83,14 @@ func readEvents(r io.Reader, fn func(Envelope) error) error {
 				ev.ID = lastID
 				ev.Data = append([]byte(nil), data.Bytes()...) // copy; buffer is reused
 				var env Envelope
-				if err := json.Unmarshal(ev.Data, &env); err != nil {
+				if err := iterjson.Unmarshal(ev.Data, &env); err != nil {
 					return fmt.Errorf("envelope: %w", err)
 				}
-				if err := fn(env); err != nil {
+				o, err := decode(env)
+				if err != nil {
+					return fmt.Errorf("decode %s %s: %w", env.Event, string(env.Payload), err)
+				}
+				if err := fn(env, o); err != nil {
 					return err
 				}
 			}
@@ -87,7 +123,7 @@ func readEvents(r io.Reader, fn func(Envelope) error) error {
 	return sc.Err() // nil on a clean EOF
 }
 
-func SSEStream(ctx context.Context, fn func(Envelope) error) error {
+func SSEStream(ctx context.Context, fn func(Envelope, any) error) error {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
 		"https://api.replicant.space/v1/events/stream", nil)
 	if err != nil {
@@ -110,4 +146,9 @@ func SSEStream(ctx context.Context, fn func(Envelope) error) error {
 		log.Fatalf("unexpected content-type %q", ct)
 	}
 	return readEvents(resp.Body, fn)
+}
+
+func init() {
+	register[model.MiningDigest]("ami.mining.digest")
+	register[model.ExperienceGained]("ami.experience.gained")
 }
