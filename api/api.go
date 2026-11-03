@@ -57,7 +57,7 @@ func Get[T any](v *T, url string, args ...any) (*T, error) {
 }
 
 func Stars(replicantID string) (*model.Stars, error) {
-	return Get(new(model.Stars), "/replicants/%s/stars", replicantID)
+	return Get(new(model.Stars), "/replicants/%s/stars?per_page=30", replicantID)
 }
 func User() (*model.User, error) {
 	return Get(new(model.User), "/accounts/me")

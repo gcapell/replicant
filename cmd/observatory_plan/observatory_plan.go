@@ -10,16 +10,17 @@ import (
 	"github.com/gcapell/replicant/model"
 )
 
+type distantStar struct {
+	s model.Star
+	d float64
+}
+
 func main() {
 	stars, err := api.Stars("4698E8E6")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	type distantStar struct {
-		s model.Star
-		d float64
-	}
 	var explored, unexplored []*distantStar
 	for _, s := range stars.Stars {
 		d := &distantStar{s: s}
@@ -56,11 +57,23 @@ func main() {
 
 	fmt.Printf("explore order:\n")
 	for _, s := range unexplored {
-		fmt.Printf("  %s (%.1f)\n", s.s.Designation, s.d)
+		e := closest(s.s.Position, explored)
+		fmt.Printf("  %s (%.1f) (%.1f from %s)\n", s.s.Designation, s.d, e.d, e.s.Designation)
 	}
 	fmt.Printf("observatory order:\n")
 	for _, s := range explored {
 		delta := s.s.Position.Delta(centre)
 		fmt.Printf("  %s (%.1f) %s\n", s.s.Designation, s.d, delta)
 	}
+}
+
+func closest(p model.Position, stars []*distantStar) *distantStar {
+	best := stars[0]
+	bestDist := p.Distance(best.s.Position)
+	for _, s := range stars[1:] {
+		if d := p.Distance(s.s.Position); d < bestDist {
+			best, bestDist = s, d
+		}
+	}
+	return best
 }
