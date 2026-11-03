@@ -32,8 +32,8 @@ curl -H "Authorization: Bearer $API_KEY" \
 curl  -H "Authorization: Bearer $API_KEY" \
   -H "Content-type: application/json" \
   -X POST  \
-  "https://api.replicant.space/v1/devices/3B9BB396" \
-  -d '{"command":"travel", "destination":"PHAKRGAD-OORT"}'  
+  "https://api.replicant.space/v1/devices/4B95C24F" \
+  -d '{"command":"travel", "destination":"CARZARON-2"}'  
 
   
 292BD932

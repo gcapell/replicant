@@ -49,6 +49,9 @@
                         {{cgo.quantity}} {{cgo.resource_type}},
                     }
                 }
+                @if(c.scan?.completes_at; as deadline) {
+                    scan {{c.scan.target}} in <app-countdown [deadline]="deadline"/>
+                }
             </li>
         }
     }

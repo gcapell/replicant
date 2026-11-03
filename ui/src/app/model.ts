@@ -341,6 +341,12 @@ export interface Device {
     print_queue: DevicePrintQueueItem[];
     prospect: Prospect;
     compact: CompactStatus;
+    scan: ScanStatus;
+}
+
+interface ScanStatus{
+    completes_at: string;
+    target: string;
 }
 
 interface CompactStatus{
