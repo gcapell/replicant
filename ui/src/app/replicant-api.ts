@@ -279,6 +279,28 @@ export class ReplicantApi {
         });
     }
 
+    async asyncPost<T>(path: string, body: any): Promise<T> {
+        return firstValueFrom(this.http.post<T>(path, body, {
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        }));
+    }
+
+    async collectResources(drone: string, resource: string, amount: string) {
+        const r = await this.asyncPost<FillTransportResult>(`/v1/devices/${drone}`, {
+            command: "collect_resources",
+            resources: { [resource]: Number(amount) },
+        });
+        this.fillTransportResult.set(r);
+        this.refreshDevice(drone);
+    }
+
+    async refreshDevice(id: string) {
+        const d = await firstValueFrom(this.http.get<Device>(`/v1/devices/${id}`)  );
+        setSignal(this.id2device, id, d);
+    }
+
     systemOf = (loc: string): string => loc?.split("-", 1)[0];
 
     loadReplicant(id: string) {
@@ -386,14 +408,7 @@ export class ReplicantApi {
             { "command": "set_directive", "directive": "patrol" },
             this.patrolResult);
     }
-    collectResources(drone: string, resource: string, amount: string) {
-        this.postAndUpdate(`/v1/devices/${drone}`,
-            {
-                command: "collect_resources",
-                resources: { [resource]: Number(amount) },
-            },
-            this.fillTransportResult);
-    }
+
     depositResources(drone: string, resource: string, amount: string) {
         this.postAndUpdate(`/v1/devices/${drone}`,
             {
