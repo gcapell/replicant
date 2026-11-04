@@ -47,16 +47,44 @@ type SurveyDigest struct {
 }
 
 type SurveyReport struct {
-	ActiveStites            int
+	ActiveSites             int
 	Belt                    string
 	Cruising                int
+	Busy                    int
+	Progress                SurveyProgress
 	Idle                    int
 	MaxSites                int
-	Scans                   []string
+	Scans                   []SurveyScan
 	Searching               int
 	TotalResourcesAvailable int
 }
-
+type SurveyProgress struct {
+	Remaining int
+	Scanned   int
+	Total     int
+}
+type SurveyScan struct {
+	DeviceCode string
+	Report     SurveyScanReport
+}
+type SurveyScanReport struct {
+	Moons  []Moon
+	Planet Planet
+}
+type Planet struct {
+	Designation     string
+	InHabitableZone bool
+	LifeStage       string
+	Name            string
+	SpeciesName     string
+	Tags            []string
+}
+type Moon struct {
+	Designation string
+	Name        string
+	Scanned     bool
+	Type        string
+}
 type ExperienceGained struct {
 	Amount int
 	Source string
@@ -194,12 +222,28 @@ type DirectiveSet struct {
 	Directive     string
 }
 
+type SurveyDirectiveConfiguration struct {
+	Moons   string
+	Planets string
+	Recall  bool
+}
 type DirectiveConfiguration struct {
-	// FIXME
+	SurveyDirectiveConfiguration
 }
 
 type DeviceStowed struct {
 	StowedInDeviceCode string
+}
+type DeviceDeployed struct {
+	DeployedFrom string
+}
+
+type RelayActivated struct {
+	Location string
+	Star     string
+}
+type DirectiveCompleted struct {
+	Directive string
 }
 
 var unmarshal = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal
@@ -239,4 +283,7 @@ func init() {
 	register[DirectiveSet]("directive.set")
 	register[EventDiscovered]("event.discovered")
 	register[DeviceStowed]("device.stowed")
+	register[DeviceDeployed]("device.deployed")
+	register[RelayActivated]("relay.activated")
+	register[DirectiveCompleted]("directive.completed")
 }
