@@ -2,6 +2,21 @@ package model
 
 import "time"
 
+type Paged struct {
+	NextCursor *int
+}
+
+func (p Paged) Cursor() (int, bool) {
+	if p.NextCursor == nil {
+		return 0, false
+	}
+	return *p.NextCursor, true
+}
+
+type Pageable interface {
+	Cursor() (int, bool)
+}
+
 type Position struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
@@ -35,10 +50,6 @@ type ReplicantLocation struct {
 	Code            string `json:"replicant_code"`
 }
 
-type StowedDevice struct {
-	DeviceCode string `json:"device_code"`
-	DeviceType string `json:"device_type"`
-}
 type LocationDevice struct {
 	DeviceCode string `json:"device_code"`
 	DeviceType string `json:"device_type"`

@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/gcapell/replicant/model"
+	jsoniter "github.com/json-iterator/go"
 )
 
 const BaseURL = "https://api.replicant.space/v1"
@@ -42,6 +43,29 @@ func get(url string, args ...interface{}) ([]byte, error) {
 		return nil, fmt.Errorf("Request failed with status code: %d", resp.StatusCode)
 	}
 	return io.ReadAll(resp.Body)
+}
+
+func Paged[T model.Pageable](url string) ([]T, error) {
+	cursor := 0
+	var all []T
+	for {
+		data, err := get(url+"?cursor=%d", cursor)
+		if err != nil {
+			return nil, err
+		}
+		var o T
+
+		if err := jsoniter.Unmarshal(data, &o); err != nil {
+			return nil, err
+		}
+		all = append(all, o)
+		var ok bool
+		cursor, ok = o.Cursor()
+		if !ok {
+			break
+		}
+	}
+	return all, nil
 }
 
 func Get[T any](v *T, url string, args ...any) (*T, error) {

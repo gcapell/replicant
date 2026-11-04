@@ -356,7 +356,6 @@ interface CompactStatus{
 interface Prospect{
     completes_at: string;
     // direction?
-
 }
 
 interface AttachedDevice{
