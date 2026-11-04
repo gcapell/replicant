@@ -118,17 +118,33 @@ type MessageNew struct {
 	MessageType string
 	Title       string
 }
-
-type EventCompleted struct {
-	Consumed    EventStakes
+type EventDiscovered struct {
+	Category    string
+	Criteria    []EventCriterion
+	Description string
 	Designation string
 	EventType   string
 	Location    string
-	Rewards     EventStakes
+	Rewards     EventRewards
+	Tier        int
+	Title       string
+}
+type EventCriterion struct {
+	Name      string
+	Devices   []EventDevice
+	Resources map[ResourceType]int
+}
+
+type EventCompleted struct {
+	Consumed    EventRewards
+	Designation string
+	EventType   string
+	Location    string
+	Rewards     EventRewards
 	Tier        int
 }
 
-type EventStakes struct {
+type EventRewards struct {
 	Resources          map[ResourceType]int
 	Devices            []EventDevice
 	CivilisationPoints int
@@ -163,6 +179,28 @@ type DeviceUnfurling struct {
 	CompletesAt string
 }
 type DeviceUnfurled struct{}
+type DeviceCompacted struct{}
+
+type ProspectCompleted struct {
+	Origin         string
+	Stars          []string
+	StarsGenerated int
+}
+type DeviceCompacting struct {
+	CompletesAt string
+}
+type DirectiveSet struct {
+	Configuration DirectiveConfiguration
+	Directive     string
+}
+
+type DirectiveConfiguration struct {
+	// FIXME
+}
+
+type DeviceStowed struct {
+	StowedInDeviceCode string
+}
 
 var unmarshal = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal
 
@@ -195,4 +233,10 @@ func init() {
 	register[DeviceDetached]("device.detached")
 	register[DeviceUnfurling]("device.unfurling")
 	register[DeviceUnfurled]("device.unfurled")
+	register[ProspectCompleted]("prospect.completed")
+	register[DeviceCompacting]("device.compacting")
+	register[DeviceCompacted]("device.compacted")
+	register[DirectiveSet]("directive.set")
+	register[EventDiscovered]("event.discovered")
+	register[DeviceStowed]("device.stowed")
 }
