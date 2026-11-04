@@ -21,28 +21,12 @@ func init() {
 	extra.SetNamingStrategy(extra.LowerCaseWithUnderscores)
 }
 
-var iterjson = jsoniter.ConfigCompatibleWithStandardLibrary
-
-type decoder func([]byte) (any, error)
-
 func decode(env Envelope) (any, error) {
-	dec, ok := registry[env.Event]
+	dec, ok := model.EventRegistry[env.Event]
 	if !ok {
 		return nil, fmt.Errorf("unknown event type %q", env.Event)
 	}
 	return dec(env.Payload)
-}
-
-var registry = map[string]decoder{}
-
-func register[T any](name string) {
-	registry[name] = func(raw []byte) (any, error) {
-		var v T
-		if err := iterjson.Unmarshal(raw, &v); err != nil {
-			return nil, err
-		}
-		return &v, nil
-	}
 }
 
 type rawEvent struct {
@@ -74,6 +58,7 @@ func readEvents(r io.Reader, fn func(Envelope, any) error) error {
 	var data bytes.Buffer
 	lines := 0
 	lastID := ""
+	unmarshal := jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal
 
 	for sc.Scan() {
 		line := sc.Text() // Scanner strips the trailing \n or \r\n
@@ -83,12 +68,12 @@ func readEvents(r io.Reader, fn func(Envelope, any) error) error {
 				ev.ID = lastID
 				ev.Data = append([]byte(nil), data.Bytes()...) // copy; buffer is reused
 				var env Envelope
-				if err := iterjson.Unmarshal(ev.Data, &env); err != nil {
+				if err := unmarshal(ev.Data, &env); err != nil {
 					return fmt.Errorf("envelope: %w", err)
 				}
 				o, err := decode(env)
 				if err != nil {
-					return fmt.Errorf("decode %s %s: %w", env.Event, string(env.Payload), err)
+					return fmt.Errorf("decode %s %s %s: %w", env.Event, ev.ID, string(env.Payload), err)
 				}
 				if err := fn(env, o); err != nil {
 					return err
@@ -123,7 +108,7 @@ func readEvents(r io.Reader, fn func(Envelope, any) error) error {
 	return sc.Err() // nil on a clean EOF
 }
 
-func SSEStream(ctx context.Context, fn func(Envelope, any) error) error {
+func SSEStream(ctx context.Context, id string, fn func(Envelope, any) error) error {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
 		"https://api.replicant.space/v1/events/stream", nil)
 	if err != nil {
@@ -131,6 +116,9 @@ func SSEStream(ctx context.Context, fn func(Envelope, any) error) error {
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Accept", "text/event-stream")
+	if id != "" {
+		req.Header.Set("Last-Event-ID", id)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -146,9 +134,4 @@ func SSEStream(ctx context.Context, fn func(Envelope, any) error) error {
 		log.Fatalf("unexpected content-type %q", ct)
 	}
 	return readEvents(resp.Body, fn)
-}
-
-func init() {
-	register[model.MiningDigest]("ami.mining.digest")
-	register[model.ExperienceGained]("ami.experience.gained")
 }

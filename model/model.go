@@ -1,7 +1,5 @@
 package model
 
-import "time"
-
 type Paged struct {
 	NextCursor *int
 }
@@ -126,26 +124,6 @@ type MiningResponse struct {
 	ResourceType     string `json:"resource_type"`
 	SalvageType      string `json:"salvage_type"`
 	Site             string `json:"site"`
-}
-
-// Payload for "ami.mining.digest"
-type MiningDigest struct {
-	Directive string `json:"directive"`
-	Activity  struct {
-		Counts     map[string]int `json:"counts"`
-		EventCount int            `json:"event_count"`
-		Window     [2]time.Time   `json:"window"`
-	} `json:"activity"`
-	Devices []struct {
-		DeviceCode string `json:"device_code"`
-		Status     string `json:"status"`
-		Events     int    `json:"events,omitempty"`
-		LastEvent  string `json:"last_event,omitempty"`
-	} `json:"devices"`
-	Report struct {
-		Location  string                   `json:"location"`
-		Resources map[string]ResourceLevel `json:"resources"` // keyed by carbon, rares, ...
-	} `json:"report"`
 }
 
 type ResourceLevel struct {

@@ -6,16 +6,30 @@ import (
 	"log"
 
 	"github.com/gcapell/replicant/api"
+	"github.com/sanity-io/litter"
 )
 
+var boringEvents = map[string]bool{
+	"ami.mining.digest": true,
+	"ami.survey.digest": true,
+	"site.depleted":     true,
+}
+
 func main() {
-	err := api.SSEStream(context.Background(), func(env api.Envelope, o any) error {
-		fmt.Println(env.Event, env.ID, env.DeviceCode, env.DeviceType, o)
+	needsLineBreak := false
+	err := api.SSEStream(context.Background(), "1793797946868-0", func(env api.Envelope, o any) error {
+		if boringEvents[env.Event] {
+			fmt.Printf("%s, ", env.Event)
+			needsLineBreak = true
+			return nil
+		}
+		if needsLineBreak {
+			fmt.Println()
+			needsLineBreak = false
+		}
+		fmt.Printf("%s %s %s %s %s\n", env.Event, env.ID, env.DeviceCode, env.DeviceType, litter.Sdump(o))
 		return nil
 	})
-	if err != nil {
-		log.Fatalf("read events: %v", err)
-	}
 	if err != nil {
 		log.Fatalf("read events: %v", err)
 	}
