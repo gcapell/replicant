@@ -8,13 +8,11 @@ import (
 )
 
 func main() {
-	lists, err := api.Paged[model.DeviceList]("/devices")
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-
-	for _, page := range lists {
-		fmt.Println("page", page)
+	for list, err := range api.Paged[model.DeviceList]("/devices") {
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+		fmt.Println("list", list)
 	}
 }

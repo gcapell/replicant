@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"iter"
 	"log"
 	"net/http"
 	"os"
@@ -45,27 +46,31 @@ func get(url string, args ...interface{}) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func Paged[T model.Pageable](url string) ([]T, error) {
-	cursor := 0
-	var all []T
-	for {
-		data, err := get(url+"?cursor=%d", cursor)
-		if err != nil {
-			return nil, err
-		}
-		var o T
+func Paged[T model.Pageable](url string) iter.Seq2[T, error] {
+	return func(yield func(T, error) bool) {
+		cursor := 0
+		for {
+			var o T
+			data, err := get(url+"?cursor=%d", cursor)
+			if err != nil {
+				yield(o, err)
+				return
+			}
 
-		if err := jsoniter.Unmarshal(data, &o); err != nil {
-			return nil, err
-		}
-		all = append(all, o)
-		var ok bool
-		cursor, ok = o.Cursor()
-		if !ok {
-			break
+			if err := jsoniter.Unmarshal(data, &o); err != nil {
+				yield(o, err)
+				return
+			}
+			if !yield(o, nil) {
+				return
+			}
+			var ok bool
+			cursor, ok = o.Cursor()
+			if !ok {
+				return
+			}
 		}
 	}
-	return all, nil
 }
 
 func Get[T any](v *T, url string, args ...any) (*T, error) {
