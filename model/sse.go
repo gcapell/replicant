@@ -130,8 +130,13 @@ type EventCompleted struct {
 
 type EventStakes struct {
 	Resources          map[ResourceType]int
+	Devices            []EventDevice
 	CivilisationPoints int
 	XP                 int
+}
+type EventDevice struct {
+	DeviceCode string
+	DeviceType string
 }
 
 type PrintCompleted struct {
