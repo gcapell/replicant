@@ -32,17 +32,7 @@ func main() {
 			unexplored = append(unexplored, d)
 		}
 	}
-	var centre model.Position
-	{
-		var x, y, z float64
-		for _, s := range explored {
-			x += s.s.Position.X
-			y += s.s.Position.Y
-			z += s.s.Position.Z
-		}
-		n := float64(len(explored))
-		centre = model.Position{X: x / n, Y: y / n, Z: z / n}
-	}
+	centre := centreOf(explored)
 	for _, s := range unexplored {
 		s.d = s.s.Position.Distance(centre)
 	}
@@ -59,8 +49,8 @@ func main() {
 
 	fmt.Printf("explore order:\n")
 	for _, s := range unexplored {
-		e := closest(s.s.Position, explored)
-		fmt.Printf("  %s (%.1f) (%.1f from %s)\n", s.s.Designation, s.d, e.d, e.s.Designation)
+		e, d := closest(s.s.Position, explored)
+		fmt.Printf("  %s (%.1f) (%.1f from %s)\n", s.s.Designation, s.d, d, e.s.Designation)
 	}
 	fmt.Printf("observatory order:\n")
 	for _, s := range explored {
@@ -69,7 +59,18 @@ func main() {
 	}
 }
 
-func closest(p model.Position, stars []*distantStar) *distantStar {
+func centreOf(stars []*distantStar) model.Position {
+	var x, y, z float64
+	for _, s := range stars {
+		x += s.s.Position.X
+		y += s.s.Position.Y
+		z += s.s.Position.Z
+	}
+	n := float64(len(stars))
+	return model.Position{X: x / n, Y: y / n, Z: z / n}
+}
+
+func closest(p model.Position, stars []*distantStar) (*distantStar, float64) {
 	best := stars[0]
 	bestDist := p.Distance(best.s.Position)
 	for _, s := range stars[1:] {
@@ -77,5 +78,5 @@ func closest(p model.Position, stars []*distantStar) *distantStar {
 			best, bestDist = s, d
 		}
 	}
-	return best
+	return best, bestDist
 }
