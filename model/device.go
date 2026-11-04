@@ -69,8 +69,8 @@ type Travel struct {
 	Origin           string
 	DepartedAt       string
 	FinalDestination string
-	RouteEtaSeconds  string
-	EtaSeconds       string
+	RouteEtaSeconds  float64
+	EtaSeconds       int
 	Stage            string
 	Type             string
 }
