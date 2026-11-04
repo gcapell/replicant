@@ -14,12 +14,7 @@ import (
 
 	"github.com/gcapell/replicant/model"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/json-iterator/go/extra"
 )
-
-func init() {
-	extra.SetNamingStrategy(extra.LowerCaseWithUnderscores)
-}
 
 func decode(env Envelope) (any, error) {
 	dec, ok := model.EventRegistry[env.Event]

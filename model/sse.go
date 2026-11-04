@@ -150,6 +150,15 @@ type DeviceAttached struct {
 	TargetType string
 }
 
+type DeviceDetached struct {
+	TargetCode string
+	TargetType string
+}
+type DeviceUnfurling struct {
+	CompletesAt string
+}
+type DeviceUnfurled struct{}
+
 var unmarshal = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal
 
 func register[T any](name string) {
@@ -178,4 +187,7 @@ func init() {
 	register[PrintCompleted]("print.completed")
 	register[SiteDepleted]("site.depleted")
 	register[DeviceAttached]("device.attached")
+	register[DeviceDetached]("device.detached")
+	register[DeviceUnfurling]("device.unfurling")
+	register[DeviceUnfurled]("device.unfurled")
 }

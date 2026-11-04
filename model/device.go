@@ -35,7 +35,10 @@ type Device struct {
 	StowedDevices        []StowedDevice
 	Travel               Travel
 	AttachedToDeviceCode string
-	AttachedDevices      []AttachedDevice
+
+	AttachedDevices []AttachedDevice
+	AttachCapacity  int
+	AttachUsed      int
 
 	Cargo         []ResourceCount
 	CargoCapacity int

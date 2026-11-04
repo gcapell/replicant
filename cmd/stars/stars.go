@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math"
@@ -10,7 +11,8 @@ import (
 )
 
 func main() {
-	stars, err := api.Stars("4698E8E6")
+	ctx := context.Background()
+	stars, err := api.Stars(ctx, "4698E8E6")
 	if err != nil {
 		log.Fatal(err)
 	}

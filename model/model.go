@@ -76,18 +76,9 @@ type InventoryItem struct {
 	Quantity     int    `json:"quantity"`
 }
 
-const (
-	miningDrone = "mining_drone"
-	surveyDrone = "survey_drone"
-)
-
 type Command struct {
 	Command      string `json:"command"`
 	ResourceType string `json:"resource_type,omitempty"`
-}
-
-func deployCmd() *Command {
-	return &Command{Command: "deploy"}
 }
 
 type Location struct {

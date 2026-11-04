@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"iter"
 	"maps"
@@ -23,8 +24,9 @@ func sortedMap[K cmp.Ordered, V any](m map[K]V) iter.Seq2[K, V] {
 }
 
 func main() {
+	ctx := context.Background()
 	byType := make(map[string][]model.Device)
-	for list, err := range api.Paged[model.DeviceList]("/devices") {
+	for list, err := range api.Paged[model.DeviceList](ctx, "/devices") {
 		if err != nil {
 			fmt.Println("Error:", err)
 			return
