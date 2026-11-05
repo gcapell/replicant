@@ -1,7 +1,13 @@
-<select #destination>
-    <option value="" disabled selected>move to...</option>
+<input
+    #destination
+    type="text"
+    placeholder="move to..."
+    [attr.list]="listId"
+    (input)="value.set(destination.value)"
+/>
+<datalist [id]="listId">
     @for ( d of destinations() ?? []; track d){
-        <option [value]="d">{{d}}</option>
+        <option [value]="d"></option>
     }
-</select>
-<button type="button" (click)="api.sendDrone(deviceCode(), destination.value)">Send</button>
+</datalist>
+<button type="button" [disabled]="!valid()" (click)="api.sendDrone(deviceCode(), value())">Send</button>
