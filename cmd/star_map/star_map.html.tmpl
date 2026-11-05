@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Star Map</title>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0d14; color: #c9cfdd;
+               font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { position: absolute; top: 12px; left: 16px; z-index: 1; pointer-events: none; }
+  h1 { margin: 0; font-size: 16px; font-weight: 600; color: #e8ecf5; }
+  p { margin: 4px 0 0; font-size: 12px; color: #8a92a6; }
+  #map { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Star map</h1>
+  <p>{{.Count}} stars · {{.Explored}} explored · {{.Unexplored}} unexplored · drag to rotate, scroll to zoom</p>
+  <p>Origin = centre of explored stars, originally at {{.Centre}}</p>
+</header>
+<div id="map"></div>
+<script>
+  const traces = {{.Traces}};
+  const axis = { color: "#5a6276", gridcolor: "#1e2230", zerolinecolor: "#2a3042",
+                 backgroundcolor: "#0b0d14", showbackground: true };
+  Plotly.newPlot("map", traces, {
+    paper_bgcolor: "#0b0d14",
+    font: { color: "#c9cfdd" },
+    margin: { l: 0, r: 0, t: 0, b: 0 },
+    legend: { x: 1, xanchor: "right", y: 1, bgcolor: "rgba(0,0,0,0)" },
+    // "data" keeps the axes to scale, so distances on screen are true distances.
+    scene: { aspectmode: "data", xaxis: axis, yaxis: axis, zaxis: axis,
+             camera: { eye: { x: 1.8, y: 1.8, z: 1.1 } } },
+  }, { responsive: true, displaylogo: false });
+</script>
+</body>
+</html>

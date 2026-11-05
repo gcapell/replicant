@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gcapell/replicant/api"
+	"github.com/gcapell/replicant/auto"
 	"github.com/gcapell/replicant/model"
 	"github.com/sanity-io/litter"
 )
@@ -16,6 +17,7 @@ var transportID = "E62C8DC1" // drones are attached to this.
 
 func main() {
 	ctx := context.Background()
+	hub := api.NewHub(ctx)
 	t, err := api.Device(ctx, transportID)
 	if err != nil {
 		log.Fatal(err)
@@ -48,15 +50,34 @@ func main() {
 	}
 	log.Printf("controller: %s", controller)
 
-	// find an arbitrary salvage site at this star (use /locations API)
-	site, err := findSalvageSite(ctx, star)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("salvage site: %s", site)
+	for {
+		// find an arbitrary salvage site at this star (use /locations API)
+		site, err := findSalvageSite(ctx, star)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("salvage site: %s", site)
 
-	if err := api.Salvage(ctx, controller, site); err != nil {
-		log.Fatal(err)
+		// Register interest before starting the directive, so a fast completion isn't missed.
+		done := hub.Expect(api.AnyOf(
+			api.ForDevice[model.DirectiveCompleted](controller),
+			api.ForDevice[model.DirectiveCleared](controller),
+		))
+		if err := api.Salvage(ctx, controller, site); err != nil {
+			done.Cancel()
+			log.Fatal(err)
+		}
+		log.Printf("waiting for %s to finish salvaging %s", controller, site)
+		ev, err := done.Wait(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
+		switch p := ev.Payload.(type) {
+		case *model.DirectiveCompleted:
+			log.Printf("%s completed %s at %s", controller, p.Directive, site)
+		case *model.DirectiveCleared:
+			log.Fatalf("%s directive %s was cleared before completing", controller, p.PreviousDirective)
+		}
 	}
 }
 
@@ -69,7 +90,10 @@ func findSalvageSite(ctx context.Context, star string) (string, error) {
 	}
 	var sites []string
 	for loc, summary := range list.Locations {
-		if strings.HasPrefix(loc, star+"-") && summary.ResourceSites > 0 && !strings.Contains(loc, "-BELT-") {
+		if strings.HasPrefix(loc, star+"-") &&
+			summary.ResourceSites > 0 &&
+			!strings.Contains(loc, "-BELT-") &&
+			!strings.Contains(loc, "-OBJ-") {
 			sites = append(sites, loc)
 		}
 	}
@@ -85,11 +109,11 @@ func findSalvageSite(ctx context.Context, star string) (string, error) {
 // directive (or a completed one), and has it adopt every mining_drone in the system
 // that has no controller. It returns the selected controller's device code.
 func adoptMinersAtStar(ctx context.Context, star string) (string, error) {
-	drones, err := devicesInSystem(ctx, star, "mining_drone")
+	drones, err := auto.DevicesInSystem(ctx, star, "mining_drone")
 	if err != nil {
 		return "", err
 	}
-	controllers, err := devicesInSystem(ctx, star, "ami_mining_controller")
+	controllers, err := auto.DevicesInSystem(ctx, star, "ami_mining_controller")
 	if err != nil {
 		return "", err
 	}
@@ -97,7 +121,9 @@ func adoptMinersAtStar(ctx context.Context, star string) (string, error) {
 
 	var controller *model.Device
 	for i, c := range controllers {
-		if c.AmiDirective.Name == "" || c.AmiDirectiveStatus == "completed" {
+		if c.AmiDirective.Name == "" ||
+			c.AmiDirective.Name == "gather_salvage" ||
+			c.AmiDirectiveStatus == "completed" {
 			controller = &controllers[i]
 			break
 		}
@@ -121,18 +147,4 @@ func adoptMinersAtStar(ctx context.Context, star string) (string, error) {
 		}
 	}
 	return controller.DeviceCode, nil
-}
-
-// devicesInSystem returns all devices of deviceType anywhere in the star system.
-func devicesInSystem(ctx context.Context, star, deviceType string) ([]model.Device, error) {
-	var devices []model.Device
-	// Note: path goes through Sprintf in api.do, so it must not contain '%'.
-	path := "/devices?location=" + star + "&device_type=" + deviceType + "&limit=50"
-	for list, err := range api.Paged[model.DeviceList](ctx, path) {
-		if err != nil {
-			return nil, err
-		}
-		devices = append(devices, list.Devices...)
-	}
-	return devices, nil
 }

@@ -175,3 +175,41 @@ func Salvage(ctx context.Context, controller string, site string) error {
 		},
 	})
 }
+
+// InventoryAt returns your stockpiles at every location under loc, which may be
+// a star code (whole system) or a specific location.
+func InventoryAt(ctx context.Context, loc string) ([]model.LocationInventory, error) {
+	var all []model.LocationInventory
+	cursor := ""
+	for {
+		// Note: path goes through Sprintf in do, so it must not contain '%'.
+		path := "/inventory?limit=50&location=" + loc
+		if cursor != "" {
+			path += "&cursor=" + cursor
+		}
+		var page model.InventoryList
+		if _, err := Get(ctx, &page, path); err != nil {
+			return nil, err
+		}
+		all = append(all, page.Locations...)
+		if page.NextCursor == nil || *page.NextCursor == "" {
+			return all, nil
+		}
+		cursor = *page.NextCursor
+	}
+}
+
+// Travel sends a device to destination (a location code).
+func Travel(ctx context.Context, device, destination string) error {
+	return deviceCommand(ctx, device, map[string]any{"command": "travel", "destination": destination})
+}
+
+// CollectResources loads resources from the device's current location into its cargo.
+func CollectResources(ctx context.Context, device string, resources map[model.ResourceType]int) error {
+	return deviceCommand(ctx, device, map[string]any{"command": "collect_resources", "resources": resources})
+}
+
+// DepositAllResources unloads all of the device's cargo at its current location.
+func DepositAllResources(ctx context.Context, device string) error {
+	return deviceCommand(ctx, device, map[string]any{"command": "deposit_resources"})
+}

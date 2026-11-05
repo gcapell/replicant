@@ -66,9 +66,15 @@ func readEvents(r io.Reader, fn func(Envelope, any) error) error {
 				if err := unmarshal(ev.Data, &env); err != nil {
 					return fmt.Errorf("envelope: %w", err)
 				}
+				if ev.ID != "" {
+					env.ID = ev.ID // the SSE id is what Last-Event-ID resumes from
+				}
 				o, err := decode(env)
 				if err != nil {
-					return fmt.Errorf("decode %s %s %s: %w", env.Event, ev.ID, string(env.Payload), err)
+					// Skip rather than fail: otherwise resuming from the last ID
+					// would hit the same bad event forever. fn sees a nil payload.
+					log.Printf("decode %s %s %s: %v", env.Event, ev.ID, string(env.Payload), err)
+					o = nil
 				}
 				if err := fn(env, o); err != nil {
 					return err
@@ -103,11 +109,12 @@ func readEvents(r io.Reader, fn func(Envelope, any) error) error {
 	return sc.Err() // nil on a clean EOF
 }
 
+// SSEStream connects to the event stream, resuming after event id if non-empty,
+// and calls fn for each event until the stream ends, fn errors, or ctx is done.
 func SSEStream(ctx context.Context, id string, fn func(Envelope, any) error) error {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
-		"https://api.replicant.space/v1/events/stream", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, BaseURL+"/events/stream", nil)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Accept", "text/event-stream")
@@ -115,18 +122,18 @@ func SSEStream(ctx context.Context, id string, fn func(Envelope, any) error) err
 		req.Header.Set("Last-Event-ID", id)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req) // no timeout: the stream is long-lived
 	if err != nil {
-		log.Fatalf("connect: %v", err)
+		return fmt.Errorf("connect: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		log.Fatalf("unexpected status %s: %s", resp.Status, body)
+		return fmt.Errorf("unexpected status %s: %s", resp.Status, body)
 	}
 	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
-		log.Fatalf("unexpected content-type %q", ct)
+		return fmt.Errorf("unexpected content-type %q", ct)
 	}
 	return readEvents(resp.Body, fn)
 }

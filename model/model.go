@@ -135,3 +135,33 @@ type LocationSummary struct {
 	ResourceSites  int `json:"resource_sites"`
 	Resources      int `json:"resources"`
 }
+
+// InventoryList is one page of GET /inventory: stockpiles per location.
+// Unlike most lists, its cursor is a location code, not an integer.
+type InventoryList struct {
+	Locations  []LocationInventory `json:"locations"`
+	NextCursor *string             `json:"next_cursor"`
+}
+
+type LocationInventory struct {
+	Location string          `json:"location"`
+	Items    []InventoryItem `json:"items"`
+}
+
+// Amounts returns the location's stockpile as resource type -> quantity.
+func (l LocationInventory) Amounts() map[ResourceType]int {
+	m := make(map[ResourceType]int, len(l.Items))
+	for _, it := range l.Items {
+		m[ResourceType(it.ResourceType)] += it.Quantity
+	}
+	return m
+}
+
+// Total is the sum of all resources at the location.
+func (l LocationInventory) Total() int {
+	n := 0
+	for _, it := range l.Items {
+		n += it.Quantity
+	}
+	return n
+}
