@@ -80,6 +80,9 @@
 @if(d.compact?.completes_at; as deadline) {
     compacts in <app-countdown [deadline]="deadline"/>
 }
+@if(d.unfurl?.completes_at; as deadline) {
+    unfurls in <app-countdown [deadline]="deadline"/>
+}
 @if(d.status === "waiting_for_resources"){
     @for(wf of d.waiting_for|keyvalue; track wf.key){
         {{wf.key}} {{wf.value.have}}/{{wf.value.need}},

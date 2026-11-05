@@ -245,6 +245,13 @@ type RelayActivated struct {
 type DirectiveCompleted struct {
 	Directive string
 }
+type SalvageDiscovered struct {
+	Designation string
+	Location    string
+	Name        string
+	Resources   map[ResourceType]int
+	SalvageType string
+}
 
 var unmarshal = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal
 
@@ -286,4 +293,5 @@ func init() {
 	register[DeviceDeployed]("device.deployed")
 	register[RelayActivated]("relay.activated")
 	register[DirectiveCompleted]("directive.completed")
+	register[SalvageDiscovered]("salvage.discovered")
 }

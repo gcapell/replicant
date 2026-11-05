@@ -341,6 +341,7 @@ export interface Device {
     print_queue: DevicePrintQueueItem[];
     prospect: Prospect;
     compact: CompactStatus;
+    unfurl: UnfurlStatus;
     scan: ScanStatus;
 }
 
@@ -350,6 +351,9 @@ interface ScanStatus{
 }
 
 interface CompactStatus{
+    completes_at: string;
+}
+interface UnfurlStatus{
     completes_at: string;
 }
 

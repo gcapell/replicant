@@ -16,8 +16,9 @@ var boringEvents = map[string]bool{
 }
 
 func main() {
+
 	needsLineBreak := false
-	err := api.SSEStream(context.Background(), "1793829791261-0", func(env api.Envelope, o any) error {
+	err := api.SSEStream(context.Background(), "1793838871642-0", func(env api.Envelope, o any) error {
 		if boringEvents[env.Event] {
 			fmt.Printf("%s, ", env.Event)
 			needsLineBreak = true
