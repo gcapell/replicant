@@ -54,6 +54,10 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("salvage site: %s", site)
+
+	if err := api.Salvage(ctx, controller, site); err != nil {
+		log.Fatal(err)
+	}
 }
 
 // findSalvageSite returns an arbitrary (alphabetically first) salvage site at the star:

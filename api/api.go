@@ -164,3 +164,14 @@ func DetachDevice(ctx context.Context, carrier string, devices ...string) error 
 func AdoptDevice(ctx context.Context, controller string, devices ...string) error {
 	return deviceCommand(ctx, controller, map[string]any{"command": "adopt", "targets": devices})
 }
+
+func Salvage(ctx context.Context, controller string, site string) error {
+	return deviceCommand(ctx, controller, map[string]any{
+		"command":   "set_directive",
+		"directive": "gather_salvage",
+		"configuration": map[string]any{
+			"location": site,
+			"recall":   false,
+		},
+	})
+}
