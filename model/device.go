@@ -45,7 +45,7 @@ type Device struct {
 	CargoUsed     int
 
 	AmiDirectiveStatus string
-	Amidirective       AMIDirective
+	AmiDirective       AMIDirective
 	Printing           PrintingStatus
 
 	WaitingFor map[ResourceType]WaitingForStat

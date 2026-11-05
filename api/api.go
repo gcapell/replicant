@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gcapell/replicant/model"
@@ -82,9 +83,13 @@ func do(ctx context.Context, method string, body any, url string, args ...any) (
 func Paged[T model.Pageable](ctx context.Context, url string) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
 		cursor := 0
+		sep := "?"
+		if strings.Contains(url, "?") {
+			sep = "&"
+		}
 		for {
 			var o T
-			data, err := get(ctx, url+"?cursor=%d", cursor)
+			data, err := get(ctx, url+sep+"cursor=%d", cursor)
 			if err != nil {
 				yield(o, err)
 				return
@@ -137,6 +142,11 @@ func Location(ctx context.Context, id string) (*model.Location, error) {
 	return Get(ctx, new(model.Location), "/locations/%s", id)
 }
 
+// Locations fetches a summary of every known location.
+func Locations(ctx context.Context) (*model.LocationList, error) {
+	return Get(ctx, new(model.LocationList), "/locations")
+}
+
 func Device(ctx context.Context, id string) (*model.Device, error) {
 	return Get(ctx, new(model.Device), "/devices/%s", id)
 }
@@ -148,4 +158,9 @@ func deviceCommand(ctx context.Context, id string, args map[string]any) error {
 
 func DetachDevice(ctx context.Context, carrier string, devices ...string) error {
 	return deviceCommand(ctx, carrier, map[string]any{"command": "detach", "targets": devices})
+}
+
+// AdoptDevice tells an AMI controller to adopt the given devices.
+func AdoptDevice(ctx context.Context, controller string, devices ...string) error {
+	return deviceCommand(ctx, controller, map[string]any{"command": "adopt", "targets": devices})
 }

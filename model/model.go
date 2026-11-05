@@ -33,12 +33,12 @@ type Stars struct {
 }
 
 type User struct {
-	CreatedAt      string              `json:"created_at"`
-	Email          string              `json:"email"`
-	XPTotal        int                 `json:"experience_points_total"`
-	Replicants     []ReplicantLocation `json:"replicants"`
-	Status         string              `json:"status"`
-	UnreadMessages int
+	CreatedAt          string              `json:"created_at"`
+	Email              string              `json:"email"`
+	XPTotal            int                 `json:"experience_points_total"`
+	Replicants         []ReplicantLocation `json:"replicants"`
+	Status             string              `json:"status"`
+	UnreadMessageCount int
 }
 
 type ReplicantLocation struct {
@@ -121,4 +121,17 @@ type ResourceLevel struct {
 	Actual   int `json:"actual"`
 	Capacity int `json:"capacity"`
 	Desired  int `json:"desired"`
+}
+
+// LocationList is the response to GET /locations: a summary of every known point of interest.
+type LocationList struct {
+	Locations map[string]LocationSummary `json:"locations"`
+}
+
+type LocationSummary struct {
+	Devices        int `json:"devices"`
+	LocationEvents int `json:"location_events"`
+	Replicants     int `json:"replicants"`
+	ResourceSites  int `json:"resource_sites"`
+	Resources      int `json:"resources"`
 }
