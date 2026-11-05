@@ -124,8 +124,9 @@ func Get[T any](ctx context.Context, v *T, url string, args ...any) (*T, error) 
 }
 
 func Stars(ctx context.Context, replicantID string) (*model.Stars, error) {
-	return Get(ctx, new(model.Stars), "/replicants/%s/stars?per_page=30", replicantID)
+	return Get(ctx, new(model.Stars), "/replicants/%s/stars?per_page=40", replicantID)
 }
+
 func User(ctx context.Context) (*model.User, error) {
 	return Get(ctx, new(model.User), "/accounts/me")
 }
@@ -160,6 +161,11 @@ func DetachDevice(ctx context.Context, carrier string, devices ...string) error 
 	return deviceCommand(ctx, carrier, map[string]any{"command": "detach", "targets": devices})
 }
 
+// AttachDevice connects devices to carrier (e.g. drones onto a transport).
+func AttachDevice(ctx context.Context, carrier string, devices ...string) error {
+	return deviceCommand(ctx, carrier, map[string]any{"command": "attach", "targets": devices})
+}
+
 // AdoptDevice tells an AMI controller to adopt the given devices.
 func AdoptDevice(ctx context.Context, controller string, devices ...string) error {
 	return deviceCommand(ctx, controller, map[string]any{"command": "adopt", "targets": devices})
@@ -183,7 +189,10 @@ func InventoryAt(ctx context.Context, loc string) ([]model.LocationInventory, er
 	cursor := ""
 	for {
 		// Note: path goes through Sprintf in do, so it must not contain '%'.
-		path := "/inventory?limit=50&location=" + loc
+		path := "/inventory?limit=50"
+		if loc != "" {
+			path += "&location=" + loc
+		}
 		if cursor != "" {
 			path += "&cursor=" + cursor
 		}
