@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"iter"
@@ -19,7 +18,11 @@ import (
 
 const BaseURL = "https://api.replicant.space/v1"
 
-var unmarshal = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal
+var (
+	unmarshal = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal
+	marshal   = jsoniter.ConfigCompatibleWithStandardLibrary.Marshal
+	client    = &http.Client{Timeout: 10 * time.Second}
+)
 var apiKey string
 
 func init() {
@@ -34,25 +37,46 @@ func init() {
 	}
 }
 
-func get(ctx context.Context, url string, args ...interface{}) ([]byte, error) {
-	url = fmt.Sprintf(url, args...)
-	log.Printf("get %s", url)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, BaseURL+url, nil)
+func get(ctx context.Context, url string, args ...any) ([]byte, error) {
+	return do(ctx, http.MethodGet, nil, url, args...)
+}
 
+// post JSON-encodes body and POSTs it to url (formatted with args).
+func post(ctx context.Context, body any, url string, args ...any) ([]byte, error) {
+	return do(ctx, http.MethodPost, body, url, args...)
+}
+
+func do(ctx context.Context, method string, body any, url string, args ...any) ([]byte, error) {
+	url = fmt.Sprintf(url, args...)
+	var r io.Reader
+	if body != nil {
+		encoded, err := marshal(body)
+		if err != nil {
+			return nil, err
+		}
+		log.Printf("%s %s %s", method, url, encoded)
+		r = bytes.NewReader(encoded)
+	} else {
+		log.Printf("%s %s", method, url)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, BaseURL+url, r)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
-	client := &http.Client{}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Request failed with status code: %d", resp.StatusCode)
+	data, err := io.ReadAll(resp.Body)
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("%s %s: %s: %s", method, url, resp.Status, data)
 	}
-	return io.ReadAll(resp.Body)
+	return data, err
 }
 
 func Paged[T model.Pageable](ctx context.Context, url string) iter.Seq2[T, error] {
@@ -118,33 +142,8 @@ func Device(ctx context.Context, id string) (*model.Device, error) {
 }
 
 func deviceCommand(ctx context.Context, id string, args map[string]any) error {
-	encodedArgs, err := json.Marshal(args)
-	if err != nil {
-		return err
-	}
-	log.Printf("encoded: %q", encodedArgs)
-	client := &http.Client{Timeout: 10 * time.Second}
-	url := fmt.Sprintf("/devices/%s", id)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, BaseURL+url, bytes.NewReader(encodedArgs))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == 200 {
-		return nil
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("err %s reading POST response", err)
-	}
-	return fmt.Errorf("unexpected status: %s, %s", resp.Status, string(body))
+	_, err := post(ctx, args, "/devices/%s", id)
+	return err
 }
 
 func DetachDevice(ctx context.Context, carrier string, devices ...string) error {
