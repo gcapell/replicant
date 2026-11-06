@@ -454,6 +454,18 @@ export interface StowResult{}
 export interface ActivateRelayResult{}
 export interface CommandResult{};
 
+// GET /v1/inventory: stockpiles per location. Docs show items as a map, but the
+// API returns a list, so accept either.
+export interface InventoryList {
+    locations: LocationInventory[];
+    next_cursor: string | null;
+}
+
+export interface LocationInventory {
+    location: string;
+    items: { resource_type: string; quantity: number }[] | Record<string, number>;
+}
+
 export interface LocationList {
     locations: Record<string, LocationSummary>;
 }

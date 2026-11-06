@@ -1,0 +1,30 @@
+<button type="button" class="link" (click)="fetch()" [disabled]="loading()">
+  {{ loading() ? 'Fetching…' : 'Fetch' }}
+</button>
+
+@if (table(); as t) {
+  @if (t.rows.length === 0) {
+    <p>No stockpiles.</p>
+  } @else {
+    <table>
+      <thead>
+        <tr>
+          <th>Star</th>
+          @for (c of t.columns; track c) {
+            <th>{{ c }}</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of t.rows; track r.star) {
+          <tr>
+            <td>{{ r.star }}</td>
+            @for (c of t.columns; track c) {
+              <td class="num">{{ r.amounts[c] ? (r.amounts[c] | number) : '' }}</td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+}

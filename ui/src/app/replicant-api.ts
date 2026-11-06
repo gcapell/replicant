@@ -8,7 +8,7 @@ import {
     StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
     SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult,
     PatrolResult, MarkReadResult, LocationList, LocationSummary,
-    CommandResult, Device,
+    CommandResult, Device, InventoryList, LocationInventory,
 } from './model';
 import { EventList } from './eventmodel';
 import { firstValueFrom } from 'rxjs';
@@ -199,7 +199,7 @@ export class ReplicantApi {
         console.log("system2deviceIDs", this.system2deviceIDs);
     }
 
-    async *pagedGet<T extends { next_cursor?: number | null }>(
+    async *pagedGet<T extends { next_cursor?: number | string | null }>(
         url: string,
         params: Params = {},
     ): AsyncGenerator<T> {
@@ -212,6 +212,15 @@ export class ReplicantApi {
             yield page;
             cursor = page.next_cursor;
         } while (cursor != null);
+    }
+
+    // All our stockpiles, every page of GET /v1/inventory.
+    async inventory(): Promise<LocationInventory[]> {
+        const all: LocationInventory[] = [];
+        for await (const page of this.pagedGet<InventoryList>('/v1/inventory', { limit: 50 })) {
+            all.push(...page.locations);
+        }
+        return all;
     }
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {

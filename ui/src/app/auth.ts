@@ -3,7 +3,9 @@ import { HttpInterceptorFn } from '@angular/common/http';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-    readonly token = signal<string | null>(null);
+    // Start from the saved token, so requests are authorised after a reload
+    // without first clicking Load in Account.
+    readonly token = signal<string | null>(localStorage.getItem('token'));
 }
 
 const API_ORIGIN = '/v1';
