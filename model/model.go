@@ -28,6 +28,11 @@ type Star struct {
 	Position    Position `json:"position"`
 }
 
+// SystemScan is the part of a system scan response we use.
+type SystemScan struct {
+	EntryPoint string `json:"entry_point"`
+}
+
 type Stars struct {
 	Stars []Star `json:"stars"`
 }
