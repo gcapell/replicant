@@ -8,7 +8,7 @@ import {
     StartPrintingResult, FillTransportResult, EmptyTransportResult, AdoptDronesResult,
     SetDeliveryDirectiveResult, CompleteEventResult, SetDirectiveResult, ReleaseDronesResult,
     PatrolResult, MarkReadResult, LocationList, LocationSummary,
-    CommandResult, Device, InventoryList, LocationInventory,
+    CommandResult, Device, InventoryList, LocationInventory, ReputationList,
 } from './model';
 import { EventList } from './eventmodel';
 import { firstValueFrom } from 'rxjs';
@@ -221,6 +221,10 @@ export class ReplicantApi {
             all.push(...page.locations);
         }
         return all;
+    }
+
+    async reputation(): Promise<ReputationList> {
+        return firstValueFrom(this.http.get<ReputationList>('/v1/accounts/reputation'));
     }
 
     private fetchAndUpdate<T>(path: string, target: WritableSignal<T | null>) {

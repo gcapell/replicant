@@ -454,6 +454,19 @@ export interface StowResult{}
 export interface ActivateRelayResult{}
 export interface CommandResult{};
 
+// GET /v1/accounts/reputation: standing with each species discovered.
+export interface ReputationList {
+    reputation: SpeciesReputation[];
+}
+
+export interface SpeciesReputation {
+    name: string;
+    species_key: string;
+    description: string;
+    trait: string;
+    total_reputation: number;
+}
+
 // GET /v1/inventory: stockpiles per location. Docs show items as a map, but the
 // API returns a list, so accept either.
 export interface InventoryList {

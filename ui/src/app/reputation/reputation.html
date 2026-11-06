@@ -1,0 +1,26 @@
+<button type="button" class="link" (click)="fetch()" [disabled]="loading()">
+  {{ loading() ? 'Fetching…' : 'Fetch' }}
+</button>
+
+@if (species(); as ss) {
+  @if (ss.length === 0) {
+    <p>No species discovered yet.</p>
+  } @else {
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Reputation</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (s of ss; track s.species_key) {
+          <tr>
+            <td [title]="s.description">{{ s.name }}</td>
+            <td class="num">{{ s.total_reputation | number }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+}
