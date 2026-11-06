@@ -43,10 +43,19 @@ func main() {
 			byStar[star] = append(byStar[star], d)
 		}
 		for star, devices := range sortedMap(byStar) {
-			fmt.Printf("  %q\n", star)
+			// Count devices per status, e.g. `"OTHYONAL" idle monitoring(3)`.
+			counts := map[string]int{}
 			for _, d := range devices {
-				fmt.Println("    ", d.DeviceCode, d.Status)
+				counts[d.Status]++
 			}
+			var parts []string
+			for status, n := range sortedMap(counts) {
+				if n > 1 {
+					status = fmt.Sprintf("%s(%d)", status, n)
+				}
+				parts = append(parts, status)
+			}
+			fmt.Printf("  %q %s\n", star, strings.Join(parts, " "))
 		}
 		fmt.Println()
 	}
