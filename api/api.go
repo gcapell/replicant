@@ -233,3 +233,30 @@ func CollectResources(ctx context.Context, device string, resources map[model.Re
 func DepositAllResources(ctx context.Context, device string) error {
 	return deviceCommand(ctx, device, map[string]any{"command": "deposit_resources"})
 }
+
+// Deploy deploys a stowed device to its host's current location. It's sent to
+// the stowed device itself.
+func Deploy(ctx context.Context, device string) error {
+	return deviceCommand(ctx, device, map[string]any{"command": "deploy"})
+}
+
+// Activate activates a deployed device, e.g. an ftl_relay.
+func Activate(ctx context.Context, device string) error {
+	return deviceCommand(ctx, device, map[string]any{"command": "activate"})
+}
+
+// SystemScan has a vessel scan the star system it's in.
+func SystemScan(ctx context.Context, vessel string) (*model.SystemScan, error) {
+	data, err := post(ctx, map[string]any{"command": "system_scan"}, "/devices/%s", vessel)
+	if err != nil {
+		return nil, err
+	}
+	v := new(model.SystemScan)
+	if err := unmarshal(data, v); err != nil {
+		return nil, fmt.Errorf("system_scan %s: %w: %s", vessel, err, data)
+	}
+	if v.EntryPoint == "" {
+		return nil, fmt.Errorf("system_scan %s: no entry_point in response: %s", vessel, data)
+	}
+	return v, nil
+}
