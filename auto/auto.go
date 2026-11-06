@@ -16,6 +16,11 @@ func DevicesInSystem(ctx context.Context, star, deviceType string) ([]model.Devi
 	return listDevices(ctx, "/devices?location="+star+"&device_type="+deviceType+"&limit=50")
 }
 
+// DevicesAt returns all devices of deviceType at exactly loc (e.g. "SOL-4-L4").
+func DevicesAt(ctx context.Context, loc, deviceType string) ([]model.Device, error) {
+	return listDevices(ctx, "/devices?location="+loc+"&device_type="+deviceType+"&limit=50")
+}
+
 // Devices returns all our devices of deviceType.
 func Devices(ctx context.Context, deviceType string) ([]model.Device, error) {
 	return listDevices(ctx, "/devices?device_type="+deviceType+"&limit=50")

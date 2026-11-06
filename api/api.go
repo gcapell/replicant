@@ -208,6 +208,16 @@ func InventoryAt(ctx context.Context, loc string) ([]model.LocationInventory, er
 	}
 }
 
+// ChangeOwner reassigns device to another replicant on the same account.
+func ChangeOwner(ctx context.Context, device, replicant string) error {
+	return deviceCommand(ctx, device, map[string]any{"command": "change_owner", "target": replicant})
+}
+
+// Stow places device in the hold of host (e.g. a vessel); both must be at the same location.
+func Stow(ctx context.Context, device, host string) error {
+	return deviceCommand(ctx, device, map[string]any{"command": "stow", "target": host})
+}
+
 // Travel sends a device to destination (a location code).
 func Travel(ctx context.Context, device, destination string) error {
 	return deviceCommand(ctx, device, map[string]any{"command": "travel", "destination": destination})
