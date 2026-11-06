@@ -53,7 +53,7 @@ func main() {
 	}
 	// Only the nearest stars (not the whole catalogue, which is huge); stockpiles
 	// at stars outside this set are ignored.
-	stars, err := api.Stars(ctx, *replicant)
+	stars, err := api.Stars(ctx, *replicant, 40)
 	if err != nil {
 		log.Fatal(err)
 	}

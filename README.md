@@ -62,7 +62,7 @@ API_KEY=x go test -race ./...
   - `/v1/locations` returns a map of location code to `{devices, location_events, replicants, resource_sites, resources}`. Moons' salvage sites only appear here, not under `/locations/PLANET`.
   - `/v1/devices?location=X` takes either a star (`MIRETH`) or an exact location (`MIRETH-4-L4`).
 - **Stars:**
-  - `/v1/replicants/{code}/stars?per_page=30` gives the nearest stars, with positions. Our replicant is `4698E8E6`.
+  - `/v1/replicants/{code}/stars?per_page=30` gives the nearest stars, with positions (`api.Stars(ctx, code, perPage)`). Our replicant is `4698E8E6`.
   - **Never fetch `/v1/stars`.** That's the whole catalogue, around a million stars, and it's rate limited.
 - **Accounts:** `/v1/accounts/reputation` returns `{"reputation": [{name, species_key, description, trait, total_reputation}]}`.
 
@@ -130,6 +130,7 @@ How the hub behaves:
 | `auto_ferry STAR FREIGHTER DEST` | One freighter: fill from STAR's planets and moons, deliver to DEST, repeat until the star is empty. |
 | `slurp [-replicant ID]` | All idle (and, once arrived, travelling) cargo_freighters greedily move resources from planets and moons to the nearest belt already holding more than 1000. A ledger of claims (inventory re-read on each decision, minus outstanding claims) stops two freighters going for the same stockpile. Exits when nothing is left to claim. |
 | `collect_ftl_relays VESSEL` | Stows the `inactive` ftl_relays at a heaven_vessel's exact location into it, changing their owner to the vessel's replicant first. Exits on the first failure. |
+| `plant_relays [-stars 50] VESSEL` | Plan only (prints, doesn't move yet). Checks the heaven_vessel is idle and carrying ftl_relays, then plans a route through the nearest stars without a relay. Each stop must be under 7.5 ly from a relay star: an existing one (active or inactive) or one planted earlier on the route. It picks the nearest reachable star each time, then shortens the order with 2-opt moves that keep that rule. The first N stops (N = relays on board) are planned on their own; the rest continue from there, and stars out of reach are listed with their nearest relay star. |
 | `star_map` | Writes and opens an interactive 3D Plotly map of the nearest stars, centred on the mean of the explored ones. |
 | `summarize_devices` | Devices by type, then by star, with status counts: `"OTHYONAL" monitoring(3)`. |
 | `stars`, `observatory_plan`, `sse_demo`, `sqlite_demo` | Older experiments and demos. |

@@ -123,8 +123,9 @@ func Get[T any](ctx context.Context, v *T, url string, args ...any) (*T, error) 
 	return v, nil
 }
 
-func Stars(ctx context.Context, replicantID string) (*model.Stars, error) {
-	return Get(ctx, new(model.Stars), "/replicants/%s/stars?per_page=40", replicantID)
+// Stars returns the perPage stars nearest to replicantID, with positions.
+func Stars(ctx context.Context, replicantID string, perPage int) (*model.Stars, error) {
+	return Get(ctx, new(model.Stars), "/replicants/%s/stars?per_page=%d", replicantID, perPage)
 }
 
 func User(ctx context.Context) (*model.User, error) {

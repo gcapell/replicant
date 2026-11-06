@@ -49,7 +49,7 @@ func main() {
 	open := flag.Bool("open", true, "open the file in the browser")
 	flag.Parse()
 
-	stars, err := api.Stars(context.Background(), *replicant)
+	stars, err := api.Stars(context.Background(), *replicant, 40)
 	if err != nil {
 		log.Fatal(err)
 	}

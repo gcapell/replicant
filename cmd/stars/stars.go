@@ -12,7 +12,7 @@ import (
 
 func main() {
 	ctx := context.Background()
-	stars, err := api.Stars(ctx, "4698E8E6")
+	stars, err := api.Stars(ctx, "4698E8E6", 40)
 	if err != nil {
 		log.Fatal(err)
 	}
