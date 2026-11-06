@@ -19,13 +19,9 @@ import (
 	"github.com/gcapell/replicant/model"
 )
 
-const (
-	// travelTimeout bounds a single trip; there's no ETA up front, so be generous.
-	travelTimeout = 12 * time.Hour
-	// transportEventTimeout bounds the wait for the transport.collected/delivered
-	// confirmation of a (synchronous) collect or deposit.
-	transportEventTimeout = 10 * time.Second
-)
+// transportEventTimeout bounds the wait for the transport.collected/delivered
+// confirmation of a (synchronous) collect or deposit.
+const transportEventTimeout = 10 * time.Second
 
 type ferry struct {
 	hub       *api.Hub
@@ -64,22 +60,11 @@ func (f *ferry) run(ctx context.Context) error {
 	}
 
 	// If it's already en route somewhere, let it get there first.
-	if d.Status == "travelling" {
-		log.Printf("%s is travelling to %s (ETA %s); waiting for arrival",
-			f.freighter, d.Travel.FinalDestination, formatSeconds(d.Travel.RouteEtaSeconds))
-		w := f.expectArrival(d.Travel.FinalDestination)
-		// Re-check, in case it arrived between the fetch and registering the waiter.
-		if d, err = api.Device(ctx, f.freighter); err != nil {
-			w.Cancel()
-			return err
-		}
-		if d.Status == "travelling" {
-			if err := f.waitArrival(ctx, w, d.Travel.FinalDestination); err != nil {
-				return err
-			}
-		} else {
-			w.Cancel()
-		}
+	if err := auto.FinishTrip(ctx, f.hub, f.freighter); err != nil {
+		return err
+	}
+	if d, err = api.Device(ctx, f.freighter); err != nil {
+		return err
 	}
 
 	// Leftover cargo from an earlier run goes to the destination first.
@@ -147,7 +132,7 @@ func (f *ferry) load(ctx context.Context, sites []model.LocationInventory) (int,
 		if free <= 0 {
 			break
 		}
-		if err := f.goTo(ctx, site.Location); err != nil {
+		if err := auto.GoTo(ctx, f.hub, f.freighter, site.Location); err != nil {
 			return loaded, err
 		}
 		// Re-read this site's stockpile now we're here; it may have changed en route.
@@ -205,7 +190,7 @@ func pick(inv []model.LocationInventory, loc string, free int) map[model.Resourc
 }
 
 func (f *ferry) deliver(ctx context.Context) error {
-	if err := f.goTo(ctx, f.dest); err != nil {
+	if err := auto.GoTo(ctx, f.hub, f.freighter, f.dest); err != nil {
 		return err
 	}
 	w := f.hub.Expect(api.ForDevice[model.TransportDelivered](f.freighter))
@@ -215,71 +200,6 @@ func (f *ferry) deliver(ctx context.Context) error {
 	}
 	log.Printf("delivered cargo to %s", f.dest)
 	f.confirm(ctx, w, "delivered")
-	return nil
-}
-
-// goTo sends the freighter to loc and waits for it to arrive. It's a no-op if
-// the freighter is already there.
-func (f *ferry) goTo(ctx context.Context, loc string) error {
-	d, err := api.Device(ctx, f.freighter)
-	if err != nil {
-		return err
-	}
-	if d.Location == loc && d.Status != "travelling" {
-		return nil
-	}
-	// Register both before travel, so quick events aren't missed.
-	departed := f.hub.Expect(api.ForDevice[model.TravelDeparted](f.freighter))
-	w := f.expectArrival(loc)
-	if err := api.Travel(ctx, f.freighter, loc); err != nil {
-		departed.Cancel()
-		w.Cancel()
-		return fmt.Errorf("travel to %s: %w", loc, err)
-	}
-	log.Printf("%s travelling %s -> %s (ETA %s)", f.freighter, d.Location, loc, f.departureETA(ctx, departed))
-	return f.waitArrival(ctx, w, loc)
-}
-
-// departureETA waits briefly for the travel.departed event and returns the trip
-// time it reports, or "unknown" if it doesn't arrive in time.
-func (f *ferry) departureETA(ctx context.Context, w *api.Waiter) string {
-	ctx, cancel := context.WithTimeout(ctx, transportEventTimeout)
-	defer cancel()
-	ev, err := w.Wait(ctx)
-	if err != nil {
-		log.Printf("warning: no travel.departed event for %s: %v", f.freighter, err)
-		return "unknown"
-	}
-	return formatSeconds(ev.Payload.(*model.TravelDeparted).TravelTimeSeconds)
-}
-
-// formatSeconds renders a duration in seconds like "3m22s".
-func formatSeconds(s float64) string {
-	return time.Duration(s * float64(time.Second)).Round(time.Second).String()
-}
-
-func (f *ferry) expectArrival(loc string) *api.Waiter {
-	return f.hub.Expect(api.AnyOf(
-		func(ev api.Event) bool {
-			a, ok := ev.Payload.(*model.TravelArrived)
-			// Multi-leg trips may report intermediate arrivals; only the final one counts.
-			return ok && ev.Env.DeviceCode == f.freighter && a.Destination == loc
-		},
-		api.ForDevice[model.TravelCancelled](f.freighter),
-	))
-}
-
-func (f *ferry) waitArrival(ctx context.Context, w *api.Waiter, loc string) error {
-	ctx, cancel := context.WithTimeout(ctx, travelTimeout)
-	defer cancel()
-	ev, err := w.Wait(ctx)
-	if err != nil {
-		return fmt.Errorf("waiting to arrive at %s: %w", loc, err)
-	}
-	if c, ok := ev.Payload.(*model.TravelCancelled); ok {
-		return fmt.Errorf("travel %s -> %s cancelled", c.Origin, c.Destination)
-	}
-	log.Printf("%s arrived at %s", f.freighter, loc)
 	return nil
 }
 
