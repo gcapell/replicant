@@ -1,0 +1,1 @@
+Read @README.md first: it covers this repo's layout, how we talk to the replicant.space API (and its gotchas), the SSE event hub pattern, the existing commands, and how we build new ones. Keep README.md up to date when those change.
