@@ -1,9 +1,12 @@
 // plant_relays plans a route for a heaven_vessel to plant its stowed
 // ftl_relays at nearby stars that don't have one yet. Each star planted at must
 // be within 7.5 ly of a star with a relay (existing, or planted earlier on the
-// route). For now it only prints the plan.
+// route). It prints the plan, then follows it for as many stops as it has
+// relays: at each star it goes to the system's entry point (travelling to the
+// Oort cloud and scanning first if we don't know it), deploys a relay and
+// activates it. It exits at the first failure. -n prints the plan only.
 //
-//	plant_relays [-stars 50] VESSEL_ID
+//	plant_relays [-n] [-stars 50] VESSEL_ID
 package main
 
 import (
@@ -21,8 +24,9 @@ import (
 
 func main() {
 	nStars := flag.Int("stars", 50, "how many nearby stars to consider")
+	dryRun := flag.Bool("n", false, "print the plan only")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %s [-stars N] VESSEL_ID\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "usage: %s [-n] [-stars N] VESSEL_ID\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -30,12 +34,12 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := run(context.Background(), flag.Arg(0), *nStars); err != nil {
+	if err := run(context.Background(), flag.Arg(0), *nStars, *dryRun); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(ctx context.Context, vesselID string, nStars int) error {
+func run(ctx context.Context, vesselID string, nStars int, dryRun bool) error {
 	v, err := api.Device(ctx, vesselID)
 	if err != nil {
 		return err
@@ -46,7 +50,8 @@ func run(ctx context.Context, vesselID string, nStars int) error {
 	if v.Status != "idle" {
 		return fmt.Errorf("%s is %s, not idle", vesselID, v.Status)
 	}
-	carrying := stowedRelays(v)
+	stowed := stowedRelayCodes(v)
+	carrying := len(stowed)
 	if carrying == 0 {
 		return fmt.Errorf("%s has no ftl_relays stowed", vesselID)
 	}
@@ -73,18 +78,10 @@ func run(ctx context.Context, vesselID string, nStars int) error {
 
 	route := planInTwo(here.Pos, in.relays, in.candidates, carrying)
 	printPlan(here, route, in, carrying)
-	return nil
-}
-
-// stowedRelays counts the ftl_relays stowed in v.
-func stowedRelays(v *model.Device) int {
-	n := 0
-	for _, d := range v.StowedDevices {
-		if d.DeviceType == "ftl_relay" {
-			n++
-		}
+	if dryRun || len(route) == 0 {
+		return nil
 	}
-	return n
+	return plantAll(ctx, vesselID, route, stowed)
 }
 
 // relayStars returns the set of stars where a relay sits (not stowed),
@@ -110,7 +107,7 @@ func split(stars []model.Star, hasRelay map[string]bool) inputs {
 	var in inputs
 	seen := map[string]bool{}
 	for _, s := range stars {
-		st := star{Name: s.Designation, Pos: s.Position, Explored: s.Explored}
+		st := toStar(s)
 		if hasRelay[s.Designation] {
 			in.relays = append(in.relays, st)
 			seen[s.Designation] = true
@@ -127,10 +124,14 @@ func split(stars []model.Star, hasRelay map[string]bool) inputs {
 	return in
 }
 
+func toStar(s model.Star) star {
+	return star{Name: s.Designation, Pos: s.Position, Explored: s.Explored, EntryPoint: s.EntryPoint}
+}
+
 func find(stars []model.Star, name string) (star, bool) {
 	for _, s := range stars {
 		if s.Designation == name {
-			return star{Name: s.Designation, Pos: s.Position, Explored: s.Explored}, true
+			return toStar(s), true
 		}
 	}
 	return star{}, false

@@ -44,7 +44,8 @@ API_KEY=x go test -race ./...
 - **Device commands:** `POST /v1/devices/{code}` with `{"command": ..., ...args}`, via the unexported `deviceCommand`. Existing wrappers:
   - travel and cargo: `Travel`, `CollectResources`, `DepositAllResources`;
   - attaching and AMI: `AttachDevice`, `DetachDevice`, `AdoptDevice`, `Salvage`;
-  - ownership and stowing: `ChangeOwner`, `Stow`.
+  - ownership and stowing: `ChangeOwner`, `Stow`, `Deploy`;
+  - relays and scanning: `Activate`, `SystemScan` (returns the system's `entry_point`).
 - **Every request is logged** (`GET /path`, or `POST /path {body}`).
 
 ### API facts we've confirmed
@@ -53,6 +54,8 @@ API_KEY=x go test -race ./...
 - **Moving devices:**
   - `stow` is sent to the *device being stowed*: `{"command":"stow","target":<host device>}`. It is immediate: no error means it worked.
   - `change_owner` is sent to the device: `{"command":"change_owner","target":<replicant_code>}`. Both replicants must be on the same account.
+  - `deploy` is sent to the *stowed device*, with no arguments (as the UI's deploy button does). It's immediate: fetch the device straight afterwards and its `location` is the host's.
+  - `activate` is sent to the deployed ftl_relay and takes effect at once: its status should be `relaying` straight afterwards.
   - `attach` and `detach` are sent to the carrier with `targets: [...]`. The two devices must be at the same location.
 - **Travel and cargo:**
   - `travel` takes just a `destination`. Surge-capable devices (e.g. cargo_freighter) work out their own route.
@@ -61,6 +64,7 @@ API_KEY=x go test -race ./...
 - **Locations:**
   - `/v1/locations` returns a map of location code to `{devices, location_events, replicants, resource_sites, resources}`. Moons' salvage sites only appear here, not under `/locations/PLANET`.
   - `/v1/devices?location=X` takes either a star (`MIRETH`) or an exact location (`MIRETH-4-L4`).
+- **System scan:** `{"command":"system_scan"}` sent to a vessel scans the system it's in. This is what `/replicants/{code}/scan` runs. The response's `entry_point` (e.g. `CORBRENEUS-5-L4`) is the system's easiest-to-reach L4 point, which is where we put relays. `/stars` also returns `entry_point` for stars we already know it for.
 - **Stars:**
   - `/v1/replicants/{code}/stars?per_page=30` gives the nearest stars, with positions (`api.Stars(ctx, code, perPage)`). Our replicant is `4698E8E6`.
   - **Never fetch `/v1/stars`.** That's the whole catalogue, around a million stars, and it's rate limited.
@@ -111,7 +115,7 @@ How the hub behaves:
   - Known gap: there's no idle timeout, so a half-open connection after the laptop sleeps can hang it.
 - **Events we use:**
   - directives: `directive.completed`, `directive.cleared`;
-  - travel: `travel.departed` (has `TravelTimeSeconds`, used for the ETA), `travel.arrived` (check `Destination`, since multi-leg trips report intermediate arrivals), `travel.cancelled`;
+  - travel: `travel.departed` (has `TravelTimeSeconds`, used for the ETA), `travel.arrived` (sent only at the end of a trip, not for intermediate legs, so any arrival for the device ends the wait. A surge to another system reports the bare star as `destination`, e.g. `"PARBEA"`, with the real place in the event's `Location`, e.g. `PARBEA-OORT`), `travel.cancelled`;
   - cargo: `transport.collected`, `transport.delivered`.
 - **Synchronous commands** (collect, deposit) treat a missing confirmation as a warning, after a 10s timeout. Long waits (travel) use 12h.
 
@@ -130,7 +134,7 @@ How the hub behaves:
 | `auto_ferry STAR FREIGHTER DEST` | One freighter: fill from STAR's planets and moons, deliver to DEST, repeat until the star is empty. |
 | `slurp [-replicant ID]` | All idle (and, once arrived, travelling) cargo_freighters greedily move resources from planets and moons to the nearest belt already holding more than 1000. A ledger of claims (inventory re-read on each decision, minus outstanding claims) stops two freighters going for the same stockpile. Exits when nothing is left to claim. |
 | `collect_ftl_relays VESSEL` | Stows the `inactive` ftl_relays at a heaven_vessel's exact location into it, changing their owner to the vessel's replicant first. Exits on the first failure. |
-| `plant_relays [-stars 50] VESSEL` | Plan only (prints, doesn't move yet). Checks the heaven_vessel is idle and carrying ftl_relays, then plans a route through the nearest stars without a relay. Each stop must be under 7.5 ly from a relay star: an existing one (active or inactive) or one planted earlier on the route. It picks the nearest reachable star each time, then shortens the order with 2-opt moves that keep that rule. The first N stops (N = relays on board) are planned on their own; the rest continue from there, and stars out of reach are listed with their nearest relay star. |
+| `plant_relays [-n] [-stars 50] VESSEL` | Checks the heaven_vessel is idle and carrying ftl_relays, then plans a route through the nearest stars without a relay. Each stop must be under 7.5 ly from a relay star: an existing one (active or inactive) or one planted earlier on the route. It picks the nearest reachable star each time, then shortens the order with 2-opt moves that keep that rule. The first N stops (N = relays on board) are planned on their own; the rest continue from there, and stars out of reach are listed with their nearest relay star. It then follows the plan for as many stops as it has relays. At each stop it goes to the entry point (or, if that isn't known yet, to `STAR-OORT` and runs a `system_scan` first), deploys a relay and checks it's at the entry point, then activates it and checks it's `relaying`. It exits at the first failure. `-n` prints the plan only. |
 | `star_map` | Writes and opens an interactive 3D Plotly map of the nearest stars, centred on the mean of the explored ones. |
 | `summarize_devices` | Devices by type, then by star, with status counts: `"OTHYONAL" monitoring(3)`. |
 | `stars`, `observatory_plan`, `sse_demo`, `sqlite_demo` | Older experiments and demos. |

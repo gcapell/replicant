@@ -13,9 +13,10 @@ const reach = 7.5
 
 // star is a named point in space.
 type star struct {
-	Name     string
-	Pos      model.Position
-	Explored bool
+	Name       string
+	Pos        model.Position
+	Explored   bool
+	EntryPoint string // "" if we don't know it yet
 }
 
 // stop is one star on the planned route.

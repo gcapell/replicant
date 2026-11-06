@@ -114,3 +114,23 @@ func TestRelayStarsSkipsStowed(t *testing.T) {
 		t.Errorf("relayStars = %v", got)
 	}
 }
+
+func TestStowedRelayCodes(t *testing.T) {
+	v := &model.Device{StowedDevices: []model.StowedDevice{
+		{DeviceCode: "R1", DeviceType: "ftl_relay"},
+		{DeviceCode: "M1", DeviceType: "mining_drone"},
+		{DeviceCode: "R2", DeviceType: "ftl_relay"},
+	}}
+	if got := stowedRelayCodes(v); !slices.Equal(got, []string{"R1", "R2"}) {
+		t.Errorf("stowedRelayCodes = %v", got)
+	}
+}
+
+func TestToStarKeepsEntryPoint(t *testing.T) {
+	if got := toStar(model.Star{Designation: "CORBRENEUS", EntryPoint: "CORBRENEUS-5-L4"}); got.EntryPoint != "CORBRENEUS-5-L4" {
+		t.Errorf("toStar = %+v", got)
+	}
+	if got := oort("CORBRENEUS"); got != "CORBRENEUS-OORT" {
+		t.Errorf("oort = %q", got)
+	}
+}
