@@ -13,9 +13,17 @@ import (
 
 // DevicesInSystem returns all devices of deviceType anywhere in the star system.
 func DevicesInSystem(ctx context.Context, star, deviceType string) ([]model.Device, error) {
+	return listDevices(ctx, "/devices?location="+star+"&device_type="+deviceType+"&limit=50")
+}
+
+// Devices returns all our devices of deviceType.
+func Devices(ctx context.Context, deviceType string) ([]model.Device, error) {
+	return listDevices(ctx, "/devices?device_type="+deviceType+"&limit=50")
+}
+
+// Note: path goes through Sprintf in api, so it must not contain '%'.
+func listDevices(ctx context.Context, path string) ([]model.Device, error) {
 	var devices []model.Device
-	// Note: path goes through Sprintf in api, so it must not contain '%'.
-	path := "/devices?location=" + star + "&device_type=" + deviceType + "&limit=50"
 	for list, err := range api.Paged[model.DeviceList](ctx, path) {
 		if err != nil {
 			return nil, err
@@ -23,6 +31,12 @@ func DevicesInSystem(ctx context.Context, star, deviceType string) ([]model.Devi
 		devices = append(devices, list.Devices...)
 	}
 	return devices, nil
+}
+
+// StarOf returns the star part of a location code ("MIRETH" for "MIRETH-5-2").
+func StarOf(loc string) string {
+	star, _, _ := strings.Cut(loc, "-")
+	return star
 }
 
 // planetOrMoon matches the part of a location after "STAR-" for a planet ("2")

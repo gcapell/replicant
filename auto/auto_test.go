@@ -11,6 +11,8 @@ func TestIsPlanetOrMoon(t *testing.T) {
 		"SOL-BELT-1":        false,
 		"SOL-BELT-1-SITE-3": false,
 		"SOL-5-L4":          false,
+		"SOL-OBJ-7":         false, // asteroids can collide with planets
+		"SOL-OBJ-7-1":       false,
 		"SOL-KUIPER":        false,
 		"SOLAR-3":           false, // a different star sharing a prefix
 		"SOL-3-1-2":         false,
