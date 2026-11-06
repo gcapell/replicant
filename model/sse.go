@@ -144,7 +144,7 @@ type DeviceStowed struct {
 	StowedInDeviceCode string
 }
 type DeviceDeployed struct {
-	DeployedFromDeviceCode string
+	DeployedFrom string
 }
 type DeviceChangedOwner struct {
 	FromReplicant string
