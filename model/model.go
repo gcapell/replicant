@@ -92,11 +92,104 @@ type Command struct {
 	ResourceType string `json:"resource_type,omitempty"`
 }
 
+// Location is the response to GET /locations/{code}. Which fields are filled
+// depends on the kind of location: the star fields below come from a star
+// code (e.g. URIRALAX).
 type Location struct {
+	Location     string `json:"location"`
+	LocationType string `json:"location_type"`
+
 	Belt          Belt             `json:"belt"`
 	Inventory     []InventoryItem  `json:"inventory"`
 	Devices       []LocationDevice `json:"devices"`
 	ResourceSites []ResourceSite   `json:"resource_sites"`
+
+	// Stars only.
+	ActiveLocationEvents []any          `json:"active_location_events"`
+	AsteroidBelt         AsteroidBelt   `json:"asteroid_belt"`
+	EntryPoint           string         `json:"entry_point"`
+	LifeDetected         bool           `json:"life_detected"`
+	MiningBonusPct       float64        `json:"mining_bonus_pct"`
+	MoonsScanned         int            `json:"moons_scanned"`
+	MoonsTotal           int            `json:"moons_total"`
+	MoonsTotalEstimated  bool           `json:"moons_total_estimated"`
+	OuterSystem          OuterSystem    `json:"outer_system"`
+	Planets              []SystemPlanet `json:"planets"`
+	PlanetsScanned       int            `json:"planets_scanned"`
+	PlanetsTotal         int            `json:"planets_total"`
+	Shops                []any          `json:"shops"`
+	Star                 StarDetails    `json:"star"`
+	SystemObjects        []any          `json:"system_objects"`
+	SystemScanned        bool           `json:"system_scanned"`
+	SystemTags           []string       `json:"system_tags"`
+}
+
+// Unscanned is how many planets and moons in a star's system haven't been
+// scanned yet.
+func (l Location) Unscanned() int {
+	return l.PlanetsTotal - l.PlanetsScanned + l.MoonsTotal - l.MoonsScanned
+}
+
+type AsteroidBelt struct {
+	Present bool `json:"present"`
+}
+
+type OuterSystem struct {
+	Kuiper *OuterBody `json:"kuiper"`
+	Oort   *OuterBody `json:"oort"`
+}
+
+type OuterBody struct {
+	Designation string  `json:"designation"`
+	DistanceAU  float64 `json:"distance_au"`
+}
+
+// SystemPlanet is one planet in a star's GET /locations response.
+type SystemPlanet struct {
+	Designation        string          `json:"designation"`
+	InHabitableZone    bool            `json:"in_habitable_zone"`
+	Inventory          []InventoryItem `json:"inventory"`
+	LifeEstimated      bool            `json:"life_estimated"`
+	LifeStage          string          `json:"life_stage"`
+	MoonCount          int             `json:"moon_count"`
+	MoonCountEstimated bool            `json:"moon_count_estimated"`
+	Name               *string         `json:"name"`
+	OrbitalDistanceAU  float64         `json:"orbital_distance_au"`
+	Salvage            []Salvage       `json:"salvage"`
+	Scanned            bool            `json:"scanned"`
+	Type               string          `json:"type"`
+	TypeEstimated      bool            `json:"type_estimated"`
+}
+
+type Salvage struct {
+	Depleted           bool     `json:"depleted"`
+	Designation        string   `json:"designation"`
+	Location           string   `json:"location"`
+	Name               string   `json:"name"`
+	ResourcesAvailable []string `json:"resources_available"`
+	SalvageType        string   `json:"salvage_type"`
+}
+
+type StarDetails struct {
+	AgeMY           float64       `json:"age_my"`
+	Color           string        `json:"color"`
+	Designation     string        `json:"designation"`
+	DistanceFromSol float64       `json:"distance_from_sol"`
+	HabitableZone   HabitableZone `json:"habitable_zone"`
+	LuminositySolar float64       `json:"luminosity_solar"`
+	MassSolar       float64       `json:"mass_solar"`
+	MiningBonusPct  float64       `json:"mining_bonus_pct"`
+	Name            *string       `json:"name"`
+	Position        Position      `json:"position"`
+	RadiusSolar     float64       `json:"radius_solar"`
+	SpectralType    string        `json:"spectral_type"`
+	StellarClass    string        `json:"stellar_class"`
+	TemperatureK    float64       `json:"temperature_k"`
+}
+
+type HabitableZone struct {
+	InnerAU float64 `json:"inner_au"`
+	OuterAU float64 `json:"outer_au"`
 }
 
 type ResourceSite struct {
