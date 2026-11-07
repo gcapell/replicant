@@ -33,6 +33,12 @@ type SystemScan struct {
 	EntryPoint string `json:"entry_point"`
 }
 
+// ProspectStarted is the response to a galactic_observatory's prospect command.
+type ProspectStarted struct {
+	Status      string `json:"status"`
+	CompletesAt string `json:"completes_at"`
+}
+
 type Stars struct {
 	Stars []Star `json:"stars"`
 }
