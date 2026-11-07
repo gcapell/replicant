@@ -43,7 +43,7 @@ API_KEY=x go test -race ./...
   - `/inventory` uses a *string* cursor (a location code), so `api.InventoryAt` has its own loop. `InventoryAt(ctx, "")` lists everything, `InventoryAt(ctx, "STAR")` one system, `InventoryAt(ctx, "STAR-3")` one location.
 - **Device commands:** `POST /v1/devices/{code}` with `{"command": ..., ...args}`, via the unexported `deviceCommand`. Existing wrappers:
   - travel and cargo: `Travel`, `CollectResources`, `DepositAllResources`;
-  - attaching and AMI: `AttachDevice`, `DetachDevice`, `AdoptDevice`, `Salvage`;
+  - attaching and AMI: `AttachDevice`, `DetachDevice`, `AdoptDevice`, `Salvage`, `SurveySystem` (`survey_system` directive, all planets and moons, no recall);
   - ownership and stowing: `ChangeOwner`, `Stow`, `Deploy`;
   - relays and scanning: `Activate`, `SystemScan` (returns the system's `entry_point`);
   - modular devices and observatories: `Compact`, `Unfurl`, `Prospect` (takes a `direction`).
@@ -120,6 +120,7 @@ How the hub behaves:
   - Known gap: there's no idle timeout, so a half-open connection after the laptop sleeps can hang it.
 - **Events we use:**
   - directives: `directive.completed`, `directive.cleared`;
+  - AMI progress: `ami.survey.digest` (`Report.Progress` has scanned/total/remaining);
   - travel: `travel.departed` (has `TravelTimeSeconds`, used for the ETA), `travel.arrived` (sent only at the end of a trip, not for intermediate legs, so any arrival for the device ends the wait. A surge to another system reports the bare star as `destination`, e.g. `"PARBEA"`, with the real place in the event's `Location`, e.g. `PARBEA-OORT`), `travel.cancelled`;
   - cargo: `transport.collected`, `transport.delivered`.
 - **Synchronous commands** (collect, deposit) treat a missing confirmation as a warning, after a 10s timeout. Long waits (travel) use 12h.
@@ -136,7 +137,7 @@ How the hub behaves:
 
 | Command | Does |
 |---|---|
-| `auto_scan -n TRANSPORT...` | Plans survey work. Each transport must have `surge` and `attach`, be idle, and carry exactly one ami_survey_controller plus at least 3 survey_drones that it controls (all problems are reported together). It finds systems with a `relaying` ftl_relay and unscanned planets or moons, picks one seed system per team (max-min spread), grows a group from each seed (the group with the least unscanned work takes its nearest unclaimed system), gives each group the team nearest to it, and prints each team's route: nearest system first, then a short path. Only `-n` (dry run) is implemented. |
+| `auto_scan -n TRANSPORT...` | Plans survey work. Each transport must have `surge` and `attach`, be idle, and carry exactly one ami_survey_controller plus at least 3 survey_drones that it controls (all problems are reported together). It finds systems with a `relaying` ftl_relay and unscanned planets or moons, picks one seed system per team (max-min spread), grows a group from each seed (the group with the least unscanned work takes its nearest unclaimed system), gives each group the team nearest to it, and prints each team's route: nearest system first, then a short path. `-n` stops there. Otherwise all teams run at once. At each system the team goes to the entry point, detaches the controller and drones, sets `survey_system`, logs the controller's survey digests, waits for `directive.completed` (12h limit), recalls the crew to the entry point and reattaches it. A failed team stops and the others carry on. After a crash, recover a team by hand (reattach its crew); scanned systems drop out of the next plan. |
 | `auto_salvage` | Detaches the miners and AMI controller from transport `E62C8DC1`, salvages every site at the star (not belts or `-OBJ-`), re-attaches them, then moves to the star with the most resource sites and repeats. |
 | `auto_ferry STAR FREIGHTER DEST` | One freighter: fill from STAR's planets and moons, deliver to DEST, repeat until the star is empty. |
 | `slurp [-replicant ID]` | All idle (and, once arrived, travelling) cargo_freighters greedily move resources from planets and moons to the nearest belt already holding more than 1000. A ledger of claims (inventory re-read on each decision, minus outstanding claims) stops two freighters going for the same stockpile. Exits when nothing is left to claim. |

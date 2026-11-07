@@ -5,9 +5,13 @@
 //
 // It checks each team, finds the systems with unscanned planets or moons,
 // spreads them among the teams (balancing the work), and prints each team's
-// route. Only the dry run (-n) is implemented so far.
+// route. Without -n, every team then follows its route at the same time: at
+// each system it goes to the entry point, detaches its controller and drones,
+// runs the survey_system directive (planets and moons), recalls the drones to
+// the entry point and reattaches them. A team that fails stops; the others
+// carry on.
 //
-//	auto_scan -n TRANSPORT_ID...
+//	auto_scan [-n] TRANSPORT_ID...
 package main
 
 import (
@@ -59,10 +63,10 @@ func run(ctx context.Context, transports []string, dryRun bool) error {
 	for _, line := range describe(routes) {
 		fmt.Println(line)
 	}
-	if !dryRun {
-		return errors.New("scanning isn't implemented yet; use -n")
+	if dryRun {
+		return nil
 	}
-	return nil
+	return surveyAll(ctx, api.NewHub(ctx), routes)
 }
 
 // validateTeams checks every transport and reports all the problems at once.
@@ -176,7 +180,7 @@ func unscannedSystems(ctx context.Context) ([]system, error) {
 func toSystem(star string, loc *model.Location) system {
 	p := loc.PlanetsTotal - loc.PlanetsScanned
 	m := loc.MoonsTotal - loc.MoonsScanned
-	return system{Name: star, Pos: loc.Star.Position, Planets: p, Moons: m, Unscanned: p + m}
+	return system{Name: star, Pos: loc.Star.Position, EntryPoint: loc.EntryPoint, Planets: p, Moons: m, Unscanned: p + m}
 }
 
 // relayStars returns the stars that have a relaying ftl_relay, sorted.

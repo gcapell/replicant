@@ -11,11 +11,12 @@ import (
 // system is a star system with an active relay that still has unscanned
 // planets or moons.
 type system struct {
-	Name      string
-	Pos       model.Position
-	Planets   int // unscanned planets
-	Moons     int // unscanned moons
-	Unscanned int // Planets + Moons
+	Name       string
+	Pos        model.Position
+	EntryPoint string // where the transport waits during the survey
+	Planets    int    // unscanned planets
+	Moons      int    // unscanned moons
+	Unscanned  int    // Planets + Moons
 }
 
 func sysPos(s system) model.Position { return s.Pos }

@@ -194,6 +194,20 @@ func Salvage(ctx context.Context, controller string, site string) error {
 	})
 }
 
+// SurveySystem tells an ami_survey_controller to have its drones scan every
+// planet and moon in its system. The drones stay where they finish (no recall).
+func SurveySystem(ctx context.Context, controller string) error {
+	return deviceCommand(ctx, controller, map[string]any{
+		"command":   "set_directive",
+		"directive": "survey_system",
+		"configuration": map[string]any{
+			"planets": "all",
+			"moons":   "all",
+			"recall":  false,
+		},
+	})
+}
+
 // InventoryAt returns your stockpiles at every location under loc, which may be
 // a star code (whole system) or a specific location.
 func InventoryAt(ctx context.Context, loc string) ([]model.LocationInventory, error) {
