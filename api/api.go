@@ -75,9 +75,20 @@ func do(ctx context.Context, method string, body any, url string, args ...any) (
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
 	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("%s %s: %s: %s", method, url, resp.Status, data)
+		return nil, &HTTPError{Method: method, URL: url, Status: resp.Status, StatusCode: resp.StatusCode, Body: data}
 	}
 	return data, err
+}
+
+// HTTPError is a non-2xx response. Use errors.As to look at its body.
+type HTTPError struct {
+	Method, URL, Status string
+	StatusCode          int
+	Body                []byte
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("%s %s: %s: %s", e.Method, e.URL, e.Status, e.Body)
 }
 
 func Paged[T model.Pageable](ctx context.Context, url string) iter.Seq2[T, error] {
@@ -257,6 +268,35 @@ func SystemScan(ctx context.Context, vessel string) (*model.SystemScan, error) {
 	}
 	if v.EntryPoint == "" {
 		return nil, fmt.Errorf("system_scan %s: no entry_point in response: %s", vessel, data)
+	}
+	return v, nil
+}
+
+// Compact collapses a modular device (e.g. a galactic_observatory) so it can be
+// attached to a surge carrier. It takes hours.
+func Compact(ctx context.Context, device string) error {
+	return deviceCommand(ctx, device, map[string]any{"command": "compact"})
+}
+
+// Unfurl reassembles a compacted modular device. It takes hours.
+func Unfurl(ctx context.Context, device string) error {
+	return deviceCommand(ctx, device, map[string]any{"command": "unfurl"})
+}
+
+// Prospect has a galactic_observatory survey for new stars in direction (relative
+// to its position; need not be normalised). A refusal because the area is too
+// dense is an *HTTPError with status 400.
+func Prospect(ctx context.Context, observatory string, direction model.Position) (*model.ProspectStarted, error) {
+	data, err := post(ctx, map[string]any{
+		"command":   "prospect",
+		"direction": []float64{direction.X, direction.Y, direction.Z},
+	}, "/devices/%s", observatory)
+	if err != nil {
+		return nil, err
+	}
+	v := new(model.ProspectStarted)
+	if err := unmarshal(data, v); err != nil {
+		return nil, fmt.Errorf("prospect %s: %w: %s", observatory, err, data)
 	}
 	return v, nil
 }
