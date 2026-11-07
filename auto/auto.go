@@ -26,6 +26,11 @@ func Devices(ctx context.Context, deviceType string) ([]model.Device, error) {
 	return listDevices(ctx, "/devices?device_type="+deviceType+"&limit=50")
 }
 
+// Everything returns all our devices, of every type, at loc (a star or an exact location).
+func Everything(ctx context.Context, loc string) ([]model.Device, error) {
+	return listDevices(ctx, "/devices?location="+loc+"&limit=50")
+}
+
 // Note: path goes through Sprintf in api, so it must not contain '%'.
 func listDevices(ctx context.Context, path string) ([]model.Device, error) {
 	var devices []model.Device
