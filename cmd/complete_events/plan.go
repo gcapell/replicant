@@ -21,7 +21,10 @@ type need struct {
 	Pos     model.Position
 	Want    amounts                // required - current, only where positive
 	Devices []model.RequiredDevice // unmet device requirements (not handled yet)
-	Met     bool                   // the option is already met
+	Met     bool                   // everything the option asks for is here
+	Event   string                 // the event's designation
+	Option  int                    // which of the event's options we chose
+	Name    string                 // that option's name
 	Beacon  bool                   // an ftl_beacon is at Loc
 	Relay   bool                   // Star has a relaying ftl_relay
 }
@@ -45,15 +48,14 @@ type assignment struct {
 	Nearest map[model.ResourceType]string
 }
 
-// toNeed turns an event into a need, using only its first option.
-// FIXME: alternative options are ignored.
-func toNeed(loc string, ev *model.LocationEvent) need {
-	n := need{Loc: loc, Star: auto.StarOf(loc), Want: amounts{}}
-	if len(ev.Progress.Options) == 0 {
+// toNeed turns an event into a need, using option opt (see chooseOption).
+func toNeed(loc string, ev *model.LocationEvent, opt int) need {
+	n := need{Loc: loc, Star: auto.StarOf(loc), Want: amounts{}, Option: opt, Event: ev.Designation}
+	if opt >= len(ev.Progress.Options) {
 		return n
 	}
-	o := ev.Progress.Options[0]
-	n.Met = o.Met
+	o := ev.Progress.Options[opt]
+	n.Met, n.Name = o.Satisfied(), o.Name
 	for _, r := range o.Resources {
 		if left := r.Required - r.Current; left > 0 {
 			n.Want[r.ResourceType] += left
@@ -244,6 +246,14 @@ func sortedNeeds(needs []need) []need {
 }
 
 func flags(n need) string {
+	opt := ""
+	if n.Option > 0 {
+		opt = fmt.Sprintf(" (option %d %q)", n.Option+1, n.Name)
+	}
+	return opt + warnings(n)
+}
+
+func warnings(n need) string {
 	var f []string
 	if !n.Beacon {
 		f = append(f, "NO BEACON")
@@ -281,7 +291,7 @@ func formatDevices(ds []model.RequiredDevice) []string {
 	for _, d := range ds {
 		items = append(items, fmt.Sprintf("%s(%d/%d)", d.DeviceType, d.Current, d.Required))
 	}
-	return []string{"    also needs devices (not handled yet): " + strings.Join(items, ", ")}
+	return []string{"    also needs devices (see device deliveries): " + strings.Join(items, ", ")}
 }
 
 // formatAmounts gives "50 Carbon, 100 Silicates", in resource order.

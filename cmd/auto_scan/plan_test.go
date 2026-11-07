@@ -24,24 +24,6 @@ func names(ss []system) []string {
 	return n
 }
 
-func TestSeedsMaxMin(t *testing.T) {
-	// A, B and C are far apart; A2 is next to A. Max-sum might pick A and A2
-	// with the far one; max-min must not.
-	systems := []system{sys("A", 0, 0, 1), sys("A2", 1, 0, 1), sys("B", 100, 0, 1), sys("C", 50, 80, 1)}
-	got := seeds(systems, 3)
-	var n []string
-	for _, i := range got {
-		n = append(n, systems[i].Name)
-	}
-	slices.Sort(n)
-	if !slices.Contains(n, "B") || !slices.Contains(n, "C") || (slices.Contains(n, "A") == slices.Contains(n, "A2")) {
-		t.Errorf("seeds = %v, want B, C and one of A/A2", n)
-	}
-	if ff := farthestFirst(systems, 3); len(ff) != 3 {
-		t.Errorf("farthestFirst = %v", ff)
-	}
-}
-
 func TestGroupBalances(t *testing.T) {
 	// Seeds at 0 and 100. Group 0's seed already has lots of work, so the
 	// middle systems go to group 1 even though some are nearer 0.
@@ -62,21 +44,6 @@ func TestGroupNearestWhenBalanced(t *testing.T) {
 	groups := group(systems, []int{0, 1})
 	if a, b := names(groups[0]), names(groups[1]); !slices.Equal(a, []string{"L", "L1"}) || !slices.Equal(b, []string{"R", "R1"}) {
 		t.Errorf("groups = %v %v", a, b)
-	}
-}
-
-func TestAssign(t *testing.T) {
-	groups := [][]system{{sys("L", 0, 0, 1)}, {sys("R", 100, 0, 1)}}
-	teams := []team{tm("near-R", 90, 0), tm("far", 500, 0), tm("near-L", 10, 0)}
-	if got := assign(teams, groups); !slices.Equal(got, []int{2, 0}) {
-		t.Errorf("assign = %v, want [2 0]", got)
-	}
-}
-
-func TestOrderStartsNearest(t *testing.T) {
-	g := []system{sys("C", 30, 0, 1), sys("A", 10, 0, 1), sys("B", 20, 0, 1)}
-	if got := names(order(model.Position{}, g)); !slices.Equal(got, []string{"A", "B", "C"}) {
-		t.Errorf("order = %v", got)
 	}
 }
 

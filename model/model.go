@@ -271,9 +271,21 @@ func (l LocationInventory) Total() int {
 	return n
 }
 
-// LocationEvent is a request from a location's inhabitants, as shown in
-// GET /locations/{code}'s location_event.
+// AccountEvents is one page of GET /accounts/events.
+type AccountEvents struct {
+	Events []LocationEvent `json:"events"`
+	Paged
+}
+
+// LocationEvent is a request from a location's inhabitants, as listed by
+// GET /accounts/events (and GET /locations/{code}'s location_event).
+//
+// An option's (and progress's) met stays false until a replicant is
+// present, even when every resource and device in it is met; see
+// EventOption.Satisfied.
 type LocationEvent struct {
+	Location    string        `json:"location"`
+	Status      string        `json:"status"`
 	Designation string        `json:"designation"`
 	Title       string        `json:"title"`
 	EventType   string        `json:"event_type"`
@@ -293,6 +305,22 @@ type EventOption struct {
 	Devices   []RequiredDevice   `json:"devices"`
 }
 
+// Satisfied reports whether every resource and device the option asks for
+// is at the location (Met also needs a replicant present).
+func (o EventOption) Satisfied() bool {
+	for _, r := range o.Resources {
+		if r.Current < r.Required {
+			return false
+		}
+	}
+	for _, d := range o.Devices {
+		if d.Current < d.Required {
+			return false
+		}
+	}
+	return true
+}
+
 type RequiredResource struct {
 	ResourceType ResourceType `json:"resource_type"`
 	Current      int          `json:"current"`
@@ -305,4 +333,12 @@ type RequiredDevice struct {
 	Current    int    `json:"current"`
 	Required   int    `json:"required"`
 	Met        bool   `json:"met"`
+}
+
+// CompletedEvent is the part of POST /locations/{loc}/events/{designation}'s
+// response we use.
+type CompletedEvent struct {
+	Designation string `json:"designation"`
+	Title       string `json:"title"`
+	Status      string `json:"status"`
 }

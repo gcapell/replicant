@@ -14,7 +14,7 @@ const (
 
 func pos(x float64) model.Position { return model.Position{X: x} }
 
-func TestToNeedFirstOptionOnly(t *testing.T) {
+func TestToNeedUsesChosenOption(t *testing.T) {
 	ev := &model.LocationEvent{Progress: model.EventProgress{Options: []model.EventOption{
 		{
 			Resources: []model.RequiredResource{
@@ -25,14 +25,17 @@ func TestToNeedFirstOptionOnly(t *testing.T) {
 		},
 		{Resources: []model.RequiredResource{{ResourceType: model.Rares, Required: 5}}},
 	}}}
-	n := toNeed("PARBEA-5", ev)
+	n := toNeed("PARBEA-5", ev, 0)
 	if n.Star != "PARBEA" || len(n.Want) != 1 || n.Want[C] != 30 {
 		t.Errorf("need = %+v", n)
 	}
 	if len(n.Devices) != 1 || n.Devices[0].DeviceType != "defence_grid" {
 		t.Errorf("devices = %+v", n.Devices)
 	}
-	if n := toNeed("X-1", &model.LocationEvent{}); len(n.Want) != 0 || n.Met {
+	if n := toNeed("PARBEA-5", ev, 1); n.Option != 1 || n.Want[model.Rares] != 5 || len(n.Devices) != 0 {
+		t.Errorf("option 1: %+v", n)
+	}
+	if n := toNeed("X-1", &model.LocationEvent{}, 0); len(n.Want) != 0 || n.Met {
 		t.Errorf("no options: %+v", n)
 	}
 }

@@ -269,6 +269,17 @@ func DepositAllResources(ctx context.Context, device string) error {
 	return deviceCommand(ctx, device, map[string]any{"command": "deposit_resources"})
 }
 
+// CompleteEvent resolves an event, if everything it asks for is at loc and a
+// replicant is there. The body is empty.
+func CompleteEvent(ctx context.Context, loc, designation string) (*model.CompletedEvent, error) {
+	data, err := post(ctx, nil, "/locations/%s/events/%s", loc, designation)
+	if err != nil {
+		return nil, err
+	}
+	var e model.CompletedEvent
+	return &e, unmarshal(data, &e)
+}
+
 // DepositResources unloads just the given resources at the device's current
 // location.
 func DepositResources(ctx context.Context, device string, resources map[model.ResourceType]int) error {
