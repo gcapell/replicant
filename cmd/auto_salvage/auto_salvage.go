@@ -52,23 +52,25 @@ func salvageStar(ctx context.Context, hub *api.Hub) (string, error) {
 		fmt.Printf("Transport %s\n", litter.Sdump(t))
 	}
 
-	// Detach any attached mining drones.
-	var targets []string
-	for _, d := range t.AttachedDevices {
-		switch d.DeviceType {
-		case "mining_drone", "ami_mining_controller":
-			targets = append(targets, d.DeviceCode)
-		}
+	star, _, _ := strings.Cut(t.Location, "-")
+	if star == "" {
+		return "", fmt.Errorf("transport %s has no location (in transit?)", transportID)
 	}
-	log.Printf("targets: %s", targets)
+
+	// Detach any attached mining drones, controller and maintenance drones.
+	miners, maint := splitAttached(t.AttachedDevices)
+	targets := slices.Concat(miners, maint)
+	log.Printf("detaching miners %s, maintenance drones %s", miners, maint)
 	if len(targets) > 0 {
 		if err := api.DetachDevice(ctx, transportID, targets...); err != nil {
 			return "", err
 		}
 	}
-	star, _, _ := strings.Cut(t.Location, "-")
-	if star == "" {
-		return "", fmt.Errorf("transport %s has no location (in transit?)", transportID)
+	for _, m := range maint {
+		if err := api.Patrol(ctx, m); err != nil {
+			return "", fmt.Errorf("patrol %s: %w", m, err)
+		}
+		log.Printf("maintenance drone %s patrolling %s", m, star)
 	}
 	controller, err := adoptMinersAtStar(ctx, star)
 	if err != nil {
@@ -109,12 +111,26 @@ func salvageStar(ctx context.Context, hub *api.Hub) (string, error) {
 		}
 	}
 
-	return star, reattach(ctx, hub, controller, star)
+	return star, reattach(ctx, hub, controller, star, maint)
 }
 
-// reattach brings the controller and the mining drones it controls back to the
-// transport, and attaches them to it.
-func reattach(ctx context.Context, hub *api.Hub, controller, star string) error {
+// splitAttached picks out the attached devices we detach at each star: the
+// mining drones and controller, and the maintenance drones.
+func splitAttached(attached []model.AttachedDevice) (miners, maint []string) {
+	for _, d := range attached {
+		switch d.DeviceType {
+		case "mining_drone", "ami_mining_controller":
+			miners = append(miners, d.DeviceCode)
+		case "maintenance_drone":
+			maint = append(maint, d.DeviceCode)
+		}
+	}
+	return miners, maint
+}
+
+// reattach brings the controller, the mining drones it controls and the
+// maintenance drones (taken off patrol) back to the transport, and attaches them to it.
+func reattach(ctx context.Context, hub *api.Hub, controller, star string, maint []string) error {
 	t, err := api.Device(ctx, transportID)
 	if err != nil {
 		return err
@@ -129,6 +145,13 @@ func reattach(ctx context.Context, hub *api.Hub, controller, star string) error 
 			devices = append(devices, d.DeviceCode)
 		}
 	}
+	for _, m := range maint {
+		if err := api.ClearDirective(ctx, m); err != nil {
+			return fmt.Errorf("stop %s patrolling: %w", m, err)
+		}
+		log.Printf("maintenance drone %s off patrol", m)
+	}
+	devices = append(devices, maint...)
 	log.Printf("returning %s to transport %s at %s", devices, transportID, t.Location)
 	if err := auto.GoToAll(ctx, hub, devices, t.Location); err != nil {
 		return err
@@ -141,9 +164,11 @@ func reattach(ctx context.Context, hub *api.Hub, controller, star string) error 
 }
 
 // isSalvageSite reports whether loc is somewhere we salvage: it has resource
-// sites and isn't an asteroid belt or an object.
+// sites and isn't an asteroid belt or an object. SOL never counts: it's far
+// from every other star, and we can't salvage there anyway.
 func isSalvageSite(loc string, summary model.LocationSummary) bool {
 	return summary.ResourceSites > 0 &&
+		!strings.HasPrefix(loc, "SOL-") &&
 		!strings.Contains(loc, "-BELT-") &&
 		!strings.Contains(loc, "-OBJ-")
 }
