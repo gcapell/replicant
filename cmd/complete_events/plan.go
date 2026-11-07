@@ -195,10 +195,11 @@ func take(stock map[string]amounts, star string, want amounts) []pickup {
 	return out
 }
 
-// describe renders the plan, then the needs that are already met.
-func describe(as []assignment, needs []need) []string {
+// describe renders the plan, with each sourced assignment's freighter (ds,
+// keyed by index into as), then the needs that are already met.
+func describe(as []assignment, ds map[int]dispatch, needs []need) []string {
 	var lines []string
-	for _, a := range as {
+	for i, a := range as {
 		line := fmt.Sprintf("%s requires %s", a.Need.Loc, formatAmounts(a.Need.Want))
 		if a.Star != "" {
 			line += fmt.Sprintf(" @%s (%.1f ly)", a.Star, a.Dist)
@@ -207,6 +208,11 @@ func describe(as []assignment, needs []need) []string {
 		}
 		lines = append(lines, line+flags(a.Need))
 		if a.Star != "" {
+			if d, ok := ds[i]; ok {
+				lines = append(lines, fmt.Sprintf("Dispatching %s (%.1f ly)", d.Freighter.Code, d.Dist))
+			} else {
+				lines = append(lines, "No idle freighter")
+			}
 			lines = append(lines, formatPickups(a.Collect)...)
 		} else {
 			for _, r := range slices.Sorted(maps.Keys(a.Need.Want)) {

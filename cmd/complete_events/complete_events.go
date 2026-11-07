@@ -86,8 +86,19 @@ func run(ctx context.Context) error {
 			return err
 		}
 	}
+	freighters, err := idleFreighters(ctx)
+	if err != nil {
+		return err
+	}
+	for i := range freighters {
+		if freighters[i].Pos, err = position(freighters[i].Star); err != nil {
+			return err
+		}
+	}
 
-	for _, line := range describe(plan(needs, stock, starPos), needs) {
+	as := plan(needs, stock, starPos)
+	ds := assignFreighters(as, freighters, starPos)
+	for _, line := range describe(as, ds, needs) {
 		fmt.Println(line)
 	}
 	return nil
@@ -116,6 +127,22 @@ func eventNeeds(ctx context.Context) ([]need, error) {
 	}
 	log.Printf("%d locations with events", len(needs))
 	return needs, nil
+}
+
+// idleFreighters returns the cargo_freighters whose status is "idle".
+func idleFreighters(ctx context.Context) ([]freighter, error) {
+	devices, err := auto.Devices(ctx, "cargo_freighter")
+	if err != nil {
+		return nil, err
+	}
+	var fs []freighter
+	for _, d := range devices {
+		if d.Status == "idle" {
+			fs = append(fs, freighter{Code: d.DeviceCode, Star: auto.StarOf(d.Location)})
+		}
+	}
+	log.Printf("%d idle cargo_freighters (of %d)", len(fs), len(devices))
+	return fs, nil
 }
 
 // beaconLocations returns the locations where an ftl_beacon sits (not stowed).

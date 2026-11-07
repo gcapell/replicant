@@ -126,12 +126,18 @@ func TestDescribe(t *testing.T) {
 		Dist:    4.25,
 		Collect: []pickup{{"OTHYONAL-3", C, 50}, {"OTHYONAL-3", Si, 60}, {"OTHYONAL-BELT-1", Si, 40}},
 	}}
+	as = append(as, assignment{Need: need{Loc: "Q-1", Want: amounts{C: 1}, Beacon: true, Relay: true}, Star: "S", Collect: []pickup{{"S-1", C, 1}}})
+	ds := map[int]dispatch{0: {Freighter: freighter{Code: "F1"}, Dist: 4.5}}
 	needs := []need{{Loc: "Z-1", Met: true, Relay: true}}
-	got := describe(as, needs)
+	got := describe(as, ds, needs)
 	want := []string{
 		"PARBEA-5 requires 50 Carbon, 100 Silicates @OTHYONAL (4.2 ly)",
+		"Dispatching F1 (4.5 ly)",
 		"    collect OTHYONAL-3: 50 Carbon, 60 Silicates",
 		"    collect OTHYONAL-BELT-1: 40 Silicates",
+		"Q-1 requires 1 Carbon @S (0.0 ly)",
+		"No idle freighter",
+		"    collect S-1: 1 Carbon",
 		"Z-1 ready to complete [NO BEACON]",
 	}
 	if !slices.Equal(got, want) {
