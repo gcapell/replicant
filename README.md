@@ -45,7 +45,10 @@ API_KEY=x go test -race ./...
   - travel and cargo: `Travel`, `CollectResources`, `DepositAllResources`;
   - attaching and AMI: `AttachDevice`, `DetachDevice`, `AdoptDevice`, `Salvage`;
   - ownership and stowing: `ChangeOwner`, `Stow`, `Deploy`;
-  - relays and scanning: `Activate`, `SystemScan` (returns the system's `entry_point`).
+  - relays and scanning: `Activate`, `SystemScan` (returns the system's `entry_point`);
+  - modular devices and observatories: `Compact`, `Unfurl`, `Prospect` (takes a `direction`).
+- **Errors:** a non-2xx response is an `*api.HTTPError`; use `errors.As` to read its `StatusCode` and `Body`.
+- **Galactic observatory** status values seen so far: `compacted`. Its features include `cruise` (in-system only) and `modular`. A compacted observatory needs a transport with `surge` and `attach` to move between systems.
 - **Every request is logged** (`GET /path`, or `POST /path {body}`).
 
 ### API facts we've confirmed
@@ -124,7 +127,7 @@ How the hub behaves:
 - `auto.GoTo(ctx, hub, device, loc)`: send and wait for arrival. If the device is already there it does nothing; if it's already heading there it just waits. It logs `X travelling A -> B (ETA 3m22s)`.
 - `auto.GoToAll`: run `GoTo` for several devices concurrently.
 - `auto.FinishTrip`: wait out whatever trip a device is on.
-- Device listing helpers: `auto.Devices(ctx, type)`, `auto.DevicesInSystem(ctx, star, type)` and `auto.DevicesAt(ctx, loc, type)`.
+- Device listing helpers: `auto.Devices(ctx, type)`, `auto.Everything(ctx, loc)` (all types), `auto.DevicesInSystem(ctx, star, type)` and `auto.DevicesAt(ctx, loc, type)`.
 
 ## Commands
 
@@ -135,6 +138,7 @@ How the hub behaves:
 | `slurp [-replicant ID]` | All idle (and, once arrived, travelling) cargo_freighters greedily move resources from planets and moons to the nearest belt already holding more than 1000. A ledger of claims (inventory re-read on each decision, minus outstanding claims) stops two freighters going for the same stockpile. Exits when nothing is left to claim. |
 | `collect_ftl_relays VESSEL` | Stows the `inactive` ftl_relays at a heaven_vessel's exact location into it, changing their owner to the vessel's replicant first. Exits on the first failure. |
 | `plant_relays [-n] [-stars 50] VESSEL` | Checks the heaven_vessel is idle and carrying ftl_relays, then plans a route through the nearest stars without a relay. Each stop must be under 7.5 ly from a relay star: an existing one (active or inactive) or one planted earlier on the route. It picks the nearest reachable star each time, then shortens the order with 2-opt moves that keep that rule. The first N stops (N = relays on board) are planned on their own; the rest continue from there, and stars out of reach are listed with their nearest relay star. It then follows the plan for as many stops as it has relays. At each stop it goes to the entry point (or, if that isn't known yet, to `STAR-OORT` and runs a `system_scan` first), deploys a relay and checks it's at the entry point, then activates it and checks it's `relaying`. It exits at the first failure. `-n` prints the plan only. |
+| `gaze [-n] [-stars 50]` | Cycles the galactic_observatories: compact, attach to a surge transport, travel to the next relay star's entry point (nearest the centre of relay stars first, skipping those listed in `$HOME/observed_from.txt`), detach, unfurl, and prospect pointing outward from the centre. It does the short steps, starts the next long one (compact, unfurl, prospect) and exits, so run it again later. `-n` prints the plan only. Spec in `cmd/gaze/README.md`. |
 | `star_map` | Writes and opens an interactive 3D Plotly map of the nearest stars, centred on the mean of the explored ones. |
 | `summarize_devices` | Devices by type, then by star, with status counts: `"OTHYONAL" monitoring(3)`. |
 | `stars`, `observatory_plan`, `sse_demo`, `sqlite_demo` | Older experiments and demos. |
