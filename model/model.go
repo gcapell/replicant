@@ -103,6 +103,7 @@ type Location struct {
 	Inventory     []InventoryItem  `json:"inventory"`
 	Devices       []LocationDevice `json:"devices"`
 	ResourceSites []ResourceSite   `json:"resource_sites"`
+	LocationEvent *LocationEvent   `json:"location_event"`
 
 	// Stars only.
 	ActiveLocationEvents []any          `json:"active_location_events"`
@@ -268,4 +269,40 @@ func (l LocationInventory) Total() int {
 		n += it.Quantity
 	}
 	return n
+}
+
+// LocationEvent is a request from a location's inhabitants, as shown in
+// GET /locations/{code}'s location_event.
+type LocationEvent struct {
+	Designation string        `json:"designation"`
+	Title       string        `json:"title"`
+	EventType   string        `json:"event_type"`
+	Tier        int           `json:"tier"`
+	Progress    EventProgress `json:"progress"`
+}
+
+// EventProgress lists the alternative ways an event can be met.
+type EventProgress struct {
+	Options []EventOption `json:"options"`
+}
+
+type EventOption struct {
+	Name      string             `json:"name"`
+	Met       bool               `json:"met"`
+	Resources []RequiredResource `json:"resources"`
+	Devices   []RequiredDevice   `json:"devices"`
+}
+
+type RequiredResource struct {
+	ResourceType ResourceType `json:"resource_type"`
+	Current      int          `json:"current"`
+	Required     int          `json:"required"`
+	Met          bool         `json:"met"`
+}
+
+type RequiredDevice struct {
+	DeviceType string `json:"device_type"`
+	Current    int    `json:"current"`
+	Required   int    `json:"required"`
+	Met        bool   `json:"met"`
 }

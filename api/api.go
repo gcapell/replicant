@@ -178,6 +178,16 @@ func AttachDevice(ctx context.Context, carrier string, devices ...string) error 
 	return deviceCommand(ctx, carrier, map[string]any{"command": "attach", "targets": devices})
 }
 
+// Patrol puts a maintenance_drone on patrol: it repairs damaged devices in its system.
+func Patrol(ctx context.Context, drone string) error {
+	return deviceCommand(ctx, drone, map[string]any{"command": "set_directive", "directive": "patrol"})
+}
+
+// ClearDirective resets a device's directive (e.g. a patrolling maintenance_drone).
+func ClearDirective(ctx context.Context, device string) error {
+	return deviceCommand(ctx, device, map[string]any{"command": "clear_directive"})
+}
+
 // AdoptDevice tells an AMI controller to adopt the given devices.
 func AdoptDevice(ctx context.Context, controller string, devices ...string) error {
 	return deviceCommand(ctx, controller, map[string]any{"command": "adopt", "targets": devices})
