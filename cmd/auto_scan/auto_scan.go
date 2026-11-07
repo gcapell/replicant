@@ -154,7 +154,7 @@ func checkTransport(tr *model.Device) (team, error) {
 // unscannedSystems returns the systems with an active relay that still have
 // unscanned planets or moons.
 func unscannedSystems(ctx context.Context) ([]system, error) {
-	stars, err := relayStars(ctx)
+	stars, err := auto.RelayStars(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -181,22 +181,6 @@ func toSystem(star string, loc *model.Location) system {
 	p := loc.PlanetsTotal - loc.PlanetsScanned
 	m := loc.MoonsTotal - loc.MoonsScanned
 	return system{Name: star, Pos: loc.Star.Position, EntryPoint: loc.EntryPoint, Planets: p, Moons: m, Unscanned: p + m}
-}
-
-// relayStars returns the stars that have a relaying ftl_relay, sorted.
-func relayStars(ctx context.Context) ([]string, error) {
-	relays, err := auto.Devices(ctx, "ftl_relay")
-	if err != nil {
-		return nil, err
-	}
-	var stars []string
-	for _, r := range relays {
-		if r.Status == "relaying" && r.StowedInDeviceCode == "" {
-			stars = append(stars, auto.StarOf(r.Location))
-		}
-	}
-	slices.Sort(stars)
-	return slices.Compact(stars), nil
 }
 
 // locateTeams fills in each team's position, fetching its star unless it's

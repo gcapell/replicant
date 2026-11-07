@@ -5,6 +5,7 @@ package auto
 import (
 	"context"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/gcapell/replicant/api"
@@ -57,4 +58,21 @@ var planetOrMoon = regexp.MustCompile(`^\d+(-\d+)?$`)
 func IsPlanetOrMoon(star, loc string) bool {
 	rest, ok := strings.CutPrefix(loc, star+"-")
 	return ok && planetOrMoon.MatchString(rest)
+}
+
+// RelayStars returns the stars that have a relaying (not stowed) ftl_relay,
+// sorted.
+func RelayStars(ctx context.Context) ([]string, error) {
+	relays, err := Devices(ctx, "ftl_relay")
+	if err != nil {
+		return nil, err
+	}
+	var stars []string
+	for _, r := range relays {
+		if r.Status == "relaying" && r.StowedInDeviceCode == "" {
+			stars = append(stars, StarOf(r.Location))
+		}
+	}
+	slices.Sort(stars)
+	return slices.Compact(stars), nil
 }
