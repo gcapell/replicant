@@ -78,7 +78,7 @@ export interface Location {
     location_event: LocationEvent;
 }
 
-interface LocationEvent {
+export interface LocationEvent {
     broadcast_message: string;
     description:string;
     designation: string;
@@ -91,11 +91,11 @@ interface LocationEvent {
     rewards: LocationEventRewards;
 }
 
-interface LocationEventProgress {
+export interface LocationEventProgress {
     options: LocationEventOption[];
 }
 
-interface LocationEventOption{
+export interface LocationEventOption {
     // devices: ???
     met: boolean;
     name: string;
@@ -103,27 +103,27 @@ interface LocationEventOption{
     devices: LocationEventDevice[];
 }
 
-interface LocationEventDevice{
+export interface LocationEventDevice {
     device_type: string;
     current: number;
     required:number;
     met:boolean;
 }
 
-interface LocationEventResource{
+export interface LocationEventResource {
     resource_type:string;
     current: number;
     required:number;
     met:boolean;
 }
 
-type ResourceType = "carbon" | "conductive" | "rares" | "silicates" | "structural" | "volatiles";
+export type ResourceType = "carbon" | "conductive" | "rares" | "silicates" | "structural" | "volatiles";
 
-interface LocationEventRewards {
+export interface LocationEventRewards {
     civilisation_points: number;
     completion_achievement: string;
     xp: number;
-    resources: Record<ResourceType,number>;
+    resources: Partial<Record<ResourceType, number>>;
 }
 
 interface ResourceSite{

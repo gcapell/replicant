@@ -1,0 +1,35 @@
+<button type="button" class="link" (click)="fetch()" [disabled]="loading()">
+  {{ loading() ? 'Fetching…' : 'Fetch' }}
+</button>
+
+@if (locations().length) {
+  <table>
+    <thead>
+      <tr>
+        <th>Location</th>
+        <th>Tier</th>
+        <th>Request</th>
+        <th>Reward</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (loc of locations(); track loc) {
+        @let e = events().get(loc);
+        <tr>
+          <td><a href="#" (click)="$event.preventDefault(); api.loadLocation(loc)">{{ loc }}</a></td>
+          <td class="num">{{ e?.tier }}</td>
+          <td>
+            @if (e) {
+              @for (o of formatRequest(e); track $index) {
+                <div>{{ o }}</div>
+              }
+            }
+          </td>
+          <td>{{ e ? formatReward(e.rewards) : '' }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+} @else if (api.locationList()) {
+  <p>No location events.</p>
+}

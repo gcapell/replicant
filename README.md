@@ -172,6 +172,7 @@ An Angular 22 app in `ui/` (standalone components, signals, `@if`/`@for` templat
   - Calls go through the `ReplicantApi` service (`src/app/replicant-api.ts`); types live in `src/app/model.ts`.
   - Newer components call an async method on it (e.g. `api.inventory()`, `api.reputation()`) from a **Fetch** button, and put errors in `api.errorMessage`.
   - `pagedGet` handles cursor paging.
+- **Location Events:** lists every location whose `/v1/locations` summary has an event (filled in whenever Locations is fetched). Its **Fetch** gets `/v1/locations/{loc}` for each one and shows tier, request and reward. A request shows one line per alternative, like `C(0/100), defence_grid(0/1)` (on-site/required, ✅ if that alternative is met). Resources are abbreviated C, Co, R, Si, S, V. The reward shows resources only, like `C500, R50`.
 - **Auth:** the API key typed into Account is saved in `localStorage`, and `authInterceptor` adds it to `/v1` requests.
 - **Testing:** use `npx ng test --watch=false --include src/app/<name>`. The full run currently fails to compile because of `device.spec.ts`.
 - **Dev-server quirk:** `ng serve` sometimes misses newly added files. Touching `src/app/app.ts` makes it rebuild.

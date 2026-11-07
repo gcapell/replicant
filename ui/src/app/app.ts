@@ -12,10 +12,11 @@ import {Locations} from './locations/locations';
 import {SystemScan} from './system-scan/system-scan';
 import { Resources } from './resources/resources';
 import { Reputation } from './reputation/reputation';
+import { LocationEvents } from './location-events/location-events';
 import { JsonPipe } from '@angular/common';
 
 @Component({
-  imports: [ JsonPipe,Tutorials,Messages,Events,AccountData,Location,Replicant,Blueprints,Devices,SystemScan,Locations,Resources,Reputation],
+  imports: [ JsonPipe,Tutorials,Messages,Events,AccountData,Location,Replicant,Blueprints,Devices,SystemScan,Locations,Resources,Reputation,LocationEvents],
   selector: 'app-root',
   styleUrl: './app.scss',
   templateUrl: './app.html',

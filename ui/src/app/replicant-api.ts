@@ -335,6 +335,16 @@ export class ReplicantApi {
 
 
 
+    async locationDetails(id: string): Promise<Location> {
+        return firstValueFrom(this.http.get<Location>(`/v1/locations/${id}`));
+    }
+
+    async locationListOnly(): Promise<LocationList> {
+        const list = await firstValueFrom(this.http.get<LocationList>('/v1/locations'));
+        this.locationList.set(list);
+        return list;
+    }
+
     loadLocation(id: string) {
         this.fetchAndUpdate(`/v1/locations/${id}`, this.location);
     }
