@@ -67,6 +67,8 @@ API_KEY=x go test -race ./...
 - **Locations:**
   - `/v1/locations` returns a map of location code to `{devices, location_events, replicants, resource_sites, resources}`. Moons' salvage sites only appear here, not under `/locations/PLANET`.
   - `/v1/devices?location=X` takes either a star (`MIRETH`) or an exact location (`MIRETH-4-L4`).
+  - `/v1/locations/STAR` (`api.Location`) gives the system: `system_scanned`, `planets_scanned`/`planets_total`, `moons_scanned`/`moons_total` (`Location.Unscanned()` sums what's left), `entry_point`, `planets`, and `star.position`.
+- **Relays:** only send devices to a system whose ftl_relay is `relaying`. Anything sent to a system without an active relay can't be controlled until a replicant goes there to rescue it.
 - **System scan:** `{"command":"system_scan"}` sent to a vessel scans the system it's in. This is what `/replicants/{code}/scan` runs. The response's `entry_point` (e.g. `CORBRENEUS-5-L4`) is the system's easiest-to-reach L4 point, which is where we put relays. `/stars` also returns `entry_point` for stars we already know it for.
 - **Stars:**
   - `/v1/replicants/{code}/stars?per_page=30` gives the nearest stars, with positions (`api.Stars(ctx, code, perPage)`). Our replicant is `4698E8E6`.
@@ -127,12 +129,14 @@ How the hub behaves:
 - `auto.GoTo(ctx, hub, device, loc)`: send and wait for arrival. If the device is already there it does nothing; if it's already heading there it just waits. It logs `X travelling A -> B (ETA 3m22s)`.
 - `auto.GoToAll`: run `GoTo` for several devices concurrently.
 - `auto.FinishTrip`: wait out whatever trip a device is on.
+- `auto.ShortRoute(start, points, pos)`: a short open path through points (nearest neighbour, then 2-opt), with `auto.RouteLength`.
 - Device listing helpers: `auto.Devices(ctx, type)`, `auto.Everything(ctx, loc)` (all types), `auto.DevicesInSystem(ctx, star, type)` and `auto.DevicesAt(ctx, loc, type)`.
 
 ## Commands
 
 | Command | Does |
 |---|---|
+| `auto_scan -n TRANSPORT...` | Plans survey work. Each transport must have `surge` and `attach`, be idle, and carry exactly one ami_survey_controller plus at least 3 survey_drones that it controls (all problems are reported together). It finds systems with a `relaying` ftl_relay and unscanned planets or moons, picks one seed system per team (max-min spread), grows a group from each seed (the group with the least unscanned work takes its nearest unclaimed system), gives each group the team nearest to it, and prints each team's route: nearest system first, then a short path. Only `-n` (dry run) is implemented. |
 | `auto_salvage` | Detaches the miners and AMI controller from transport `E62C8DC1`, salvages every site at the star (not belts or `-OBJ-`), re-attaches them, then moves to the star with the most resource sites and repeats. |
 | `auto_ferry STAR FREIGHTER DEST` | One freighter: fill from STAR's planets and moons, deliver to DEST, repeat until the star is empty. |
 | `slurp [-replicant ID]` | All idle (and, once arrived, travelling) cargo_freighters greedily move resources from planets and moons to the nearest belt already holding more than 1000. A ledger of claims (inventory re-read on each decision, minus outstanding claims) stops two freighters going for the same stockpile. Exits when nothing is left to claim. |
@@ -144,6 +148,8 @@ How the hub behaves:
 | `stars`, `observatory_plan`, `sse_demo`, `sqlite_demo` | Older experiments and demos. |
 
 Don't run `slurp` and `auto_ferry` on the same freighter at once.
+
+**auto_scan grouping, future work:** grouping currently balances only the scanning work (unscanned planets and moons). It should instead add each system to the group where it adds the least total work, counting both scanning time and travel time. Travel time is roughly linear in distance, so it's easy to model. We don't have a model for how long a scan takes yet (per planet, per moon, and how it varies with the number of drones). Once we do, both costs can be put in the same unit (time) and compared.
 
 ### How we build a new command
 
