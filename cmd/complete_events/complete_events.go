@@ -6,9 +6,13 @@
 // don't count on the same resources. It also flags events whose location
 // has no ftl_beacon: we never complete an event without one.
 //
-// Only the dry run (-n) exists so far.
+// Each event with a source gets at most one idle cargo_freighter. Without
+// -n, every dispatched freighter then (all at once) collects from the source
+// locations, unloading unrelated cargo there if it needs the room, takes the
+// resources to the event and deposits them, making more trips if its hold is
+// too small. It doesn't complete events yet.
 //
-//	complete_events -n
+//	complete_events [-n]
 package main
 
 import (
@@ -27,7 +31,7 @@ import (
 func main() {
 	dryRun := flag.Bool("n", false, "print the plan only")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %s -n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "usage: %s [-n]\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -35,15 +39,12 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if !*dryRun {
-		log.Fatal("only the dry run (-n) is implemented so far")
-	}
-	if err := run(context.Background()); err != nil {
+	if err := run(context.Background(), *dryRun); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(ctx context.Context) error {
+func run(ctx context.Context, dryRun bool) error {
 	needs, err := eventNeeds(ctx)
 	if err != nil {
 		return err
@@ -101,7 +102,10 @@ func run(ctx context.Context) error {
 	for _, line := range describe(as, ds, needs) {
 		fmt.Println(line)
 	}
-	return nil
+	if dryRun || len(ds) == 0 {
+		return nil
+	}
+	return deliverAll(ctx, api.NewHub(ctx), as, ds)
 }
 
 // eventNeeds fetches every location with an in-progress event.

@@ -269,6 +269,12 @@ func DepositAllResources(ctx context.Context, device string) error {
 	return deviceCommand(ctx, device, map[string]any{"command": "deposit_resources"})
 }
 
+// DepositResources unloads just the given resources at the device's current
+// location.
+func DepositResources(ctx context.Context, device string, resources map[model.ResourceType]int) error {
+	return deviceCommand(ctx, device, map[string]any{"command": "deposit_resources", "resources": resources})
+}
+
 // Deploy deploys a stowed device to its host's current location. It's sent to
 // the stowed device itself.
 func Deploy(ctx context.Context, device string) error {
