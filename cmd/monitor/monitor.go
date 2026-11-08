@@ -1,7 +1,9 @@
 // monitor keeps the store (store/schema.sql) up to date. It is the only
 // program that writes to it.
 //
-// So far it only does its startup work:
+// It connects to the event stream first, resuming after the last event
+// recorded (or after -since ID), so nothing that happens during startup is
+// missed. Events wait in a queue while it does its startup work:
 //   - if the store has no devices it fetches them all;
 //   - if it has no stars it fetches the stars nearest a replicant in a
 //     heaven_vessel, then reads /locations/STAR for each, storing the star's
@@ -12,8 +14,8 @@
 //   - every time, it replaces the inventory table with /inventory (planets,
 //     moons and belts).
 //
-// Then it lists every event from the stream until interrupted, starting with
-// new ones (or after -since ID). It doesn't apply them to the store yet.
+// Then, until interrupted, it records each event in the events table and
+// prints it. It doesn't apply events to the rest of the store yet.
 package main
 
 import (
@@ -35,7 +37,7 @@ import (
 func main() {
 	path := flag.String("db", store.DefaultPath(), "database file")
 	nStars := flag.Int("stars", 60, "how many of the nearest stars to fetch")
-	since := flag.String("since", "", "list events after this event ID (default: only new ones)")
+	since := flag.String("since", "", "replay events after this event ID (default: after the last one recorded)")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -46,6 +48,15 @@ func main() {
 	}
 	defer db.Close()
 
+	start, replaying := *since, *since != ""
+	if !replaying {
+		if start, err = store.LastEventID(ctx, db); err != nil {
+			log.Fatal(err)
+		}
+	}
+	events := make(chan received, 10000)
+	go receive(ctx, api.SSEStream, start, events)
+
 	if err := snapshot(ctx, db, *nStars); err != nil {
 		log.Fatal(err)
 	}
@@ -54,7 +65,7 @@ func main() {
 	}
 	log.Print("startup done")
 
-	err = listEvents(ctx, api.SSEStream, os.Stdout, *since)
+	err = recordAll(ctx, db, events, &printer{w: os.Stdout}, replaying)
 	if ctx.Err() == nil {
 		log.Fatal(err)
 	}

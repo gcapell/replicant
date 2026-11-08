@@ -61,6 +61,11 @@ func OpenAllowingDrops(ctx context.Context, path string) (*sql.DB, error) {
 	return open(ctx, path, MigrateOptions{AllowDrops: true})
 }
 
+// A read-only opener for other commands should add _pragma=query_only(1) to
+// this DSN and skip Migrate. Not mode=ro: in WAL mode a mode=ro connection
+// can't create the -wal and -shm files, so it fails whenever monitor isn't
+// running (see README, "The store").
+//
 // dsn sets each connection up for several processes sharing the file:
 //   - busy_timeout makes a writer wait for the lock instead of failing (it
 //     comes first so it covers the other pragmas);

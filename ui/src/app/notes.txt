@@ -1,106 +1,98 @@
-curl -H "Authorization: Bearer $API_KEY" \
-  "https://api.replicant.space/v1/accounts/events?status=completed" 
+# Aliases
 
-curl -H "Authorization: Bearer $API_KEY" \
-  "https://api.replicant.space/v1/accounts/reputation" 
+alias post='curl -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json"'
+alias get='curl -H "Authorization: Bearer $API_KEY"'
 
-curl -H "Authorization: Bearer $API_KEY" \
-     -H "Content-type: application/json" \
-    -X POST  \
-    "https://api.replicant.space/v1/devices/22737B60" \
-    -d '{"command":"travel", "destination":"SYLSHENOS-3-L4"}' 
+get "https://api.replicant.space/v1/accounts/events?status=completed" 
 
-curl -H "Authorization: Bearer $API_KEY" \
-  "https://api.replicant.space/v1/devices?location=SOL"
+get "https://api.replicant.space/v1/accounts/reputation" 
+
+# slow down ami_digest messages
+curl -X PATCH https://api.replicant.space/v1/accounts/me \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{ "events": { "ami_digest_interval": 10}}'
+
+
+# devices
+
+get  "https://api.replicant.space/v1/devices/292BD932" 
+
+get "https://api.replicant.space/v1/devices?location=SOL"
+
+get "https://api.replicant.space/v1/locations/ALWRENAN" 
 
 # Stars 
-curl -H "Authorization: Bearer $API_KEY" \
-  "https://api.replicant.space/v1/replicants/4698E8E6/stars?per_page=6" 
+get "https://api.replicant.space/v1/replicants/4698E8E6/stars?per_page=6" 
 
-curl -H "Authorization: Bearer $API_KEY" \
-  "https://api.replicant.space/v1/locations/ALWRENAN" 
-
-# bobnet
-curl -H "Authorization: Bearer $API_KEY" \
-  "https://api.replicant.space/v1/devices/78D64763/channels" 
-
-
-curl -H "Authorization: Bearer $API_KEY" \
-  "https://api.replicant.space/v1/devices/78D64763/messages?latest=true&limit=20&include_npcs=false" 
 
 # Travel
-curl  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-type: application/json" \
-  -X POST  \
-  "https://api.replicant.space/v1/devices/4B95C24F" \
-  -d '{"command":"travel", "destination":"CARZARON-2"}'  
+post "https://api.replicant.space/v1/devices/3B9BB396" -d '{
+  "command":"travel", 
+  "destination":"XANIARNOTH-OORT"
+}'  
+4005D29D 
 
-  
-292BD932
- 
-replicant: 4698E8E6
-heavenvessel: 3B9BB396
+post https://api.replicant.space/v1/devices/84CF080B -d '{"command":"travel", "destination":"CORBRENEUS-6-L4"}'
 
-DA4E4077
+DC2473BF survey_drone@CYREJA-OORT(idle)
+4F200A0A survey_drone@(travelling) -> CYREJA-2 in 17694s
+D2C588FB survey_drone@(travelling) -> CYREJA-1 in 17695s
+F1EA3AFA su
+
 # Trade
 
-curl -H "Authorization: Bearer $API_KEY" \
-  "https://api.replicant.space/v1/devices/292BD932" 
+
 
 riker's controller @ SOL-3-1 : 043CA0A9
 
-curl -H "Authorization: Bearer $API_KEY" \
-  "https://api.replicant.space/v1/replicants/4698E8E6/traders" 
+get  "https://api.replicant.space/v1/replicants/4698E8E6/traders" 
 
-curl  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-type: application/json" \
-  -X POST  \
-  "https://api.replicant.space/v1/devices/043CA0A9/trades/TRD-059539"
-
-
-# bobnet
-curl -X POST https://api.replicant.space/v1/replicants/4698E8E6/message \
-    -H "Authorization: Bearer $API_KEY" \
-    -H "Content-Type: application/json" \
-    -d '{"channel": "#general", "text": "Just bought a belt_surveyor from Riker.  Any clues about what it does?"}'
-
+post  https://api.replicant.space/v1/devices/043CA0A9/trades/TRD-CE8D83
+TRD-CE8D83
 # decommission
-curl -X POST https://api.replicant.space/v1/devices/E2E5C212 \
-    -H "Authorization: Bearer $API_KEY" \
-    -H "Content-Type: application/json" \
-    -d '{"command": "decommission"}'
+post https://api.replicant.space/v1/devices/E2E5C212 -d '{"command": "decommission"}'
 
 # FTL relay
 
-curl -H "Authorization: Bearer $API_KEY" \
-  "https://api.replicant.space/v1/devices/113641F6/network" 
+get "https://api.replicant.space/v1/devices/113641F6/network" 
 
 
 # Teleport (OTHYONAL->SOL)
-curl -X POST https://api.replicant.space/v1/replicants/4698E8E6/teleport \
-    -H "Authorization: Bearer $API_KEY" \
-    -H "Content-Type: application/json" \
-    -d '{"target": "394A085A"}'
+post  https://api.replicant.space/v1/replicants/4698E8E6/teleport -d '{"target": "394A085A"}'
 
 # Teleport (SOL->OTHYONAL)
-curl -X POST https://api.replicant.space/v1/replicants/4698E8E6/teleport \
-    -H "Authorization: Bearer $API_KEY" \
-    -H "Content-Type: application/json" \
-    -d '{"target": "13E6B2A6"}'
-
-    13E6B2A6
+post https://api.replicant.space/v1/replicants/4698E8E6/teleport -d '{"target": "13E6B2A6"}'
 
 
 # Prospect
 
-curl -X POST https://api.replicant.space/v1/devices/68D1D1CA \
-    -H "Authorization: Bearer $API_KEY" \
-    -H "Content-Type: application/json" \
-    -d '{"command": "prospect"}'
+post https://api.replicant.space/v1/devices/68D1D1CA -d '{"command": "prospect"}'
 
-# Search
+post https://api.replicant.space/v1/devices/4F7B4751 -d '{ "command": "prospect", "direction": [3.4, 3.1, -2.3] }'
 
-curl -X POST https://api.replicant.space/v1/devices/B0E5D4A4 \
-    -H "Authorization: Bearer $API_KEY" \
-    -H "Content-Type: application/json" \
-    -d '{"command": "search"}'
+(-1.2, 2.8, 0.8)
+
+post https://api.replicant.space/v1/devices/B0E5D4A4 -d '{"command": "search"}'
+
+# Replicate (src matrix -> target (empty) matrix)
+
+post https://api.replicant.space/v1/devices/3F5416A0 -d '{
+  "command": "replicate",
+  "target": "3099E6FC"
+}'
+
+# stow
+post https://api.replicant.space/v1/devices/42FD0E97 -d '{ "command": "stow", "target": "AA2CEC89"  }'
+post https://api.replicant.space/v1/devices/42FD0E97 -d '{ "command": "change_owner", "target": "F275CA32"  }'
+
+F275CA32 replicant
+65C91863 matrix
+
+# flatpack print 
+
+post https://api.replicant.space/v1/devices/072FB5E6 -d '{
+  "command": "enqueue_print",
+  "device_type": "autofactory",
+  "flatpack": true
+}'

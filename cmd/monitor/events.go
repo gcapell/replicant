@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gcapell/replicant/api"
+	"github.com/gcapell/replicant/store"
 	"github.com/sanity-io/litter"
 )
 
@@ -24,36 +25,68 @@ var firstBackoff = time.Second
 // streamFunc is api.SSEStream, replaceable in tests.
 type streamFunc func(ctx context.Context, id string, fn func(api.Envelope, any) error) error
 
-// listEvents prints every event from the stream, starting after event since
-// (or with new events, if since is ""), until ctx is done. If the stream
-// drops it reconnects after the last event it saw, waiting 1s, doubling up to
-// a minute, and back to 1s once events arrive.
-func listEvents(ctx context.Context, stream streamFunc, w io.Writer, since string) error {
-	p := &printer{w: w}
+// received is one event off the stream.
+type received struct {
+	env     api.Envelope
+	payload any // nil if it wouldn't decode
+}
+
+// receive reads the stream, starting after event since (or with new events,
+// if since is ""), and sends each event to out until ctx is done, then closes
+// out. If the stream drops it reconnects after the last event it saw, waiting
+// 1s, doubling up to a minute, and back to 1s once events arrive.
+func receive(ctx context.Context, stream streamFunc, since string, out chan<- received) {
+	defer close(out)
 	lastID := since
 	backoff := firstBackoff
-	log.Printf("events: listening after %q", lastID)
+	log.Printf("events: receiving after %q", lastID)
 	for {
 		err := stream(ctx, lastID, func(env api.Envelope, payload any) error {
-			p.print(env, payload)
+			select {
+			case out <- received{env, payload}:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 			if env.ID != "" {
 				lastID = env.ID
 			}
 			backoff = firstBackoff
 			return nil
 		})
-		p.endLine()
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return
 		}
 		log.Printf("events: stream ended (%v); reconnecting after %q in %s", err, lastID, backoff)
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return
 		case <-time.After(backoff):
 		}
 		backoff = min(backoff*2, time.Minute)
 	}
+}
+
+// recordAll records each event from in in the events table, and prints it,
+// until in is closed. An event that's already recorded is an error, unless
+// replaying (we were asked to start from an earlier event), when it's printed
+// and marked "(already recorded)".
+func recordAll(ctx context.Context, db store.Queryer, in <-chan received, p *printer, replaying bool) error {
+	for r := range in {
+		e := r.env
+		_, recorded, err := store.RecordEvent(ctx, db, store.Event{
+			ID: e.ID, Version: e.Version, Category: e.Category, Name: e.Event, CreatedAt: e.CreatedAt,
+			DeviceCode: e.DeviceCode, DeviceType: e.DeviceType, ReplicantCode: e.ReplicantCode,
+			Star: e.Star, Location: e.Location, Payload: e.Payload,
+		})
+		if err != nil {
+			return err
+		}
+		if !recorded && !replaying {
+			return fmt.Errorf("event %s (%s) is already recorded: the stream resent it", e.ID, e.Event)
+		}
+		p.print(r, !recorded)
+	}
+	return ctx.Err()
 }
 
 // printer writes one line per event, except that runs of boring events share
@@ -63,14 +96,18 @@ type printer struct {
 	midLine bool // the last thing written was a boring event's name
 }
 
-func (p *printer) print(env api.Envelope, payload any) {
-	if boring[env.Event] {
-		fmt.Fprintf(p.w, "%s, ", env.Event)
+func (p *printer) print(r received, already bool) {
+	if boring[r.env.Event] && !already {
+		fmt.Fprintf(p.w, "%s, ", r.env.Event)
 		p.midLine = true
 		return
 	}
 	p.endLine()
-	fmt.Fprintln(p.w, describe(env, payload))
+	line := describe(r.env, r.payload)
+	if already {
+		line = "(already recorded) " + line
+	}
+	fmt.Fprintln(p.w, line)
 }
 
 func (p *printer) endLine() {
