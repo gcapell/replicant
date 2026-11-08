@@ -162,6 +162,23 @@ These are generic over the item type, taking a position function as `ShortRoute`
 
 A SQLite database (`modernc.org/sqlite`, pure Go) at `~/.replicant/replicant.db` (`store.DefaultPath()`), where we remember what we've learnt from the API so we don't have to ask again. Several commands use it at once, so `store.Open` sets `busy_timeout`, WAL and `_txlock=immediate` (transactions take the write lock when they begin).
 
+### One writer (`monitor`), many readers
+
+The aim is for the store to be an up-to-date picture of the game, so that commands can look things up there instead of asking the API.
+
+- **`monitor` is the only program that writes to the store.**
+  - **Startup:** it takes a snapshot from the API: devices, the nearest stars and their systems, and inventory.
+  - **Events:** it then follows the event stream, recording every event in `events` and applying the ones it understands to the other tables, each in one transaction.
+  - **Leave it running** (`caffeinate -i go run ./cmd/monitor`) whenever other commands rely on the store. When restarted, it resumes the stream from the last recorded event, so nothing is missed (see its row under [Commands](#commands)).
+- **Every other command only reads.** Open the store read-only (`PRAGMA query_only=1`, see below). Never `INSERT`, `UPDATE` or call the `store.Put…` helpers from anywhere but `monitor`.
+  - To keep something new in the store, teach `monitor` to fetch it, or to apply the event that reports it.
+  - Commands still *act* through the API. `monitor` sees the resulting events and updates the store.
+- **Read the store for facts that change slowly:** star positions, entry points, systems' planets and belts, which stars have relays, and where idle devices are. Ask the API for anything that must be exactly current before acting, such as a device's status just before sending it a command, or the inventory being collected.
+- **The store is only as complete as `monitor` makes it.** Events it doesn't apply yet (directives, attach and detach, cargo) leave some columns stale until the next fresh snapshot. The [applied events](#applied-events) list says what's covered. Starting from a fresh snapshot means deleting `~/.replicant/replicant.db*` and restarting `monitor`.
+- **Opening the store:** `store.Open` migrates the schema, so only `monitor` and `migrate_db` should use it. A `store.OpenReadOnly` for readers is still to be written.
+
+### Schema and tables
+
 - **The schema is `store/schema.sql`.** To change it, edit the file. `store.Open` runs it in an empty in-memory database, compares that with the real one's `sqlite_master`, and makes them match (`store.Migrate`), in one `BEGIN IMMEDIATE` transaction:
   - a new table is created;
   - a table whose `CREATE` differs (ignoring comments and whitespace) is rebuilt: a new table is created, the shared columns are copied across, the old table is dropped and the new one renamed;
@@ -178,8 +195,7 @@ A SQLite database (`modernc.org/sqlite`, pure Go) at `~/.replicant/replicant.db`
 - `locations`, `belts` and `inventory` have a generated `star` column, like `devices`.
 - **`devices`:** `owner` is the replicant code. `features` is comma-separated, like `system_tags`; rows written before it existed have it NULL until devices are fetched again. `star` is a generated `STORED` column (the part of `location` before the first `-`; NULL if `location` is).
 - **`relay_stars`** (a view): stars with a `relaying` ftl_relay, worked out from `devices`.
-- **Only `monitor` writes to the store.** Other commands may read it for slow-moving facts (star positions, which stars have relays), but use the API for anything up to the minute.
-- **Events applied by `monitor`** (guesses marked; check them against the API):
+- <a id="applied-events"></a>**Events applied by `monitor`** (guesses marked; check them against the API):
   - A device's status on travel depends on `can_carry` (a generated column: a `heaven_vessel`, or `attach` in its `features`).
   - `travel.departed`: the device becomes `travelling` with no `location`, `destination` from the payload (always the final one), and `arrives_at` from the payload (present on every departure seen, multi-leg too; otherwise `created_at + travel_time_seconds`). A device that can't carry keeps its old status in `status_before_travel` (an AMI drone's or controller's status comes from its directive: `mining (carbon)`, `coordinating`, ...). Devices in `attached_devices` lose their `location`; their status is left alone (the API shows carried devices as `idle` or `coordinating`).
   - `travel.arrived`: the device's `location` is the envelope's `location` (after a surge the payload's `destination` is only the star). A device that can carry becomes `idle`; any other gets `status_before_travel` back, or `idle` if we didn't see it depart. `attached_devices` get the same location.
