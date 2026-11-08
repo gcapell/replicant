@@ -79,6 +79,7 @@ export interface Location {
 }
 
 export interface LocationEvent {
+    status: string;
     broadcast_message: string;
     description:string;
     designation: string;
@@ -92,7 +93,17 @@ export interface LocationEvent {
 }
 
 export interface LocationEventProgress {
+    // met (here and on each option) stays false until a replicant is present,
+    // even when everything is there: see optionSatisfied.
+    met: boolean;
+    replicant_present: boolean;
     options: LocationEventOption[];
+}
+
+// One page of /v1/accounts/events.
+export interface AccountEvents {
+    events: LocationEvent[];
+    next_cursor: number | null;
 }
 
 export interface LocationEventOption {

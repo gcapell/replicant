@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { LocationEvents, formatReward } from './location-events';
-import { ReplicantApi } from '../replicant-api';
+import { LocationEvents, formatReward, optionSatisfied } from './location-events';
 
-const summary = (events: number) => ({
-  devices: 0, location_events: events, replicants: 0, resource_sites: 0, resources: 0,
+const event = (location: string, tier: number, options: unknown[], rewards: unknown = { resources: {} }) => ({
+  location, designation: `${location}-EVT-001`, status: 'active', tier,
+  progress: { met: false, replicant_present: false, options },
+  rewards,
 });
 
 describe('LocationEvents', () => {
   let component: LocationEvents;
   let fixture: ComponentFixture<LocationEvents>;
   let http: HttpTestingController;
-  let api: ReplicantApi;
 
   const rows = (): string[][] =>
     [...fixture.nativeElement.querySelectorAll('tbody tr')].map((tr: HTMLElement) =>
@@ -31,48 +31,50 @@ describe('LocationEvents', () => {
     fixture = TestBed.createComponent(LocationEvents);
     component = fixture.componentInstance;
     http = TestBed.inject(HttpTestingController);
-    api = TestBed.inject(ReplicantApi);
     await fixture.whenStable();
   });
 
-  it('lists event locations from /v1/locations, sorted, before any details are fetched', () => {
-    api.locationList.set({
-      locations: { 'ZED-2': summary(1), 'ABA-1': summary(0), 'ABA-3-L4': summary(1) },
-    });
+  afterEach(() => http.verify());
+
+  it('shows nothing before Fetch', () => {
     fixture.detectChanges();
-    expect(rows()).toEqual([
-      ['ABA-3-L4', '', '', ''],
-      ['ZED-2', '', '', ''],
-    ]);
+    expect(rows()).toEqual([]);
+    expect(fixture.nativeElement.textContent).not.toContain('No active location events.');
   });
 
-  it('fills in tier, request and reward on Fetch', async () => {
-    api.locationList.set({ locations: { 'ABA-3': summary(1) } });
+  it('lists active events from /v1/accounts/events, sorted, across pages', async () => {
     const done = component.fetch();
-    http.expectOne('/v1/locations/ABA-3').flush({
-      location: 'ABA-3',
-      location_event: {
-        tier: 2,
-        progress: {
-          options: [
-            {
-              name: 'a', met: false,
-              resources: [{ resource_type: 'conductive', current: 0, required: 100, met: false }],
-              devices: [{ device_type: 'defence_grid', current: 0, required: 1, met: false }],
-            },
-            { name: 'b', met: true, resources: [], devices: [{ device_type: 'shield_generator', current: 1, required: 1, met: true }] },
-            {
-              name: 'c', met: false,
-              resources: [
-                { resource_type: 'carbon', current: 0, required: 100, met: false },
-                { resource_type: 'silicates', current: 25, required: 250, met: false },
-              ],
-              devices: [],
-            },
-          ],
-        },
-        rewards: { xp: 10, civilisation_points: 5, resources: { volatiles: 7, carbon: 500, rares: 0 } },
-      },
+    http.expectOne('/v1/accounts/events?status=active').flush({
+      events: [
+        event('ZED-2', 1, [
+          // met is false (no replicant), but everything is there: ticked.
+          { name: 'default', met: false, devices: [],
+            resources: [{ resource_type: 'structural', current: 565, required: 350, met: true }] },
+        ], { resources: { volatiles: 200 } }),
+      ],
+      next_cursor: 20,
+    });
+    await new Promise((r) => setTimeout(r));
+    http.expectOne('/v1/accounts/events?status=active&cursor=20').flush({
+      events: [
+        event('ABA-3', 2, [
+          {
+            name: 'a', met: false,
+            resources: [{ resource_type: 'conductive', current: 100, required: 100, met: true }],
+            devices: [{ device_type: 'defence_grid', current: 0, required: 1, met: false }],
+          },
+          { name: 'b', met: false, resources: [], devices: [{ device_type: 'shield_generator', current: 1, required: 1, met: true }] },
+          {
+            name: 'c', met: false,
+            resources: [
+              { resource_type: 'carbon', current: 0, required: 100, met: false },
+              { resource_type: 'silicates', current: 25, required: 250, met: false },
+            ],
+            devices: [],
+          },
+        ], { xp: 10, civilisation_points: 5, resources: { volatiles: 7, carbon: 500, rares: 0 } }),
+      ],
+      next_cursor: null,
     });
     await done;
     fixture.detectChanges();
@@ -80,19 +82,27 @@ describe('LocationEvents', () => {
       [
         'ABA-3',
         '2',
-        'Co(0/100), defence_grid(0/1)|shield_generator(1/1) ✅|C(0/100), Si(25/250)',
+        'Co(100/100), defence_grid(0/1)|shield_generator(1/1) ✅|C(0/100), Si(25/250)',
         'C500, V7',
       ],
+      ['ZED-2', '1', 'S(565/350) ✅', 'V200'],
     ]);
   });
 
-  it('fetches /v1/locations first if Locations has not been fetched', async () => {
+  it('says so when there are no active events', async () => {
     const done = component.fetch();
-    http.expectOne('/v1/locations').flush({ locations: { 'ABA-1': summary(0) } });
+    http.expectOne('/v1/accounts/events?status=active').flush({ events: [], next_cursor: null });
     await done;
-    http.verify();
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('No location events.');
+    expect(fixture.nativeElement.textContent).toContain('No active location events.');
+  });
+
+  it('is satisfied only when every resource and device is there', () => {
+    const r = (current: number, required: number) => ({ resource_type: 'carbon', current, required, met: false });
+    const d = (current: number, required: number) => ({ device_type: 'x', current, required, met: false });
+    expect(optionSatisfied({ name: '', met: false, resources: [r(5, 5)], devices: [d(2, 1)] })).toBe(true);
+    expect(optionSatisfied({ name: '', met: false, resources: [r(4, 5)], devices: [d(1, 1)] })).toBe(false);
+    expect(optionSatisfied({ name: '', met: true, resources: [], devices: [d(0, 1)] })).toBe(false);
   });
 
   it('abbreviates all six resources', () => {

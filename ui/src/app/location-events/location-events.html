@@ -2,7 +2,7 @@
   {{ loading() ? 'Fetching…' : 'Fetch' }}
 </button>
 
-@if (locations().length) {
+@if (events()?.length) {
   <table>
     <thead>
       <tr>
@@ -13,23 +13,20 @@
       </tr>
     </thead>
     <tbody>
-      @for (loc of locations(); track loc) {
-        @let e = events().get(loc);
+      @for (e of events(); track e.designation) {
         <tr>
-          <td><a href="#" (click)="$event.preventDefault(); api.loadLocation(loc)">{{ loc }}</a></td>
-          <td class="num">{{ e?.tier }}</td>
+          <td><a href="#" (click)="$event.preventDefault(); api.loadLocation(e.location)">{{ e.location }}</a></td>
+          <td class="num">{{ e.tier }}</td>
           <td>
-            @if (e) {
-              @for (o of formatRequest(e); track $index) {
-                <div>{{ o }}</div>
-              }
+            @for (o of formatRequest(e); track $index) {
+              <div>{{ o }}</div>
             }
           </td>
-          <td>{{ e ? formatReward(e.rewards) : '' }}</td>
+          <td>{{ formatReward(e.rewards) }}</td>
         </tr>
       }
     </tbody>
   </table>
-} @else if (api.locationList()) {
-  <p>No location events.</p>
+} @else if (events()) {
+  <p>No active location events.</p>
 }
