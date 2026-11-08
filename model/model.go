@@ -352,3 +352,26 @@ type CompletedEvent struct {
 	Title       string `json:"title"`
 	Status      string `json:"status"`
 }
+
+// Blueprints is GET /blueprints: what each device type costs to print and
+// what it can do. It isn't paged.
+type Blueprints struct {
+	Blueprints []Blueprint `json:"blueprints"`
+}
+
+type Blueprint struct {
+	DeviceType       string               `json:"device_type"`
+	ShortDescription string               `json:"short_description"`
+	Description      string               `json:"description"`
+	Features         []string             `json:"features"`
+	Directives       []string             `json:"directives"`
+	Resources        map[ResourceType]int `json:"resources"`  // cost to print
+	Components       map[string]int       `json:"components"` // devices consumed, by type, e.g. compute_core: 5
+	PrintTime        int                  `json:"print_time"` // seconds
+	AttachCapacity   int                  `json:"attach_capacity"`
+	CargoCapacity    int                  `json:"cargo_capacity"`
+	StowCapacity     int                  `json:"stow_capacity"`
+	QueueSize        int                  `json:"queue_size"`
+	RelayRange       float64              `json:"relay_range"` // light years
+	Strength         float64              `json:"strength"`
+}

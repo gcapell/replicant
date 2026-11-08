@@ -367,3 +367,119 @@ func TestMiningDigest(t *testing.T) {
 		t.Errorf("last recorded event %q, want 702-0", last)
 	}
 }
+
+func TestAdoptReleaseAndSurveyDigest(t *testing.T) {
+	db := openStore(t)
+	ctx := t.Context()
+	for _, d := range []model.Device{
+		{DeviceCode: "113D1033", DeviceType: "ami_survey_controller", Status: "idle", Location: "MUKONDO-BELT-1"},
+		{DeviceCode: "OTHERSC1", DeviceType: "ami_survey_controller", Status: "idle", Location: "MUKONDO-BELT-1"},
+		{DeviceCode: "14903EF0", DeviceType: "belt_surveyor", Status: "idle", Location: "MUKONDO-BELT-1"},
+	} {
+		if err := store.PutDevice(ctx, db, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	send := func(id, name, controller string, p any) error {
+		e := ev(id, name)
+		e.DeviceCode, e.DeviceType, e.Location = controller, "ami_survey_controller", "MUKONDO-BELT-1"
+		return recordAll(ctx, db, feed(received{e, p}), &printer{w: &strings.Builder{}}, false)
+	}
+	surveyor := []model.EventDevice{{DeviceCode: "14903EF0", DeviceType: "belt_surveyor"}}
+	row := func() (status, controller string) {
+		var c sql.NullString
+		db.QueryRow(`SELECT status, controller FROM devices WHERE device_code = '14903EF0'`).Scan(&status, &c)
+		return status, c.String
+	}
+
+	// As seen live after start_belt.
+	if err := send("800-0", "ami.adopted", "113D1033", &model.AMIAdopted{Devices: surveyor}); err != nil {
+		t.Fatal(err)
+	}
+	if s, c := row(); s != "idle" || c != "113D1033" {
+		t.Errorf("after adopt: status %q, controller %q", s, c)
+	}
+	if err := send("801-0", "ami.survey.digest", "113D1033", &model.SurveyDigest{AMIDigest: model.AMIDigest{
+		Directive: "belt_search", Devices: []model.AMIDevice{{DeviceCode: "14903EF0", Status: "tracking"}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if s, c := row(); s != "tracking" || c != "113D1033" {
+		t.Errorf("after digest: status %q, controller %q", s, c)
+	}
+
+	for name, err := range map[string]error{
+		"released by another": send("810-0", "ami.released", "OTHERSC1", &model.AMIReleased{Devices: surveyor}),
+		"wrong type": send("811-0", "ami.adopted", "113D1033", &model.AMIAdopted{
+			Devices: []model.EventDevice{{DeviceCode: "14903EF0", DeviceType: "survey_drone"}}}),
+		"unknown device": send("812-0", "ami.adopted", "113D1033", &model.AMIAdopted{
+			Devices: []model.EventDevice{{DeviceCode: "NOSUCHDV", DeviceType: "survey_drone"}}}),
+	} {
+		if err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+
+	if err := send("820-0", "ami.released", "113D1033", &model.AMIReleased{Devices: surveyor}); err != nil {
+		t.Fatal(err)
+	}
+	if _, c := row(); c != "" {
+		t.Errorf("after release: controller %q", c)
+	}
+}
+
+func TestDirective(t *testing.T) {
+	db := openStore(t)
+	ctx := t.Context()
+	for _, d := range []model.Device{
+		{DeviceCode: "55EA11A7", DeviceType: "ami_mining_controller", Status: "idle", Location: "MUKONDO-BELT-1"},
+		{DeviceCode: "1BC70CEE", DeviceType: "maintenance_drone", Status: "idle", Location: "MUKONDO-BELT-1"},
+	} {
+		if err := store.PutDevice(ctx, db, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := map[string]model.Device{
+		"55EA11A7": {DeviceCode: "55EA11A7", DeviceType: "ami_mining_controller", Status: "coordinating", Location: "ELSEWHERE-1"},
+		"1BC70CEE": {DeviceCode: "1BC70CEE", DeviceType: "maintenance_drone", Status: "idle"},
+	}
+	fetchDevice = func(ctx context.Context, code string) (*model.Device, error) {
+		d, ok := now[code]
+		if !ok {
+			return nil, errors.New("404 not found")
+		}
+		return &d, nil
+	}
+	defer func() { fetchDevice = api.Device }()
+	send := func(id, name, code, typ string, p any) error {
+		e := ev(id, name)
+		e.DeviceCode, e.DeviceType, e.Location = code, typ, "MUKONDO-BELT-1"
+		return recordAll(ctx, db, feed(received{e, p}), &printer{w: &strings.Builder{}}, false)
+	}
+
+	if err := send("900-0", "directive.set", "55EA11A7", "ami_mining_controller", &model.DirectiveSet{Directive: "gather_evenly"}); err != nil {
+		t.Fatal(err)
+	}
+	// Only the status comes from the API.
+	if d := device(t, db, "55EA11A7"); d.status != "coordinating" || d.location.String != "MUKONDO-BELT-1" {
+		t.Errorf("controller after directive.set: %+v", d)
+	}
+	if err := send("901-0", "directive.cleared", "1BC70CEE", "maintenance_drone", &model.DirectiveCleared{PreviousDirective: "patrol"}); err != nil {
+		t.Fatal(err)
+	}
+	if d := device(t, db, "1BC70CEE"); d.status != "idle" {
+		t.Errorf("maintenance drone after directive.cleared: %+v", d)
+	}
+
+	for name, err := range map[string]error{
+		"unknown to the API": send("910-0", "directive.completed", "NOSUCHDV", "ami_mining_controller", &model.DirectiveCompleted{}),
+		"wrong type":         send("911-0", "directive.completed", "55EA11A7", "ami_survey_controller", &model.DirectiveCompleted{}),
+	} {
+		if err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	if last, _ := store.LastEventID(ctx, db); last != "901-0" {
+		t.Errorf("last recorded event %q, want 901-0", last)
+	}
+}

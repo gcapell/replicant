@@ -151,6 +151,11 @@ func Inventory(ctx context.Context, id string) (*model.Inventory, error) {
 	return Get(ctx, new(model.Inventory), "/replicants/%s/inventory", id)
 }
 
+// AllBlueprints fetches the blueprint for every device type.
+func AllBlueprints(ctx context.Context) (*model.Blueprints, error) {
+	return Get(ctx, new(model.Blueprints), "/blueprints")
+}
+
 func Location(ctx context.Context, id string) (*model.Location, error) {
 	return Get(ctx, new(model.Location), "/locations/%s", id)
 }

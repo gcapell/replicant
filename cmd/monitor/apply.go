@@ -25,6 +25,70 @@ var handlers = map[string]handler{
 	"device.detached": detached,
 
 	"ami.mining.digest": miningDigest,
+	"ami.survey.digest": surveyDigest,
+	"ami.adopted":       adopted,
+	"ami.released":      released,
+
+	"directive.set":       directive,
+	"directive.completed": directive,
+	"directive.cleared":   directive,
+}
+
+// surveyDigest is miningDigest for an ami_survey_controller.
+func surveyDigest(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
+	p, ok := payload.(*model.SurveyDigest)
+	if !ok {
+		return fmt.Errorf("payload is %T", payload)
+	}
+	return digestDevices(ctx, tx, env, p.Devices)
+}
+
+// adopted: the envelope's device is the controller, adopting each of
+// devices.
+func adopted(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
+	p, ok := payload.(*model.AMIAdopted)
+	if !ok {
+		return fmt.Errorf("payload is %T", payload)
+	}
+	for _, d := range p.Devices {
+		if err := store.Adopted(ctx, tx, env.DeviceCode, d.DeviceCode, d.DeviceType); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// released: the envelope's device is the controller, letting go of devices.
+func released(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
+	p, ok := payload.(*model.AMIReleased)
+	if !ok {
+		return fmt.Errorf("payload is %T", payload)
+	}
+	for _, d := range p.Devices {
+		if err := store.Released(ctx, tx, env.DeviceCode, d.DeviceCode, d.DeviceType); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// directive handles directive.set, .completed and .cleared. None says what
+// the device's status becomes (coordinating, idle, ...), so it's fetched from
+// /devices/{code}: when replaying old events that's the status now, not then.
+// A device the API doesn't know, or of a different type, is an error.
+func directive(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
+	if env.DeviceCode == "" {
+		return fmt.Errorf("no device_code")
+	}
+	d, err := fetchDevice(ctx, env.DeviceCode)
+	if err != nil {
+		return err
+	}
+	if d.DeviceCode != env.DeviceCode || d.DeviceType != env.DeviceType {
+		return fmt.Errorf("event is about %s %s, but /devices/%s is %s %s",
+			env.DeviceType, env.DeviceCode, env.DeviceCode, d.DeviceType, d.DeviceCode)
+	}
+	return store.SetStatus(ctx, tx, d.DeviceCode, d.Status)
 }
 
 // miningDigest records the status of each device an ami_mining_controller
@@ -34,7 +98,13 @@ func miningDigest(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any
 	if !ok {
 		return fmt.Errorf("payload is %T", payload)
 	}
-	for _, d := range p.Devices {
+	return digestDevices(ctx, tx, env, p.Devices)
+}
+
+// digestDevices records the status of each device a controller's digest
+// lists, and that the controller (the envelope's device) controls it.
+func digestDevices(ctx context.Context, tx *sql.Tx, env api.Envelope, devices []model.AMIDevice) error {
+	for _, d := range devices {
 		if err := store.ControlledStatus(ctx, tx, env.DeviceCode, d.DeviceCode, d.Status); err != nil {
 			return err
 		}

@@ -101,6 +101,30 @@ CREATE TABLE inventory (
 
 CREATE INDEX inventory_by_star ON inventory (star);
 
+-- What each device type costs to print and what it can do, from /blueprints.
+-- The resource columns are the cost to print one.
+CREATE TABLE blueprints (
+	device_type TEXT PRIMARY KEY,
+	short_description TEXT NOT NULL,
+	description TEXT NOT NULL,
+	features TEXT,                   -- comma-separated, e.g. surge,cruise,attach
+	directives TEXT,                 -- comma-separated, e.g. survey_system,belt_search
+	components TEXT,                 -- devices consumed, as JSON, e.g. {"compute_core":5}
+	print_time INTEGER NOT NULL,     -- seconds
+	attach_capacity INTEGER NOT NULL,
+	cargo_capacity INTEGER NOT NULL,
+	stow_capacity INTEGER NOT NULL,
+	queue_size INTEGER NOT NULL,
+	relay_range REAL NOT NULL,       -- light years
+	strength REAL NOT NULL,
+	carbon INTEGER NOT NULL DEFAULT 0,
+	conductive INTEGER NOT NULL DEFAULT 0,
+	rares INTEGER NOT NULL DEFAULT 0,
+	silicates INTEGER NOT NULL DEFAULT 0,
+	structural INTEGER NOT NULL DEFAULT 0,
+	volatiles INTEGER NOT NULL DEFAULT 0
+) STRICT;
+
 -- Our devices, as last seen.
 CREATE TABLE devices (
 	device_code TEXT PRIMARY KEY,

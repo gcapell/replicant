@@ -12,7 +12,7 @@
 //     one transaction, so if anything fails the stars table stays empty and
 //     the next run starts again;
 //   - every time, it replaces the inventory table with /inventory (planets,
-//     moons and belts).
+//     moons and belts), and the blueprints table with /blueprints.
 //
 // Then, until interrupted, it records each event in the events table and
 // prints it. It doesn't apply events to the rest of the store yet.
@@ -61,6 +61,9 @@ func main() {
 		log.Fatal(err)
 	}
 	if err := readInventory(ctx, db); err != nil {
+		log.Fatal(err)
+	}
+	if err := readBlueprints(ctx, db); err != nil {
 		log.Fatal(err)
 	}
 	log.Print("startup done")
@@ -183,6 +186,19 @@ func readInventory(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	log.Printf("inventory: %d locations hold resources", len(all))
+	return nil
+}
+
+// readBlueprints replaces the blueprints table with /blueprints.
+func readBlueprints(ctx context.Context, db *sql.DB) error {
+	bs, err := api.AllBlueprints(ctx)
+	if err != nil {
+		return err
+	}
+	if err := inTx(ctx, db, func(tx *sql.Tx) error { return store.ReplaceBlueprints(ctx, tx, bs.Blueprints) }); err != nil {
+		return err
+	}
+	log.Printf("blueprints: %d device types", len(bs.Blueprints))
 	return nil
 }
 
