@@ -228,3 +228,142 @@ func TestPrinted(t *testing.T) {
 		t.Errorf("fetched %q, want 3 fetches", fetched)
 	}
 }
+
+func TestAttachDetach(t *testing.T) {
+	db := openStore(t)
+	ctx := t.Context()
+	for _, d := range []model.Device{
+		{DeviceCode: "E62C8DC1", DeviceType: "surge_carrier", Features: []string{"surge", "attach"}, Status: "idle", Location: "WYNUS-1"},
+		{DeviceCode: "OTHERCAR", DeviceType: "surge_carrier", Features: []string{"surge", "attach"}, Status: "idle", Location: "WYNUS-1"},
+		{DeviceCode: "8007BBAB", DeviceType: "mining_drone", Status: "idle", Location: "WYNUS-1"},
+	} {
+		if err := store.PutDevice(ctx, db, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	attachedTo := func() (string, string) {
+		var on, loc sql.NullString
+		db.QueryRow(`SELECT attached_to, location FROM devices WHERE device_code = '8007BBAB'`).Scan(&on, &loc)
+		return on.String, loc.String
+	}
+	apply := func(id, name, carrier, target, typ string) error {
+		e := ev(id, name)
+		e.DeviceCode, e.DeviceType, e.Location = carrier, "surge_carrier", "WYNUS-1"
+		var p any = &model.DeviceAttached{TargetCode: target, TargetType: typ}
+		if name == "device.detached" {
+			p = &model.DeviceDetached{TargetCode: target, TargetType: typ}
+		}
+		return recordAll(ctx, db, feed(received{e, p}), &printer{w: &strings.Builder{}}, false)
+	}
+
+	// As in the archive: one event per device, the carrier in the envelope.
+	if err := apply("600-0", "device.attached", "E62C8DC1", "8007BBAB", "mining_drone"); err != nil {
+		t.Fatal(err)
+	}
+	if on, loc := attachedTo(); on != "E62C8DC1" || loc != "WYNUS-1" {
+		t.Errorf("after attach: attached_to %q, location %q", on, loc)
+	}
+	// Attaching again to the same carrier is fine (the snapshot may be newer).
+	if err := apply("601-0", "device.attached", "E62C8DC1", "8007BBAB", "mining_drone"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Strictness: each of these stops monitor, and leaves the event unrecorded.
+	for name, err := range map[string]error{
+		"attached elsewhere":  apply("610-0", "device.attached", "OTHERCAR", "8007BBAB", "mining_drone"),
+		"detached from other": apply("611-0", "device.detached", "OTHERCAR", "8007BBAB", "mining_drone"),
+		"wrong type":          apply("612-0", "device.detached", "E62C8DC1", "8007BBAB", "survey_drone"),
+		"unknown target":      apply("613-0", "device.attached", "E62C8DC1", "NOSUCHDV", "mining_drone"),
+		"unknown carrier":     apply("614-0", "device.attached", "NOSUCHCR", "8007BBAB", "mining_drone"),
+		"attached to itself":  apply("615-0", "device.attached", "E62C8DC1", "E62C8DC1", "surge_carrier"),
+	} {
+		if err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	if last, _ := store.LastEventID(ctx, db); last != "601-0" {
+		t.Errorf("last recorded event %q, want 601-0", last)
+	}
+
+	if err := apply("620-0", "device.detached", "E62C8DC1", "8007BBAB", "mining_drone"); err != nil {
+		t.Fatal(err)
+	}
+	if on, loc := attachedTo(); on != "" || loc != "WYNUS-1" {
+		t.Errorf("after detach: attached_to %q, location %q", on, loc)
+	}
+	// Detaching again is fine too.
+	if err := apply("621-0", "device.detached", "E62C8DC1", "8007BBAB", "mining_drone"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMiningDigest(t *testing.T) {
+	db := openStore(t)
+	ctx := t.Context()
+	for _, d := range []model.Device{
+		{DeviceCode: "97CCFCC1", DeviceType: "ami_mining_controller", Status: "coordinating", Location: "WYNUS-BELT-1"},
+		{DeviceCode: "011BDABE", DeviceType: "mining_drone", Status: "idle", Location: "WYNUS-BELT-1"},
+		{DeviceCode: "2323FB10", DeviceType: "mining_drone", Status: "idle", Location: "WYNUS-BELT-1"},
+		{DeviceCode: "55095407", DeviceType: "mining_drone", Status: "travelling",
+			Travel: model.Travel{FinalDestination: "WYNUS-BELT-1", FinalArrivesAt: "2026-11-08T17:28:15+11:00"}},
+	} {
+		if err := store.PutDevice(ctx, db, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	digest := func(id string, devs ...model.AMIDevice) error {
+		e := ev(id, "ami.mining.digest")
+		e.DeviceCode, e.DeviceType, e.Location = "97CCFCC1", "ami_mining_controller", "WYNUS-BELT-1"
+		p := &model.MiningDigest{AMIDigest: model.AMIDigest{Directive: "gather_evenly", Devices: devs}}
+		return recordAll(ctx, db, feed(received{e, p}), &printer{w: &strings.Builder{}}, false)
+	}
+	row := func(code string) (status, before, controller string) {
+		var b, c sql.NullString
+		db.QueryRow(`SELECT status, status_before_travel, controller FROM devices WHERE device_code = ?`, code).Scan(&status, &b, &c)
+		return status, b.String, c.String
+	}
+
+	if err := digest("700-0",
+		model.AMIDevice{DeviceCode: "011BDABE", Status: "mining (carbon)"},
+		model.AMIDevice{DeviceCode: "2323FB10", Status: "travelling"},
+		model.AMIDevice{DeviceCode: "55095407", Status: "mining (structural)"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	for code, want := range map[string][3]string{
+		"011BDABE": {"mining (carbon)", "", "97CCFCC1"},
+		"2323FB10": {"travelling", "", "97CCFCC1"},                    // no travel events: the digest's word
+		"55095407": {"travelling", "mining (structural)", "97CCFCC1"}, // kept for arrival
+	} {
+		if s, b, c := row(code); [3]string{s, b, c} != want {
+			t.Errorf("%s: status %q, before travel %q, controller %q; want %q", code, s, b, c, want)
+		}
+	}
+	// A digest saying travelling doesn't overwrite what arrival restores.
+	if err := digest("701-0", model.AMIDevice{DeviceCode: "55095407", Status: "travelling"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, b, _ := row("55095407"); b != "mining (structural)" {
+		t.Errorf("status before travel %q after a travelling digest", b)
+	}
+	arr := ev("702-0", "travel.arrived")
+	arr.DeviceCode, arr.Location = "55095407", "WYNUS-BELT-1"
+	if err := recordAll(ctx, db, feed(received{arr, &model.TravelArrived{Destination: "WYNUS-BELT-1"}}), &printer{w: &strings.Builder{}}, false); err != nil {
+		t.Fatal(err)
+	}
+	if s, _, _ := row("55095407"); s != "mining (structural)" {
+		t.Errorf("status %q after arriving", s)
+	}
+
+	for name, err := range map[string]error{
+		"unknown device": digest("710-0", model.AMIDevice{DeviceCode: "NOSUCHDV", Status: "idle"}),
+		"unknown status": digest("711-0", model.AMIDevice{DeviceCode: "011BDABE", Status: "dancing"}),
+	} {
+		if err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	if last, _ := store.LastEventID(ctx, db); last != "702-0" {
+		t.Errorf("last recorded event %q, want 702-0", last)
+	}
+}

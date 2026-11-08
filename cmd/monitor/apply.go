@@ -21,6 +21,43 @@ var handlers = map[string]handler{
 	"travel.departed": departed,
 	"travel.arrived":  arrived,
 	"print.completed": printed,
+	"device.attached": attached,
+	"device.detached": detached,
+
+	"ami.mining.digest": miningDigest,
+}
+
+// miningDigest records the status of each device an ami_mining_controller
+// (the envelope's device) reports, and that the controller controls it.
+func miningDigest(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
+	p, ok := payload.(*model.MiningDigest)
+	if !ok {
+		return fmt.Errorf("payload is %T", payload)
+	}
+	for _, d := range p.Devices {
+		if err := store.ControlledStatus(ctx, tx, env.DeviceCode, d.DeviceCode, d.Status); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// attached and detached: the envelope's device is the carrier, and its
+// location is where both are. There's one event per attached device.
+func attached(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
+	p, ok := payload.(*model.DeviceAttached)
+	if !ok {
+		return fmt.Errorf("payload is %T", payload)
+	}
+	return store.Attached(ctx, tx, env.DeviceCode, env.Location, p.TargetCode, p.TargetType)
+}
+
+func detached(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
+	p, ok := payload.(*model.DeviceDetached)
+	if !ok {
+		return fmt.Errorf("payload is %T", payload)
+	}
+	return store.Detached(ctx, tx, env.DeviceCode, env.Location, p.TargetCode, p.TargetType)
 }
 
 // fetchDevice is api.Device, replaceable in tests.
