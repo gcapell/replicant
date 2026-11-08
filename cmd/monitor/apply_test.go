@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -174,5 +176,55 @@ func TestStatusAfterArrival(t *testing.T) {
 	db.QueryRow(`SELECT status_before_travel FROM devices WHERE device_code = 'DRONE001'`).Scan(&before)
 	if before.Valid {
 		t.Errorf("status_before_travel left as %q", before.String)
+	}
+}
+
+func TestPrinted(t *testing.T) {
+	db := openStore(t)
+	ctx := t.Context()
+	known := map[string]model.Device{
+		"8D96D74B": {DeviceCode: "8D96D74B", DeviceType: "survey_drone", Status: "idle", Location: "CORBRENEUS-BELT-1",
+			Features: []string{"cruise"}, ReplicantCode: "4698E8E6"},
+	}
+	var fetched []string
+	fetchDevice = func(ctx context.Context, code string) (*model.Device, error) {
+		fetched = append(fetched, code)
+		d, ok := known[code]
+		if !ok {
+			return nil, errors.New("404 not found")
+		}
+		return &d, nil
+	}
+	defer func() { fetchDevice = api.Device }()
+
+	print := func(id, code, typ string) error {
+		e := ev(id, "print.completed")
+		e.DeviceCode, e.DeviceType, e.Location = "C28572B9", "autofactory", "CORBRENEUS-BELT-1"
+		return recordAll(ctx, db, feed(received{e, &model.PrintCompleted{NewDeviceCode: code, DeviceType: typ, PrintMode: "autofactory"}}),
+			&printer{w: &strings.Builder{}}, false)
+	}
+	if err := print("500-0", "8D96D74B", "survey_drone"); err != nil {
+		t.Fatal(err)
+	}
+	d := device(t, db, "8D96D74B")
+	if d.status != "idle" || d.location.String != "CORBRENEUS-BELT-1" {
+		t.Errorf("printed drone: %+v", d)
+	}
+
+	// Strictness: each of these stops monitor, and leaves the event unrecorded.
+	for name, err := range map[string]error{
+		"unknown to the API": print("501-0", "NOSUCHDV", "survey_drone"),
+		"wrong type":         print("502-0", "8D96D74B", "mining_drone"),
+		"no new device":      print("503-0", "", "survey_drone"),
+	} {
+		if err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	if last, _ := store.LastEventID(ctx, db); last != "500-0" {
+		t.Errorf("last recorded event %q, want 500-0", last)
+	}
+	if len(fetched) != 3 { // no fetch without a new_device_code
+		t.Errorf("fetched %q, want 3 fetches", fetched)
 	}
 }

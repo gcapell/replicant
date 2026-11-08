@@ -20,6 +20,33 @@ type handler func(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any
 var handlers = map[string]handler{
 	"travel.departed": departed,
 	"travel.arrived":  arrived,
+	"print.completed": printed,
+}
+
+// fetchDevice is api.Device, replaceable in tests.
+var fetchDevice = api.Device
+
+// printed adds a newly printed device to the store, as /devices/{code}
+// describes it now (when replaying old events, that may be after it has moved
+// on). A device that the API doesn't know, or of a different type from the
+// one printed, is an error.
+func printed(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
+	p, ok := payload.(*model.PrintCompleted)
+	if !ok {
+		return fmt.Errorf("payload is %T", payload)
+	}
+	if p.NewDeviceCode == "" {
+		return fmt.Errorf("no new_device_code")
+	}
+	d, err := fetchDevice(ctx, p.NewDeviceCode)
+	if err != nil {
+		return err
+	}
+	if d.DeviceCode != p.NewDeviceCode || d.DeviceType != p.DeviceType {
+		return fmt.Errorf("printed a %s %s, but /devices/%s is a %s %s",
+			p.DeviceType, p.NewDeviceCode, p.NewDeviceCode, d.DeviceType, d.DeviceCode)
+	}
+	return store.PutDevice(ctx, tx, *d)
 }
 
 func departed(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {

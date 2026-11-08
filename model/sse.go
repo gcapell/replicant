@@ -195,6 +195,13 @@ type DirectiveResumed struct {
 	Directive string
 }
 
+// DirectiveResumeFailure is a directive failing to resume: Command is what it
+// tried, e.g. {"command": "start_mining", "resource_type": "rares"}.
+type DirectiveResumeFailure struct {
+	Command map[string]any
+	Reason  string // e.g. "start_mining failed: No salvage available at this location"
+}
+
 // --- diversion ---
 
 type DiversionActivated struct {
@@ -717,6 +724,7 @@ func init() {
 	register[DirectiveCompleted]("directive.completed")
 	register[DirectivePaused]("directive.paused")
 	register[DirectiveResumed]("directive.resumed")
+	register[DirectiveResumeFailure]("directive.resume_failure")
 	register[DirectiveSet]("directive.set")
 
 	register[DiversionActivated]("diversion.activated")
