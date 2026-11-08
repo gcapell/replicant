@@ -142,7 +142,7 @@ func migrate(ctx context.Context, conn execQuerier, want []object, opts MigrateO
 			add = append(add, w)
 		case h.Type != "table":
 			return nil, fmt.Errorf("%s is a %s in the database but a table in the schema", w.Name, h.Type)
-		case normalize(h.SQL) != normalize(w.SQL):
+		case tableSQL(h) != tableSQL(w):
 			rebuild = append(rebuild, w)
 			oldCols, err := columns(ctx, conn, w.Name)
 			if err != nil {
@@ -287,6 +287,16 @@ func rebuildTable(ctx context.Context, conn execQuerier, w object) error {
 	}
 	_, err = conn.ExecContext(ctx, fmt.Sprintf("ALTER TABLE %s RENAME TO %s", quote(tmp), quote(w.Name)))
 	return err
+}
+
+// tableSQL is a table's CREATE statement, normalized for comparison. The
+// table's name is rewritten to one spelling, because a rebuilt table's stored
+// statement names it "quoted" (from the rename), whatever schema.sql says.
+func tableSQL(o object) string {
+	if s, err := renameCreate(o.SQL, o.Name); err == nil {
+		return normalize(s)
+	}
+	return normalize(o.SQL)
 }
 
 // createTable matches the start of a CREATE TABLE statement, up to and

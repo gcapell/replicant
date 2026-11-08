@@ -36,22 +36,70 @@ CREATE TABLE events (
 CREATE INDEX events_by_device ON events (device_code, created_at);
 CREATE INDEX events_by_event ON events (event, created_at);
 
--- Stars we know about. A star's position never changes. The counts are NULL
--- until the system has been scanned.
+-- Stars we know about. A star's position never changes. The columns after
+-- entry_point come from /locations/STAR, which only answers for a system we
+-- have a presence in, so they're NULL until we've been able to read it.
 CREATE TABLE stars (
 	designation TEXT PRIMARY KEY,
 	x REAL NOT NULL,
 	y REAL NOT NULL,
 	z REAL NOT NULL,
 	entry_point TEXT,                -- NULL until /stars or a system_scan tells us
-	planet_count INTEGER,
+	planet_count INTEGER,            -- planets_total
 	planets_scanned INTEGER,
-	moon_count INTEGER,
+	moon_count INTEGER,              -- moons_total
 	moons_scanned INTEGER,
 	is_fully_scanned INTEGER AS (
 		planets_scanned = planet_count AND moons_scanned = moon_count
-	) STORED
+	) STORED,
+	life_detected INTEGER,
+	mining_bonus_pct REAL,
+	system_tags TEXT                 -- comma-separated, e.g. resource_rich,green
 ) STRICT;
+
+-- Planets (and later moons and other places), from /locations/STAR.
+CREATE TABLE locations (
+	designation TEXT PRIMARY KEY,
+	star TEXT NOT NULL AS (substr(designation, 1, instr(designation, '-') - 1)) STORED,
+	type TEXT,                       -- e.g. dwarf, terrestrial, ice giant
+	in_habitable_zone INTEGER NOT NULL,
+	life_stage TEXT,                 -- e.g. none, intelligent
+	moon_count INTEGER,
+	scanned INTEGER NOT NULL
+) STRICT;
+
+CREATE INDEX locations_by_star ON locations (star);
+
+-- Asteroid belts, from /locations/STAR. The resource columns hold levels
+-- (low, moderate, high), not quantities.
+CREATE TABLE belts (
+	designation TEXT PRIMARY KEY,    -- e.g. OTHYONAL-BELT-1
+	star TEXT NOT NULL AS (substr(designation, 1, instr(designation, '-') - 1)) STORED,
+	density TEXT,
+	carbon TEXT,
+	conductive TEXT,
+	rares TEXT,
+	silicates TEXT,
+	structural TEXT,
+	volatiles TEXT
+) STRICT;
+
+CREATE INDEX belts_by_star ON belts (star);
+
+-- Resources lying at a location (planets, moons and belts), from /inventory.
+-- A location holding nothing has no row.
+CREATE TABLE inventory (
+	designation TEXT PRIMARY KEY,
+	star TEXT NOT NULL AS (substr(designation, 1, instr(designation, '-') - 1)) STORED,
+	carbon INTEGER NOT NULL DEFAULT 0,
+	conductive INTEGER NOT NULL DEFAULT 0,
+	rares INTEGER NOT NULL DEFAULT 0,
+	silicates INTEGER NOT NULL DEFAULT 0,
+	structural INTEGER NOT NULL DEFAULT 0,
+	volatiles INTEGER NOT NULL DEFAULT 0
+) STRICT;
+
+CREATE INDEX inventory_by_star ON inventory (star);
 
 -- Our devices, as last seen.
 CREATE TABLE devices (
@@ -69,8 +117,7 @@ CREATE TABLE devices (
 	stowed_in TEXT,                  -- stowed_in_device_code
 	controller TEXT,                 -- controller_device_code
 	destination TEXT,                -- travel.final_destination, while travelling
-	arrives_at INTEGER,              -- travel.final_arrives_at, while travelling
-	raw TEXT NOT NULL                -- the whole /devices response, as JSON
+	arrives_at INTEGER               -- travel.final_arrives_at, while travelling
 ) STRICT;
 
 CREATE INDEX devices_by_location ON devices (location);

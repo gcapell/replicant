@@ -1,0 +1,195 @@
+// monitor keeps the store (store/schema.sql) up to date. It is the only
+// program that writes to it.
+//
+// So far it only does its startup work:
+//   - if the store has no devices it fetches them all;
+//   - if it has no stars it fetches the stars nearest a replicant in a
+//     heaven_vessel, then reads /locations/STAR for each, storing the star's
+//     details, planets and belts. A system we can't read ("No replicant in
+//     system", apparently meaning we haven't scanned it) is skipped. It's all
+//     one transaction, so if anything fails the stars table stays empty and
+//     the next run starts again;
+//   - every time, it replaces the inventory table with /inventory (planets,
+//     moons and belts).
+//
+// Then it lists every event from the stream until interrupted, starting with
+// new ones (or after -since ID). It doesn't apply them to the store yet.
+package main
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"strings"
+
+	"github.com/gcapell/replicant/api"
+	"github.com/gcapell/replicant/model"
+	"github.com/gcapell/replicant/store"
+)
+
+func main() {
+	path := flag.String("db", store.DefaultPath(), "database file")
+	nStars := flag.Int("stars", 60, "how many of the nearest stars to fetch")
+	since := flag.String("since", "", "list events after this event ID (default: only new ones)")
+	flag.Parse()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	db, err := store.Open(ctx, *path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	if err := snapshot(ctx, db, *nStars); err != nil {
+		log.Fatal(err)
+	}
+	if err := readInventory(ctx, db); err != nil {
+		log.Fatal(err)
+	}
+	log.Print("startup done")
+
+	err = listEvents(ctx, api.SSEStream, os.Stdout, *since)
+	if ctx.Err() == nil {
+		log.Fatal(err)
+	}
+}
+
+// snapshot fills each empty table from the API.
+func snapshot(ctx context.Context, db *sql.DB, nStars int) error {
+	if err := ifEmpty(ctx, db, "devices", fetchDevices); err != nil {
+		return err
+	}
+	return ifEmpty(ctx, db, "stars", func(ctx context.Context, tx *sql.Tx) error {
+		return fetchStars(ctx, tx, nStars)
+	})
+}
+
+// ifEmpty runs fill in a transaction if table has no rows.
+func ifEmpty(ctx context.Context, db *sql.DB, table string, fill func(context.Context, *sql.Tx) error) error {
+	n, err := store.Count(ctx, db, table)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		log.Printf("%s: %d rows already", table, n)
+		return nil
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := fill(ctx, tx); err != nil {
+		return err
+	}
+	if n, err = store.Count(ctx, tx, table); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	log.Printf("%s: fetched %d", table, n)
+	return nil
+}
+
+func fetchDevices(ctx context.Context, tx *sql.Tx) error {
+	for page, err := range api.Paged[model.DeviceList](ctx, "/devices?limit=50") {
+		if err != nil {
+			return err
+		}
+		for _, d := range page.Devices {
+			if err := store.PutDevice(ctx, tx, d); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func fetchStars(ctx context.Context, tx *sql.Tx, n int) error {
+	replicant, err := store.ReplicantInVessel(ctx, tx)
+	if err != nil {
+		return err
+	}
+	if replicant == "" {
+		return errors.New("no heaven_vessel carrying a replicant_matrix, so no replicant to find stars near")
+	}
+	stars, err := api.Stars(ctx, replicant, n)
+	if err != nil {
+		return err
+	}
+	if len(stars.Stars) == 0 {
+		return errors.New("no stars returned near replicant " + replicant)
+	}
+	log.Printf("%d stars nearest replicant %s", len(stars.Stars), replicant)
+	for _, s := range stars.Stars {
+		if err := store.PutStar(ctx, tx, s); err != nil {
+			return err
+		}
+	}
+	return readSystems(ctx, tx, stars.Stars)
+}
+
+// readSystems stores /locations/STAR for each star. Any error other than
+// "No replicant in system" stops it.
+func readSystems(ctx context.Context, tx *sql.Tx, stars []model.Star) error {
+	read, skipped := 0, 0
+	for _, s := range stars {
+		star := s.Designation
+		loc, err := api.Location(ctx, star)
+		if noPresence(err) {
+			skipped++
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if loc.Location != star {
+			return fmt.Errorf("asked for /locations/%s, got %q", star, loc.Location)
+		}
+		if err := store.PutSystem(ctx, tx, *loc); err != nil {
+			return err
+		}
+		read++
+	}
+	log.Printf("systems: read %d, skipped %d we can't read yet", read, skipped)
+	return nil
+}
+
+// readInventory replaces the inventory table with /inventory.
+func readInventory(ctx context.Context, db *sql.DB) error {
+	all, err := api.InventoryAt(ctx, "")
+	if err != nil {
+		return err
+	}
+	if err := inTx(ctx, db, func(tx *sql.Tx) error { return store.ReplaceInventory(ctx, tx, all) }); err != nil {
+		return err
+	}
+	log.Printf("inventory: %d locations hold resources", len(all))
+	return nil
+}
+
+// noPresence reports whether err is /locations refusing because we have no
+// replicant in the system.
+func noPresence(err error) bool {
+	var he *api.HTTPError
+	return errors.As(err, &he) && strings.Contains(string(he.Body), "No replicant in system")
+}
+
+func inTx(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}

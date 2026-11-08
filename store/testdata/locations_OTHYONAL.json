@@ -1,0 +1,212 @@
+{
+    "active_location_events": [],
+    "asteroid_belt": {
+        "belts": [
+            {
+                "density": "dense",
+                "designation": "OTHYONAL-BELT-1",
+                "inner_radius_au": 3.42,
+                "outer_radius_au": 5.14,
+                "resources": {
+                    "carbon": "moderate",
+                    "conductive": "moderate",
+                    "rares": "low",
+                    "silicates": "high",
+                    "structural": "high",
+                    "volatiles": "moderate"
+                }
+            }
+        ],
+        "present": true
+    },
+    "entry_point": "OTHYONAL-6-L4",
+    "life_detected": true,
+    "location": "OTHYONAL",
+    "location_type": "star",
+    "mining_bonus_pct": 0,
+    "moons_scanned": 78,
+    "moons_total": 78,
+    "moons_total_estimated": false,
+    "outer_system": {
+        "kuiper": {
+            "designation": "OTHYONAL-KUIPER",
+            "distance_au": 50.71
+        },
+        "oort": {
+            "designation": "OTHYONAL-OORT",
+            "distance_au": 3130.64
+        }
+    },
+    "planets": [
+        {
+            "designation": "OTHYONAL-1",
+            "in_habitable_zone": false,
+            "inventory": [],
+            "life_estimated": false,
+            "life_stage": "none",
+            "moon_count": 3,
+            "moon_count_estimated": false,
+            "name": null,
+            "orbital_distance_au": 0.419,
+            "scanned": true,
+            "type": "dwarf",
+            "type_estimated": false
+        },
+        {
+            "designation": "OTHYONAL-2",
+            "in_habitable_zone": false,
+            "inventory": [],
+            "life_estimated": false,
+            "life_stage": "none",
+            "moon_count": 2,
+            "moon_count_estimated": false,
+            "name": null,
+            "orbital_distance_au": 0.916,
+            "scanned": true,
+            "type": "terrestrial",
+            "type_estimated": false
+        },
+        {
+            "designation": "OTHYONAL-3",
+            "in_habitable_zone": true,
+            "inventory": [
+                {
+                    "quantity": 100,
+                    "resource_type": "silicates"
+                },
+                {
+                    "quantity": 200,
+                    "resource_type": "rares"
+                }
+            ],
+            "life_estimated": false,
+            "life_stage": "intelligent",
+            "moon_count": 0,
+            "moon_count_estimated": false,
+            "name": null,
+            "orbital_distance_au": 1.31,
+            "scanned": true,
+            "type": "terrestrial",
+            "type_estimated": false
+        },
+        {
+            "designation": "OTHYONAL-4",
+            "in_habitable_zone": false,
+            "inventory": [],
+            "life_estimated": false,
+            "life_stage": "none",
+            "moon_count": 0,
+            "moon_count_estimated": false,
+            "name": null,
+            "orbital_distance_au": 2.618,
+            "scanned": true,
+            "type": "dwarf",
+            "type_estimated": false
+        },
+        {
+            "designation": "OTHYONAL-5",
+            "in_habitable_zone": false,
+            "inventory": [],
+            "life_estimated": false,
+            "life_stage": "intelligent",
+            "moon_count": 8,
+            "moon_count_estimated": false,
+            "name": null,
+            "orbital_distance_au": 4.986,
+            "scanned": true,
+            "type": "terrestrial",
+            "type_estimated": false
+        },
+        {
+            "designation": "OTHYONAL-6",
+            "in_habitable_zone": false,
+            "inventory": [],
+            "life_estimated": false,
+            "life_stage": "none",
+            "moon_count": 22,
+            "moon_count_estimated": false,
+            "name": null,
+            "orbital_distance_au": 8.947,
+            "scanned": true,
+            "type": "ice giant",
+            "type_estimated": false
+        },
+        {
+            "designation": "OTHYONAL-7",
+            "in_habitable_zone": false,
+            "inventory": [],
+            "life_estimated": false,
+            "life_stage": "none",
+            "moon_count": 41,
+            "moon_count_estimated": false,
+            "name": null,
+            "orbital_distance_au": 19.998,
+            "scanned": true,
+            "type": "ice giant",
+            "type_estimated": false
+        },
+        {
+            "designation": "OTHYONAL-8",
+            "in_habitable_zone": false,
+            "inventory": [],
+            "life_estimated": false,
+            "life_stage": "none",
+            "moon_count": 2,
+            "moon_count_estimated": false,
+            "name": null,
+            "orbital_distance_au": 39.932,
+            "scanned": true,
+            "type": "dwarf",
+            "type_estimated": false
+        }
+    ],
+    "planets_scanned": 8,
+    "planets_total": 8,
+    "shops": [],
+    "star": {
+        "age_my": 7317.29,
+        "color": "Yellow",
+        "designation": "OTHYONAL",
+        "distance_from_sol": 165.66,
+        "habitable_zone": {
+            "inner_au": 0.95,
+            "outer_au": 1.67
+        },
+        "luminosity_solar": 1.0,
+        "mass_solar": 0.9067,
+        "mining_bonus_pct": 0,
+        "name": null,
+        "position": {
+            "x": -56.4187,
+            "y": -25.5883,
+            "z": -153.6446
+        },
+        "radius_solar": 1.0444,
+        "spectral_type": "G5",
+        "stellar_class": "G5",
+        "temperature_k": 5555
+    },
+    "system_objects": [
+        {
+            "active_propulsors": 0,
+            "approach_angle": 42.02493399999998,
+            "approach_speed": 1.0,
+            "composition": "rock",
+            "current_thrust_per_hour": 0.0,
+            "designation": "OTHYONAL-OBJ-1",
+            "impact_eta": "2026-11-06T08:51:45+11:00",
+            "impact_likelihood": 100.0,
+            "impact_target": "OTHYONAL-4",
+            "mass_class": "small",
+            "object_type": "incoming_asteroid",
+            "orbital_distance_au": 0.0,
+            "progress_pct": 0.0,
+            "required_strength": 24.0,
+            "status": "active"
+        }
+    ],
+    "system_scanned": true,
+    "system_tags": [
+        "resource_rich"
+    ]
+}

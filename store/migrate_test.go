@@ -82,6 +82,9 @@ func TestAddColumnKeepsData(t *testing.T) {
 	checkChanges(t, mustMigrate(t, db, `CREATE TABLE a (id INTEGER PRIMARY KEY, name TEXT, n INTEGER NOT NULL DEFAULT 7);
 		CREATE INDEX a_name ON a (name);`, MigrateOptions{}),
 		"rebuild table a") // the index is recreated silently
+	// A rebuilt table matches the schema afterwards, so nothing more happens.
+	checkChanges(t, mustMigrate(t, db, `CREATE TABLE a (id INTEGER PRIMARY KEY, name TEXT, n INTEGER NOT NULL DEFAULT 7);
+		CREATE INDEX a_name ON a (name);`, MigrateOptions{}))
 
 	var name string
 	var n int
@@ -247,9 +250,9 @@ func TestOpenRealSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustExec(t, db, `INSERT INTO devices (device_code, device_type, status, location, raw)
-		VALUES ('D1', 'ftl_relay', 'relaying', 'MIRETH-4-L4', '{}'),
-		       ('D2', 'heaven_vessel', 'idle', NULL, '{}')`)
+	mustExec(t, db, `INSERT INTO devices (device_code, device_type, status, location)
+		VALUES ('D1', 'ftl_relay', 'relaying', 'MIRETH-4-L4'),
+		       ('D2', 'heaven_vessel', 'idle', NULL)`)
 	var star string
 	db.QueryRow(`SELECT star FROM relay_stars`).Scan(&star)
 	if star != "MIRETH" {
@@ -262,7 +265,8 @@ func TestOpenRealSchema(t *testing.T) {
 	}
 
 	mustExec(t, db, `INSERT INTO stars (designation, x, y, z) VALUES ('A', 0, 0, 0)`)
-	mustExec(t, db, `INSERT INTO stars VALUES ('B', 0, 0, 0, NULL, 3, 3, 2, 1), ('C', 0, 0, 0, NULL, 3, 3, 2, 2)`)
+	mustExec(t, db, `INSERT INTO stars (designation, x, y, z, planet_count, planets_scanned, moon_count, moons_scanned)
+		VALUES ('B', 0, 0, 0, 3, 3, 2, 1), ('C', 0, 0, 0, 3, 3, 2, 2)`)
 	rows, err := db.Query(`SELECT designation, is_fully_scanned FROM stars ORDER BY designation`)
 	if err != nil {
 		t.Fatal(err)
