@@ -11,6 +11,22 @@ const (
 	Volatiles  ResourceType = "volatiles"
 )
 
+// Resources lists every resource type in alphabetical order, the order we
+// always show them in.
+var Resources = []ResourceType{Carbon, Conductive, Rares, Silicates, Structural, Volatiles}
+
+var abbrevs = map[ResourceType]string{
+	Carbon: "C", Conductive: "Co", Rares: "R", Silicates: "Si", Structural: "S", Volatiles: "V",
+}
+
+// Abbrev is the short name we show a resource by: C, Co, R, Si, S or V.
+func (r ResourceType) Abbrev() string {
+	if a, ok := abbrevs[r]; ok {
+		return a
+	}
+	return string(r)
+}
+
 type DeviceList struct {
 	Devices []Device
 	Paged

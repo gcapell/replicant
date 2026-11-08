@@ -218,6 +218,18 @@ func SurveySystem(ctx context.Context, controller string) error {
 	})
 }
 
+// GatherEvenly tells an ami_mining_controller to spread its drones evenly
+// across the resources at its belt.
+func GatherEvenly(ctx context.Context, controller string) error {
+	return deviceCommand(ctx, controller, map[string]any{"command": "set_directive", "directive": "gather_evenly"})
+}
+
+// BeltSearch tells an ami_survey_controller to have its belt_surveyors keep
+// searching the belt for new resource sites.
+func BeltSearch(ctx context.Context, controller string) error {
+	return deviceCommand(ctx, controller, map[string]any{"command": "set_directive", "directive": "belt_search"})
+}
+
 // InventoryAt returns your stockpiles at every location under loc, which may be
 // a star code (whole system) or a specific location.
 func InventoryAt(ctx context.Context, loc string) ([]model.LocationInventory, error) {
