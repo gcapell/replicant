@@ -36,24 +36,25 @@ difference, if:
 - a relay it will fetch isn't where the store says, or is stowed, attached,
   `relaying`, or owned by someone else.
 
-## TODO before running it for real
+## What monitor knows about a run
 
-`monitor` doesn't yet apply anything plant_relays does, so after a run the
-store would still show the old state, and the next plan (and `verify`) would
-be wrong. Not handled yet:
+`monitor` applies `device.deployed` and `relay.activated`, so after a run the
+store has the planted relays as `relaying` and the next plan is accurate. To
+apply events recorded before monitor handled them (in the order they
+arrived, so each deploy comes before its activation):
 
-- `change_owner` (the relay's `owner`);
-- `stow` (`stowed_in`, `location`, status `stowed`);
-- `deploy` (`stowed_in` cleared, `location` = the host's);
-- `activate` (status `relaying`, which is what `relay_stars` counts);
-- `system_scan` (the star's `entry_point`, and its system).
+```bash
+go run ./cmd/monitor -catchup device.deployed,relay.activated,experience.gained
+```
 
-The plan is to run plant_relays once, see which events these produce in
-`events`, teach `monitor` to apply them, and replay them with
-`monitor -catchup EVENT`.
+Still not applied:
 
-**Caveat:** none of these actions shows up in the 2026-11-08 archive or the
-live store so far (the archive has no stow, deploy, activate, change_owner or
-scan events), so they may not produce events at all. If they don't, `monitor`
-will need another way to learn about them: for example, re-reading the devices
-and the star after a run, or polling.
+- `stow` and `change_owner`, used when a vessel fetches relays from a belt.
+  No run has fetched yet, so we haven't seen whether they produce events
+  (`device.stowed` and `device.changed_owner` are registered in
+  `model/sse.go`). Until they're handled, `verify` will catch the stale
+  store and refuse to start a run that fetches.
+
+A `system_scan` produces only `experience.gained` (`"source":"scan"`, the star
+as `location`), so monitor reads `/locations/STAR` for any system it hasn't
+read yet, which gives the star its entry point, planets and belts.

@@ -35,6 +35,8 @@ var handlers = map[string]handler{
 	"print.completed": printed,
 	"device.attached": direct(attached),
 	"device.detached": direct(detached),
+	"device.deployed": deployed,
+	"relay.activated": direct(relayActivated),
 
 	"device.compacting": direct(compacting),
 	"device.compacted":  direct(compacted),
@@ -51,6 +53,8 @@ var handlers = map[string]handler{
 	"directive.cleared":   directive,
 
 	"prospect.completed": prospected,
+
+	"experience.gained": experienced,
 }
 
 // surveyDigest is miningDigest for an ami_survey_controller.

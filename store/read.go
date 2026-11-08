@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gcapell/replicant/model"
@@ -86,13 +87,21 @@ func EventRecorded(ctx context.Context, q Queryer, id string) (bool, error) {
 	return n > 0, err
 }
 
-// EventsNamed returns the recorded events called name (e.g.
+// EventsNamed returns the recorded events called any of names (e.g.
 // prospect.completed), in the order they were received.
-func EventsNamed(ctx context.Context, q Reader, name string) ([]Event, error) {
+func EventsNamed(ctx context.Context, q Reader, names ...string) ([]Event, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	args := make([]any, len(names))
+	for i, n := range names {
+		args[i] = n
+	}
+	marks := strings.Repeat(", ?", len(names))[2:]
 	rows, err := q.QueryContext(ctx, `SELECT event_id, version, category, event, created_at,
 		coalesce(device_code, ''), coalesce(device_type, ''), coalesce(replicant_code, ''),
 		coalesce(star, ''), coalesce(location, ''), payload
-		FROM events WHERE event = ? ORDER BY seq`, name)
+		FROM events WHERE event IN (`+marks+`) ORDER BY seq`, args...)
 	if err != nil {
 		return nil, err
 	}

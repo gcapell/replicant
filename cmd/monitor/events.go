@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gcapell/replicant/api"
@@ -130,25 +131,30 @@ func recordAndApply(ctx context.Context, db *sql.DB, r received) (recorded bool,
 	return true, tx.Commit()
 }
 
-// catchUp applies every recorded event called name again, oldest first, as
-// if it had just arrived (but without recording it again). Each is applied
-// in its own transaction; the first failure stops it.
-func catchUp(ctx context.Context, db *sql.DB, name string, p *printer) error {
-	h, ok := handlers[name]
-	if !ok {
-		return fmt.Errorf("catch up: monitor doesn't handle %q events", name)
+// catchUp applies every recorded event called any of names again, oldest
+// first across all of them (so a relay's device.deployed comes before its
+// relay.activated), as if it had just arrived (but without recording it
+// again). Each is applied in its own transaction; the first failure stops it.
+// A name monitor doesn't handle is an error, before anything is applied.
+func catchUp(ctx context.Context, db *sql.DB, names []string, p *printer) error {
+	if len(names) == 0 {
+		return fmt.Errorf("catch up: no event types given")
 	}
-	decode, ok := model.EventRegistry[name]
-	if !ok {
-		return fmt.Errorf("catch up: no payload type registered for %q", name)
+	for _, name := range names {
+		if _, ok := handlers[name]; !ok {
+			return fmt.Errorf("catch up: monitor doesn't handle %q events", name)
+		}
+		if _, ok := model.EventRegistry[name]; !ok {
+			return fmt.Errorf("catch up: no payload type registered for %q", name)
+		}
 	}
-	events, err := store.EventsNamed(ctx, db, name)
+	events, err := store.EventsNamed(ctx, db, names...)
 	if err != nil {
 		return err
 	}
-	log.Printf("catch up: %d %s events", len(events), name)
+	log.Printf("catch up: %d events (%s)", len(events), strings.Join(names, ", "))
 	for _, e := range events {
-		payload, err := decode(e.Payload)
+		payload, err := model.EventRegistry[e.Name](e.Payload)
 		if err != nil {
 			return fmt.Errorf("catch up: event %s: payload wouldn't decode: %w", e.ID, err)
 		}
@@ -157,12 +163,14 @@ func catchUp(ctx context.Context, db *sql.DB, name string, p *printer) error {
 			DeviceCode: e.DeviceCode, DeviceType: e.DeviceType, ReplicantCode: e.ReplicantCode,
 			Star: e.Star, Location: e.Location, Payload: e.Payload,
 		}
-		apply, err := h(ctx, db, env, payload)
+		apply, err := handlers[e.Name](ctx, db, env, payload)
 		if err != nil {
 			return fmt.Errorf("catch up: event %s: %w", e.ID, err)
 		}
-		if err := inTx(ctx, db, func(tx *sql.Tx) error { return apply(ctx, tx) }); err != nil {
-			return fmt.Errorf("catch up: event %s: %w", e.ID, err)
+		if apply != nil {
+			if err := inTx(ctx, db, func(tx *sql.Tx) error { return apply(ctx, tx) }); err != nil {
+				return fmt.Errorf("catch up: event %s: %w", e.ID, err)
+			}
 		}
 		p.print(received{env, payload}, false)
 	}

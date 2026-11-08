@@ -148,11 +148,11 @@ func TestCatchUp(t *testing.T) {
 	}
 	fakeStars(t, 100)
 
-	if err := catchUp(ctx, db, "travel.cancelled", &printer{w: &strings.Builder{}}); err == nil {
+	if err := catchUp(ctx, db, []string{"prospect.completed", "travel.cancelled"}, &printer{w: &strings.Builder{}}); err == nil {
 		t.Error("catching up an event monitor doesn't handle: accepted")
 	}
 	var out strings.Builder
-	if err := catchUp(ctx, db, "prospect.completed", &printer{w: &out}); err != nil {
+	if err := catchUp(ctx, db, []string{"prospect.completed"}, &printer{w: &out}); err != nil {
 		t.Fatal(err)
 	}
 	var n int

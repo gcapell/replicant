@@ -14,8 +14,8 @@
 //   - every time, it replaces the inventory table with /inventory (planets,
 //     moons and belts), and the blueprints table with /blueprints.
 //
-// With -catchup EVENT, it then applies every recorded event of that type
-// again, oldest first (see catchUp).
+// With -catchup EVENT,... it then applies every recorded event of those
+// types again, oldest first (see catchUp).
 //
 // Then, until interrupted, it records each event in the events table,
 // applies the ones it handles (apply.go) and prints it.
@@ -41,7 +41,7 @@ func main() {
 	path := flag.String("db", store.DefaultPath(), "database file")
 	nStars := flag.Int("stars", 60, "how many of the nearest stars to fetch")
 	since := flag.String("since", "", "replay events after this event ID (default: after the last one recorded)")
-	catchup := flag.String("catchup", "", "on startup, apply every recorded event of this type again (e.g. prospect.completed)")
+	catchup := flag.String("catchup", "", "on startup, apply every recorded event of these comma-separated types again, oldest first (e.g. device.deployed,relay.activated)")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -72,7 +72,7 @@ func main() {
 	}
 	p := &printer{w: os.Stdout}
 	if *catchup != "" {
-		if err := catchUp(ctx, db, *catchup, p); err != nil {
+		if err := catchUp(ctx, db, strings.Split(*catchup, ","), p); err != nil {
 			log.Fatal(err)
 		}
 	}
