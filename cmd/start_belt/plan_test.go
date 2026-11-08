@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/gcapell/replicant/model"
@@ -96,12 +97,38 @@ func TestTeams(t *testing.T) {
 	noSurveyor := team("C", "CCC-BELT-1")
 	noSurveyor[2].Control = "X"
 
-	ts := teams(slices.Concat(ok, short, noSurveyor))
+	ts, partial := teams(slices.Concat(ok, short, noSurveyor))
 	if len(ts) != 1 || ts[0].Location != "AAA-BELT-1" {
 		t.Fatalf("teams %+v, want just AAA-BELT-1", ts)
 	}
+	if len(partial) != 2 || partial[0].Location != "CCC-BELT-1" || partial[1].Location != "BBB-BELT-1" {
+		t.Errorf("partial teams %+v, want CCC-BELT-1 (8 of 9) then BBB-BELT-1 (7 of 9)", partial)
+	}
 	if got := ts[0].Devices(); len(got) != 9 || !slices.Equal(ts[0].Miners, []string{"AM0", "AM1", "AM2", "AM3", "AM4"}) {
 		t.Errorf("team devices %v", got)
+	}
+}
+
+func TestNoTeam(t *testing.T) {
+	short := team("B", "BBB-BELT-1")
+	short[4].Control, short[5].Control = "X", "X" // 4 free miners: 8 of 9
+	worse := team("C", "CCC-BELT-1")
+	worse[2].Control, worse[3].Status = "X", "travelling" // no surveyor or maintenance: 7 of 9
+	worst := []Device{{Code: "D", Type: "mining_drone", Status: "idle", Location: "DDD-1", Star: "DDD"}}
+	devs := slices.Concat(worst, worse, short)
+
+	bs := []Belt{belt("ZZZ", "dense")}
+	_, err := makePlan(bs, devs, map[string]bool{"ZZZ": true}, map[string]model.Position{})
+	if err == nil {
+		t.Fatal("planned without a team")
+	}
+	got := err.Error()
+	want := `. Closest:
+  BBB-BELT-1: has ami_mining_controller, ami_survey_controller, belt_surveyor, maintenance_drone; 4/5 free mining_drones
+  CCC-BELT-1: has ami_mining_controller, ami_survey_controller; lacks belt_surveyor, maintenance_drone; 5/5 free mining_drones
+  DDD-1: lacks ami_mining_controller, ami_survey_controller, belt_surveyor, maintenance_drone; 1/5 free mining_drones`
+	if !strings.HasSuffix(got, want) {
+		t.Errorf("error:\n%s\nwant it to end:\n%s", got, want)
 	}
 }
 

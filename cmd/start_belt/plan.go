@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -137,15 +138,15 @@ func score(b Belt) ([]int, error) {
 	return s, nil
 }
 
-// teams finds every location with a complete, free team.
-func teams(devices []Device) []Team {
+// teams sorts every location's free devices into a team: first the
+// complete ones (by location), then the rest, closest to complete first.
+func teams(devices []Device) (complete, partial []Team) {
 	byLoc := map[string][]Device{}
 	for _, d := range devices {
 		if d.free() {
 			byLoc[d.Location] = append(byLoc[d.Location], d)
 		}
 	}
-	var out []Team
 	for loc, ds := range byLoc {
 		slices.SortFunc(ds, func(a, b Device) int { return cmp.Compare(a.Code, b.Code) })
 		t := Team{Location: loc, Star: ds[0].Star}
@@ -163,13 +164,78 @@ func teams(devices []Device) []Team {
 				t.Miners = append(t.Miners, d.Code)
 			}
 		}
-		if t.MiningControl != "" && t.SurveyControl != "" && t.Surveyor != "" &&
-			t.Maintenance != "" && len(t.Miners) == teamMiners {
-			out = append(out, t)
+		if t.complete() {
+			complete = append(complete, t)
+		} else if t.size() > 0 {
+			partial = append(partial, t)
 		}
 	}
-	slices.SortFunc(out, func(a, b Team) int { return cmp.Compare(a.Location, b.Location) })
-	return out
+	slices.SortFunc(complete, func(a, b Team) int { return cmp.Compare(a.Location, b.Location) })
+	slices.SortFunc(partial, func(a, b Team) int {
+		return cmp.Or(cmp.Compare(b.size(), a.size()), cmp.Compare(a.Location, b.Location))
+	})
+	return complete, partial
+}
+
+// roles are a team's single members, in the order we show them.
+func (t Team) roles() []struct{ typ, code string } {
+	return []struct{ typ, code string }{
+		{"ami_mining_controller", t.MiningControl},
+		{"ami_survey_controller", t.SurveyControl},
+		{"belt_surveyor", t.Surveyor},
+		{"maintenance_drone", t.Maintenance},
+	}
+}
+
+// size is how many of the team's places are filled.
+func (t Team) size() int {
+	n := len(t.Miners)
+	for _, r := range t.roles() {
+		if r.code != "" {
+			n++
+		}
+	}
+	return n
+}
+
+func (t Team) complete() bool { return t.size() == len(t.roles())+teamMiners }
+
+// shortfall describes what a team has and lacks, like
+// "has ami_mining_controller, belt_surveyor; lacks ami_survey_controller,
+// maintenance_drone; 3/5 mining_drones".
+func (t Team) shortfall() string {
+	var has, lacks []string
+	for _, r := range t.roles() {
+		if r.code != "" {
+			has = append(has, r.typ)
+		} else {
+			lacks = append(lacks, r.typ)
+		}
+	}
+	var parts []string
+	if len(has) > 0 {
+		parts = append(parts, "has "+strings.Join(has, ", "))
+	}
+	if len(lacks) > 0 {
+		parts = append(parts, "lacks "+strings.Join(lacks, ", "))
+	}
+	parts = append(parts, fmt.Sprintf("%d/%d free mining_drones", len(t.Miners), teamMiners))
+	return strings.Join(parts, "; ")
+}
+
+// closest is how many of the nearest-complete teams a failure lists.
+const closest = 3
+
+func noTeamError(partial []Team) error {
+	msg := fmt.Sprintf("no location has a free team (ami_mining_controller, ami_survey_controller, belt_surveyor, maintenance_drone, %d mining_drones; all idle, unattached and unstowed, the drones and surveyor with no controller)", teamMiners)
+	if len(partial) == 0 {
+		return fmt.Errorf("%s, nor any part of one", msg)
+	}
+	msg += ". Closest:"
+	for _, t := range partial[:min(closest, len(partial))] {
+		msg += fmt.Sprintf("\n  %s: %s", t.Location, t.shortfall())
+	}
+	return errors.New(msg)
 }
 
 // makePlan picks the best belt, the team nearest it, and the surge_carrier
@@ -179,9 +245,9 @@ func makePlan(belts []Belt, devices []Device, relayStars map[string]bool, starPo
 	if len(cands) == 0 {
 		return nil, fmt.Errorf("no undeveloped belts at relay stars")
 	}
-	ts := teams(devices)
+	ts, partial := teams(devices)
 	if len(ts) == 0 {
-		return nil, fmt.Errorf("no location has a free team (mining and survey controllers, belt_surveyor, maintenance_drone, %d mining_drones)", teamMiners)
+		return nil, noTeamError(partial)
 	}
 	for i, t := range ts {
 		p, ok := starPos[t.Star]
