@@ -43,6 +43,11 @@ type Stars struct {
 	Stars []Star `json:"stars"`
 }
 
+// StarNear is /replicants/{code}/stars/{star}.
+type StarNear struct {
+	Star Star `json:"star"`
+}
+
 type User struct {
 	CreatedAt          string              `json:"created_at"`
 	Email              string              `json:"email"`

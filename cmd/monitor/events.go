@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gcapell/replicant/api"
+	"github.com/gcapell/replicant/model"
 	"github.com/gcapell/replicant/store"
 	"github.com/sanity-io/litter"
 )
@@ -89,8 +90,25 @@ func recordAll(ctx context.Context, db *sql.DB, in <-chan received, p *printer, 
 	return ctx.Err()
 }
 
+// recordAndApply records r and applies it, if it's an event we handle and
+// it isn't already recorded. The handler fetches whatever it needs first, so
+// the transaction is open only while writing.
 func recordAndApply(ctx context.Context, db *sql.DB, r received) (recorded bool, err error) {
 	e := r.env
+	already, err := store.EventRecorded(ctx, db, e.ID)
+	if err != nil || already {
+		return false, err
+	}
+	var apply change
+	if h, ok := handlers[e.Event]; ok {
+		if r.payload == nil {
+			return false, fmt.Errorf("payload wouldn't decode: %s", e.Payload)
+		}
+		if apply, err = h(ctx, db, e, r.payload); err != nil {
+			return false, err
+		}
+	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
@@ -104,15 +122,51 @@ func recordAndApply(ctx context.Context, db *sql.DB, r received) (recorded bool,
 	if err != nil || !recorded {
 		return false, err
 	}
-	if h, ok := handlers[e.Event]; ok {
-		if r.payload == nil {
-			return false, fmt.Errorf("payload wouldn't decode: %s", e.Payload)
-		}
-		if err := h(ctx, tx, e, r.payload); err != nil {
+	if apply != nil {
+		if err := apply(ctx, tx); err != nil {
 			return false, err
 		}
 	}
 	return true, tx.Commit()
+}
+
+// catchUp applies every recorded event called name again, oldest first, as
+// if it had just arrived (but without recording it again). Each is applied
+// in its own transaction; the first failure stops it.
+func catchUp(ctx context.Context, db *sql.DB, name string, p *printer) error {
+	h, ok := handlers[name]
+	if !ok {
+		return fmt.Errorf("catch up: monitor doesn't handle %q events", name)
+	}
+	decode, ok := model.EventRegistry[name]
+	if !ok {
+		return fmt.Errorf("catch up: no payload type registered for %q", name)
+	}
+	events, err := store.EventsNamed(ctx, db, name)
+	if err != nil {
+		return err
+	}
+	log.Printf("catch up: %d %s events", len(events), name)
+	for _, e := range events {
+		payload, err := decode(e.Payload)
+		if err != nil {
+			return fmt.Errorf("catch up: event %s: payload wouldn't decode: %w", e.ID, err)
+		}
+		env := api.Envelope{
+			Version: e.Version, ID: e.ID, Category: e.Category, Event: e.Name, CreatedAt: e.CreatedAt,
+			DeviceCode: e.DeviceCode, DeviceType: e.DeviceType, ReplicantCode: e.ReplicantCode,
+			Star: e.Star, Location: e.Location, Payload: e.Payload,
+		}
+		apply, err := h(ctx, db, env, payload)
+		if err != nil {
+			return fmt.Errorf("catch up: event %s: %w", e.ID, err)
+		}
+		if err := inTx(ctx, db, func(tx *sql.Tx) error { return apply(ctx, tx) }); err != nil {
+			return fmt.Errorf("catch up: event %s: %w", e.ID, err)
+		}
+		p.print(received{env, payload}, false)
+	}
+	return nil
 }
 
 // printer writes one line per event, except that runs of boring events share

@@ -14,8 +14,11 @@
 //   - every time, it replaces the inventory table with /inventory (planets,
 //     moons and belts), and the blueprints table with /blueprints.
 //
-// Then, until interrupted, it records each event in the events table and
-// prints it. It doesn't apply events to the rest of the store yet.
+// With -catchup EVENT, it then applies every recorded event of that type
+// again, oldest first (see catchUp).
+//
+// Then, until interrupted, it records each event in the events table,
+// applies the ones it handles (apply.go) and prints it.
 package main
 
 import (
@@ -38,6 +41,7 @@ func main() {
 	path := flag.String("db", store.DefaultPath(), "database file")
 	nStars := flag.Int("stars", 60, "how many of the nearest stars to fetch")
 	since := flag.String("since", "", "replay events after this event ID (default: after the last one recorded)")
+	catchup := flag.String("catchup", "", "on startup, apply every recorded event of this type again (e.g. prospect.completed)")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -66,9 +70,15 @@ func main() {
 	if err := readBlueprints(ctx, db); err != nil {
 		log.Fatal(err)
 	}
+	p := &printer{w: os.Stdout}
+	if *catchup != "" {
+		if err := catchUp(ctx, db, *catchup, p); err != nil {
+			log.Fatal(err)
+		}
+	}
 	log.Print("startup done")
 
-	err = recordAll(ctx, db, events, &printer{w: os.Stdout}, replaying)
+	err = recordAll(ctx, db, events, p, replaying)
 	if ctx.Err() == nil {
 		log.Fatal(err)
 	}

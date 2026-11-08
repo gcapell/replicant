@@ -139,6 +139,16 @@ func Stars(ctx context.Context, replicantID string, perPage int) (*model.Stars, 
 	return Get(ctx, new(model.Stars), "/replicants/%s/stars?per_page=%d", replicantID, perPage)
 }
 
+// StarNear is one star as seen from a replicant
+// (/replicants/{code}/stars/{star}).
+func StarNear(ctx context.Context, replicantID, star string) (*model.Star, error) {
+	r, err := Get(ctx, new(model.StarNear), "/replicants/%s/stars/%s", replicantID, star)
+	if err != nil {
+		return nil, err
+	}
+	return &r.Star, nil
+}
+
 func User(ctx context.Context) (*model.User, error) {
 	return Get(ctx, new(model.User), "/accounts/me")
 }

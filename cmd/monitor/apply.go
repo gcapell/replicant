@@ -11,27 +11,41 @@ import (
 	"github.com/gcapell/replicant/store"
 )
 
-// handler applies one event to the store, inside the transaction that
-// records it.
-type handler func(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error
+// handler works out what an event changes. It may read the store and call
+// the API, but mustn't write: it returns the change, which recordAndApply
+// makes in the transaction that records the event. So everything an event
+// needs is fetched before that transaction begins.
+type handler func(ctx context.Context, db store.Reader, env api.Envelope, payload any) (change, error)
+
+// change applies an event to the store, inside the transaction that records it.
+type change func(ctx context.Context, tx *sql.Tx) error
+
+// direct is a handler for an event that needs nothing but itself.
+func direct(apply func(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error) handler {
+	return func(_ context.Context, _ store.Reader, env api.Envelope, payload any) (change, error) {
+		return func(ctx context.Context, tx *sql.Tx) error { return apply(ctx, tx, env, payload) }, nil
+	}
+}
 
 // handlers are the events we apply. Every other event is recorded but not
 // applied (for now).
 var handlers = map[string]handler{
-	"travel.departed": departed,
-	"travel.arrived":  arrived,
+	"travel.departed": direct(departed),
+	"travel.arrived":  direct(arrived),
 	"print.completed": printed,
-	"device.attached": attached,
-	"device.detached": detached,
+	"device.attached": direct(attached),
+	"device.detached": direct(detached),
 
-	"ami.mining.digest": miningDigest,
-	"ami.survey.digest": surveyDigest,
-	"ami.adopted":       adopted,
-	"ami.released":      released,
+	"ami.mining.digest": direct(miningDigest),
+	"ami.survey.digest": direct(surveyDigest),
+	"ami.adopted":       direct(adopted),
+	"ami.released":      direct(released),
 
 	"directive.set":       directive,
 	"directive.completed": directive,
 	"directive.cleared":   directive,
+
+	"prospect.completed": prospected,
 }
 
 // surveyDigest is miningDigest for an ami_survey_controller.
@@ -76,19 +90,21 @@ func released(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) er
 // the device's status becomes (coordinating, idle, ...), so it's fetched from
 // /devices/{code}: when replaying old events that's the status now, not then.
 // A device the API doesn't know, or of a different type, is an error.
-func directive(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
+func directive(ctx context.Context, _ store.Reader, env api.Envelope, _ any) (change, error) {
 	if env.DeviceCode == "" {
-		return fmt.Errorf("no device_code")
+		return nil, fmt.Errorf("no device_code")
 	}
 	d, err := fetchDevice(ctx, env.DeviceCode)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if d.DeviceCode != env.DeviceCode || d.DeviceType != env.DeviceType {
-		return fmt.Errorf("event is about %s %s, but /devices/%s is %s %s",
+		return nil, fmt.Errorf("event is about %s %s, but /devices/%s is %s %s",
 			env.DeviceType, env.DeviceCode, env.DeviceCode, d.DeviceType, d.DeviceCode)
 	}
-	return store.SetStatus(ctx, tx, d.DeviceCode, d.Status)
+	return func(ctx context.Context, tx *sql.Tx) error {
+		return store.SetStatus(ctx, tx, d.DeviceCode, d.Status)
+	}, nil
 }
 
 // miningDigest records the status of each device an ami_mining_controller
@@ -137,23 +153,23 @@ var fetchDevice = api.Device
 // describes it now (when replaying old events, that may be after it has moved
 // on). A device that the API doesn't know, or of a different type from the
 // one printed, is an error.
-func printed(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
+func printed(ctx context.Context, _ store.Reader, env api.Envelope, payload any) (change, error) {
 	p, ok := payload.(*model.PrintCompleted)
 	if !ok {
-		return fmt.Errorf("payload is %T", payload)
+		return nil, fmt.Errorf("payload is %T", payload)
 	}
 	if p.NewDeviceCode == "" {
-		return fmt.Errorf("no new_device_code")
+		return nil, fmt.Errorf("no new_device_code")
 	}
 	d, err := fetchDevice(ctx, p.NewDeviceCode)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if d.DeviceCode != p.NewDeviceCode || d.DeviceType != p.DeviceType {
-		return fmt.Errorf("printed a %s %s, but /devices/%s is a %s %s",
+		return nil, fmt.Errorf("printed a %s %s, but /devices/%s is a %s %s",
 			p.DeviceType, p.NewDeviceCode, p.NewDeviceCode, d.DeviceType, d.DeviceCode)
 	}
-	return store.PutDevice(ctx, tx, *d)
+	return func(ctx context.Context, tx *sql.Tx) error { return store.PutDevice(ctx, tx, *d) }, nil
 }
 
 func departed(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
