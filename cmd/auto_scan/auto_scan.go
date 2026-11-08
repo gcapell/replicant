@@ -1,7 +1,8 @@
 // auto_scan plans how survey teams will scan the planets and moons of every
 // system that has an active ftl_relay. A survey team is a transport (with
 // surge and attach) carrying one ami_survey_controller and at least three
-// survey_drones that it controls.
+// survey_drones. Drones the controller doesn't control are adopted by it
+// (with -n they are only reported).
 //
 // It checks each team, finds the systems with unscanned planets or moons,
 // spreads them among the teams (balancing the work), and prints each team's
@@ -48,7 +49,7 @@ func main() {
 }
 
 func run(ctx context.Context, transports []string, dryRun bool) error {
-	teams, err := validateTeams(ctx, transports)
+	teams, err := validateTeams(ctx, transports, dryRun)
 	if err != nil {
 		return err
 	}
@@ -70,7 +71,7 @@ func run(ctx context.Context, transports []string, dryRun bool) error {
 }
 
 // validateTeams checks every transport and reports all the problems at once.
-func validateTeams(ctx context.Context, transports []string) ([]team, error) {
+func validateTeams(ctx context.Context, transports []string, dryRun bool) ([]team, error) {
 	var (
 		teams []team
 		errs  []error
@@ -82,7 +83,7 @@ func validateTeams(ctx context.Context, transports []string) ([]team, error) {
 			continue
 		}
 		seen[id] = true
-		t, err := validateTeam(ctx, id)
+		t, err := validateTeam(ctx, id, dryRun)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -93,7 +94,9 @@ func validateTeams(ctx context.Context, transports []string) ([]team, error) {
 	return teams, errors.Join(errs...)
 }
 
-func validateTeam(ctx context.Context, id string) (team, error) {
+// validateTeam checks a transport and its crew. Drones its controller doesn't
+// control are adopted by it (or, with dryRun, just reported).
+func validateTeam(ctx context.Context, id string, dryRun bool) (team, error) {
 	tr, err := api.Device(ctx, id)
 	if err != nil {
 		return team{}, fmt.Errorf("%s: %w", id, err)
@@ -102,17 +105,46 @@ func validateTeam(ctx context.Context, id string) (team, error) {
 	if err != nil {
 		return team{}, err
 	}
+	strays, err := uncontrolled(ctx, t)
+	if err != nil {
+		return team{}, err
+	}
+	if len(strays) == 0 {
+		return t, nil
+	}
+	if dryRun {
+		log.Printf("%s: would have %s adopt %s", id, t.Controller, strings.Join(strays, ", "))
+		return t, nil
+	}
+	log.Printf("%s: %s adopting %s", id, t.Controller, strings.Join(strays, ", "))
+	if err := api.AdoptDevice(ctx, t.Controller, strays...); err != nil {
+		return team{}, fmt.Errorf("%s: %s adopting %s: %w", id, t.Controller, strings.Join(strays, ", "), err)
+	}
+	strays, err = uncontrolled(ctx, t)
+	if err != nil {
+		return team{}, err
+	}
+	if len(strays) > 0 {
+		return team{}, fmt.Errorf("%s: %s still not controlled by %s after adopting", id, strings.Join(strays, ", "), t.Controller)
+	}
+	return t, nil
+}
+
+// uncontrolled returns the team's drones that its controller doesn't control,
+// logging who (if anyone) does.
+func uncontrolled(ctx context.Context, t team) ([]string, error) {
+	var strays []string
 	for _, d := range t.Drones {
 		drone, err := api.Device(ctx, d)
 		if err != nil {
-			return team{}, fmt.Errorf("%s: drone %s: %w", id, d, err)
+			return nil, fmt.Errorf("%s: drone %s: %w", t.Transport, d, err)
 		}
 		if drone.ControllerDeviceCode != t.Controller {
-			return team{}, fmt.Errorf("%s: drone %s is controlled by %q, not %s",
-				id, d, drone.ControllerDeviceCode, t.Controller)
+			log.Printf("%s: drone %s is controlled by %q, not %s", t.Transport, d, drone.ControllerDeviceCode, t.Controller)
+			strays = append(strays, d)
 		}
 	}
-	return t, nil
+	return strays, nil
 }
 
 // checkTransport checks what we can see from the transport itself: its
