@@ -105,8 +105,13 @@ CREATE INDEX inventory_by_star ON inventory (star);
 CREATE TABLE devices (
 	device_code TEXT PRIMARY KEY,
 	device_type TEXT NOT NULL,
+	features TEXT,                   -- comma-separated, e.g. surge,cruise,attach
+	can_carry INTEGER AS (           -- a heaven_vessel, or anything that can attach others
+		device_type = 'heaven_vessel' OR instr(',' || coalesce(features, '') || ',', ',attach,') > 0
+	) STORED,
 	owner TEXT,                      -- replicant_code
 	status TEXT NOT NULL,
+	status_before_travel TEXT,       -- while a non-carrier travels: its status when it left
 	location TEXT,
 	star TEXT AS (                   -- the part of location before the first '-'
 		CASE WHEN instr(location, '-') > 0

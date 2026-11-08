@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gcapell/replicant/model"
@@ -26,20 +27,22 @@ func PutDevice(ctx context.Context, ex Execer, d model.Device) error {
 		return fmt.Errorf("device %s: travel.final_arrives_at: %w", d.DeviceCode, err)
 	}
 	_, err = ex.ExecContext(ctx, `INSERT INTO devices
-		(device_code, device_type, owner, status, location,
+		(device_code, device_type, features, owner, status, location,
 		 attached_to, stowed_in, controller, destination, arrives_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (device_code) DO UPDATE SET
 			device_type = excluded.device_type,
+			features = excluded.features,
 			owner = excluded.owner,
 			status = excluded.status,
+			status_before_travel = NULL, -- not known from the API
 			location = excluded.location,
 			attached_to = excluded.attached_to,
 			stowed_in = excluded.stowed_in,
 			controller = excluded.controller,
 			destination = excluded.destination,
 			arrives_at = excluded.arrives_at`,
-		d.DeviceCode, d.DeviceType, null(d.ReplicantCode), d.Status, null(d.Location),
+		d.DeviceCode, d.DeviceType, null(strings.Join(d.Features, ",")), null(d.ReplicantCode), d.Status, null(d.Location),
 		null(d.AttachedToDeviceCode), null(d.StowedInDeviceCode), null(d.ControllerDeviceCode),
 		null(d.Travel.FinalDestination), arrives)
 	if err != nil {

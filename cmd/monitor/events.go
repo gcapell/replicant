@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"log"
@@ -66,27 +67,52 @@ func receive(ctx context.Context, stream streamFunc, since string, out chan<- re
 	}
 }
 
-// recordAll records each event from in in the events table, and prints it,
-// until in is closed. An event that's already recorded is an error, unless
-// replaying (we were asked to start from an earlier event), when it's printed
-// and marked "(already recorded)".
-func recordAll(ctx context.Context, db store.Queryer, in <-chan received, p *printer, replaying bool) error {
+// recordAll records each event from in in the events table, applies it to
+// the rest of the store if it's one we handle, and prints it, until in is
+// closed. Recording and applying share a transaction, so the events table
+// says exactly what has been applied. Any failure stops it.
+//
+// An event that's already recorded is an error, unless replaying (we were
+// asked to start from an earlier event), when it's printed, marked
+// "(already recorded)", and not applied again.
+func recordAll(ctx context.Context, db *sql.DB, in <-chan received, p *printer, replaying bool) error {
 	for r := range in {
-		e := r.env
-		_, recorded, err := store.RecordEvent(ctx, db, store.Event{
-			ID: e.ID, Version: e.Version, Category: e.Category, Name: e.Event, CreatedAt: e.CreatedAt,
-			DeviceCode: e.DeviceCode, DeviceType: e.DeviceType, ReplicantCode: e.ReplicantCode,
-			Star: e.Star, Location: e.Location, Payload: e.Payload,
-		})
+		recorded, err := recordAndApply(ctx, db, r)
 		if err != nil {
-			return err
+			return fmt.Errorf("event %s (%s): %w", r.env.ID, r.env.Event, err)
 		}
 		if !recorded && !replaying {
-			return fmt.Errorf("event %s (%s) is already recorded: the stream resent it", e.ID, e.Event)
+			return fmt.Errorf("event %s (%s) is already recorded: the stream resent it", r.env.ID, r.env.Event)
 		}
 		p.print(r, !recorded)
 	}
 	return ctx.Err()
+}
+
+func recordAndApply(ctx context.Context, db *sql.DB, r received) (recorded bool, err error) {
+	e := r.env
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	_, recorded, err = store.RecordEvent(ctx, tx, store.Event{
+		ID: e.ID, Version: e.Version, Category: e.Category, Name: e.Event, CreatedAt: e.CreatedAt,
+		DeviceCode: e.DeviceCode, DeviceType: e.DeviceType, ReplicantCode: e.ReplicantCode,
+		Star: e.Star, Location: e.Location, Payload: e.Payload,
+	})
+	if err != nil || !recorded {
+		return false, err
+	}
+	if h, ok := handlers[e.Event]; ok {
+		if r.payload == nil {
+			return false, fmt.Errorf("payload wouldn't decode: %s", e.Payload)
+		}
+		if err := h(ctx, tx, e, r.payload); err != nil {
+			return false, err
+		}
+	}
+	return true, tx.Commit()
 }
 
 // printer writes one line per event, except that runs of boring events share

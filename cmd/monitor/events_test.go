@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"slices"
@@ -56,7 +57,7 @@ func TestReceiveReconnectsAfterLastEvent(t *testing.T) {
 	}
 }
 
-func openStore(t *testing.T) store.Queryer {
+func openStore(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := store.Open(t.Context(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
@@ -82,6 +83,9 @@ func TestRecordAll(t *testing.T) {
 	arrived.DeviceCode, arrived.DeviceType, arrived.Location = "7DA60868", "cargo_freighter", "ULRDUNAS-2"
 	arrived.Payload = []byte(`{"destination":"ULRDUNAS-2"}`)
 
+	if err := store.PutDevice(ctx, db, model.Device{DeviceCode: "7DA60868", DeviceType: "cargo_freighter", Status: "travelling"}); err != nil {
+		t.Fatal(err)
+	}
 	var out strings.Builder
 	err := recordAll(ctx, db, feed(
 		received{ev("100-0", "ami.survey.digest"), &model.SurveyDigest{}},

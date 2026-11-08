@@ -624,22 +624,24 @@ type TransportDelivered struct {
 // --- travel ---
 
 type TravelDeparted struct {
-	ArrivesAt         string
+	ArrivesAt         string // seen on single-leg trips; may be missing on multi-leg ones
 	Origin            string
-	Destination       string
+	Destination       string // the trip's final destination
 	TravelTimeSeconds float64
 	TravelType        string
 	Legs              []TravelLeg
+	AttachedDevices   []string // devices carried along
 }
 type TravelLeg struct {
 	To   string
 	Type string
 }
 type TravelArrived struct {
-	Destination string
-	Origin      string
-	Recalling   bool
-	TravelType  string
+	Destination     string // a bare star after a surge; the envelope's Location is exact
+	Origin          string
+	Recalling       bool
+	TravelType      string
+	AttachedDevices []string // devices carried along
 }
 type TravelCancelled struct {
 	TravelType        string
