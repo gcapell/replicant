@@ -10,7 +10,7 @@ import (
 )
 
 func at(name string, x, y float64) star {
-	return star{Name: name, Pos: model.Position{X: x, Y: y}, Explored: true}
+	return star{Name: name, Pos: model.Position{X: x, Y: y}}
 }
 
 func xy(x, y float64) model.Position { return model.Position{X: x, Y: y} }
@@ -56,7 +56,7 @@ func TestDescribe(t *testing.T) {
 }
 
 func TestSplit(t *testing.T) {
-	stars := []model.Star{{Designation: "R"}, {Designation: "A"}}
+	stars := []star{{Name: "R"}, {Name: "A"}}
 	in := split(stars, map[string]bool{"R": true, "ELSEWHERE": true})
 	if len(in.mesh) != 1 || len(in.candidates) != 1 || !slices.Equal(in.offMap, []string{"ELSEWHERE"}) {
 		t.Errorf("split = %+v", in)
@@ -101,10 +101,7 @@ func TestStowedRelayCodes(t *testing.T) {
 	}
 }
 
-func TestToStarKeepsEntryPoint(t *testing.T) {
-	if got := toStar(model.Star{Designation: "CORBRENEUS", EntryPoint: "CORBRENEUS-5-L4"}); got.EntryPoint != "CORBRENEUS-5-L4" {
-		t.Errorf("toStar = %+v", got)
-	}
+func TestOort(t *testing.T) {
 	if got := oort("CORBRENEUS"); got != "CORBRENEUS-OORT" {
 		t.Errorf("oort = %q", got)
 	}

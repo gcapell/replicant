@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"sync"
 
 	"github.com/gcapell/replicant/api"
@@ -110,7 +111,7 @@ func plantAt(ctx context.Context, hub *api.Hub, vessel string, s star, relay str
 
 func oort(star string) string { return star + "-OORT" }
 
-// stowedRelayCodes returns the codes of the ftl_relays stowed in v.
+// stowedRelayCodes returns the codes of the ftl_relays stowed in v, sorted.
 func stowedRelayCodes(v *model.Device) []string {
 	var codes []string
 	for _, d := range v.StowedDevices {
@@ -118,5 +119,6 @@ func stowedRelayCodes(v *model.Device) []string {
 			codes = append(codes, d.DeviceCode)
 		}
 	}
+	slices.Sort(codes)
 	return codes
 }

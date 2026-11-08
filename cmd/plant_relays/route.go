@@ -15,7 +15,6 @@ const reach = 7.5
 type star struct {
 	Name       string
 	Pos        model.Position
-	Explored   bool
 	EntryPoint string // "" if we don't know it yet
 }
 

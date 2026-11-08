@@ -1,6 +1,11 @@
 // plant_relays plants ftl_relays at every star we can connect to the relay
 // mesh, using every idle heaven_vessel that carries a replicant.
 //
+// It plans entirely from the store, so -n never calls the API. The stars
+// considered are every star in the store; one with no entry_point counts as
+// unscanned. Before a real run it checks the plan's vessels, relays and the
+// mesh against the API, and stops if anything differs. See README.md.
+//
 // A star can join the mesh if it's within 7.5 ly of a star with a relaying
 // ftl_relay, or of another star joining. Relays may be planted temporarily out
 // of range, so long as the finished mesh is connected.
@@ -20,7 +25,7 @@
 // don't know it), deploy a relay and activate it. A vessel stops at its first
 // failure; the others carry on. -n prints the plan only.
 //
-//	plant_relays [-n] [-stars 50]
+//	plant_relays [-n] [-db PATH]
 package main
 
 import (
@@ -33,16 +38,16 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gcapell/replicant/api"
 	"github.com/gcapell/replicant/auto"
 	"github.com/gcapell/replicant/model"
+	"github.com/gcapell/replicant/store"
 )
 
 func main() {
-	nStars := flag.Int("stars", 50, "how many nearby stars to consider")
 	dryRun := flag.Bool("n", false, "print the plan only")
+	dbPath := flag.String("db", store.DefaultPath(), "store path")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %s [-n] [-stars N]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "usage: %s [-n] [-db PATH]\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -50,75 +55,67 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := run(context.Background(), *nStars, *dryRun); err != nil {
+	if err := run(context.Background(), *dbPath, *dryRun); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(ctx context.Context, nStars int, dryRun bool) error {
-	devices, err := readyVessels(ctx)
+func run(ctx context.Context, dbPath string, dryRun bool) error {
+	db, err := store.OpenReadOnly(ctx, dbPath)
 	if err != nil {
 		return err
 	}
-	if len(devices) == 0 {
-		return fmt.Errorf("no idle heaven_vessels carrying a replicant")
-	}
-	relays, err := auto.Devices(ctx, "ftl_relay")
-	if err != nil {
-		return err
-	}
-	stars, err := api.Stars(ctx, devices[0].ReplicantCode, nStars)
+	w, err := load(ctx, db)
+	db.Close()
 	if err != nil {
 		return err
 	}
 
 	starPos := map[string]model.Position{}
-	for _, s := range stars.Stars {
-		starPos[s.Designation] = s.Position
+	for _, s := range w.stars {
+		starPos[s.Name] = s.Pos
 	}
 	position := func(star string) (model.Position, error) {
 		if p, ok := starPos[star]; ok {
 			return p, nil
 		}
-		loc, err := api.Location(ctx, star)
-		if err != nil {
-			return model.Position{}, fmt.Errorf("star %s: %w", star, err)
-		}
-		starPos[star] = loc.Star.Position
-		return loc.Star.Position, nil
+		return model.Position{}, fmt.Errorf("star %s isn't in the store", star)
 	}
 
+	devices := readyVessels(w.vessels)
+	if len(devices) == 0 {
+		return fmt.Errorf("no idle heaven_vessels carrying a replicant")
+	}
 	var vs []vessel
 	for _, d := range devices {
 		v := vessel{
 			Code: d.DeviceCode, Replicant: d.ReplicantCode, Loc: d.Location,
 			Relays: stowedRelayCodes(&d), Free: d.StowCapacity - d.StowUsed,
 		}
+		if v.Replicant == "" {
+			return fmt.Errorf("vessel %s has no owner in the store", v.Code)
+		}
 		if v.Pos, err = position(auto.StarOf(d.Location)); err != nil {
-			return err
+			return fmt.Errorf("vessel %s: %w", v.Code, err)
 		}
 		vs = append(vs, v)
 	}
 
-	in := split(stars.Stars, relayingStars(relays))
-	for _, name := range in.offMap {
-		p, err := position(name)
-		if err != nil {
-			return err
-		}
-		log.Printf("relay star %s isn't among the %d nearest stars; adding it to the mesh", name, nStars)
-		in.mesh = append(in.mesh, star{Name: name, Pos: p, Explored: true})
+	relayStars := relayingStars(w.relays)
+	in := split(w.stars, relayStars)
+	if len(in.offMap) > 0 {
+		return fmt.Errorf("relay stars not in the store: %v", in.offMap)
 	}
-	belts := availableBelts(relays)
+	belts := availableBelts(w.relays)
 	for i := range belts {
 		if belts[i].Pos, err = position(auto.StarOf(belts[i].Loc)); err != nil {
-			return err
+			return fmt.Errorf("relays at %s: %w", belts[i].Loc, err)
 		}
 	}
 
 	targets := connectable(in.mesh, in.candidates)
 	log.Printf("%d stars: %d relay stars, %d without a relay, %d of them connectable",
-		len(stars.Stars), len(in.mesh), len(in.candidates), len(targets))
+		len(w.stars), len(in.mesh), len(in.candidates), len(targets))
 
 	fs := planFetch(vs, belts, len(targets))
 	teams := make([]team, len(vs))
@@ -134,30 +131,24 @@ func run(ctx context.Context, nStars int, dryRun bool) error {
 	if dryRun {
 		return nil
 	}
+	if err := verify(ctx, teams, relayStars); err != nil {
+		return fmt.Errorf("the store doesn't match the API, so not starting:\n%w", err)
+	}
 	return runTeams(ctx, teams)
 }
 
-// readyVessels returns the idle heaven_vessels carrying a replicant, read
-// one by one for their full details.
-func readyVessels(ctx context.Context) ([]model.Device, error) {
-	list, err := auto.Devices(ctx, "heaven_vessel")
-	if err != nil {
-		return nil, err
-	}
+// readyVessels returns the idle heaven_vessels carrying a replicant.
+func readyVessels(all []model.Device) []model.Device {
 	var out []model.Device
-	for _, l := range list {
-		d, err := api.Device(ctx, l.DeviceCode)
-		if err != nil {
-			return nil, err
-		}
-		if !auto.ReadyReplicant(*d) {
-			log.Printf("skipping %s at %s (%s, no ready replicant)", d.DeviceCode, d.Location, d.Status)
+	for _, d := range all {
+		if !auto.ReadyReplicant(d) {
+			log.Printf("skipping %s at %q (%s, no ready replicant)", d.DeviceCode, d.Location, d.Status)
 			continue
 		}
-		out = append(out, *d)
+		out = append(out, d)
 	}
-	log.Printf("%d of %d heaven_vessels ready", len(out), len(list))
-	return out, nil
+	log.Printf("%d of %d heaven_vessels ready", len(out), len(all))
+	return out
 }
 
 // relayingStars returns the set of stars with a relaying (not stowed) ftl_relay.
@@ -196,16 +187,15 @@ type inputs struct {
 }
 
 // split divides stars into those with a relay and those without.
-func split(stars []model.Star, hasRelay map[string]bool) inputs {
+func split(stars []star, hasRelay map[string]bool) inputs {
 	var in inputs
 	seen := map[string]bool{}
 	for _, s := range stars {
-		st := toStar(s)
-		if hasRelay[s.Designation] {
-			in.mesh = append(in.mesh, st)
-			seen[s.Designation] = true
+		if hasRelay[s.Name] {
+			in.mesh = append(in.mesh, s)
+			seen[s.Name] = true
 		} else {
-			in.candidates = append(in.candidates, st)
+			in.candidates = append(in.candidates, s)
 		}
 	}
 	for name := range hasRelay {
@@ -215,10 +205,6 @@ func split(stars []model.Star, hasRelay map[string]bool) inputs {
 	}
 	slices.Sort(in.offMap)
 	return in
-}
-
-func toStar(s model.Star) star {
-	return star{Name: s.Designation, Pos: s.Position, Explored: s.Explored, EntryPoint: s.EntryPoint}
 }
 
 func printPlan(in inputs, teams []team, belts []belt, targets, planned, left []star) {
@@ -264,8 +250,8 @@ func printPlan(in inputs, teams []team, belts []belt, targets, planned, left []s
 		stops := describe(t.Start, t.Fetch.Dist, t.Route, mesh)
 		for i, s := range stops {
 			mark := ""
-			if !s.Explored {
-				mark = " (unexplored)"
+			if s.EntryPoint == "" {
+				mark = " (unscanned)"
 			}
 			fmt.Printf("%4d  %-20s %8.2f %8.2f  %-20s %6.2f%s\n", i+1, s.Name, s.Leg, s.Total, s.Via, s.ViaDist, mark)
 		}
