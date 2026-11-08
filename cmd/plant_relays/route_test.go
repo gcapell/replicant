@@ -1,5 +1,7 @@
 package main
 
+// Run with a dummy key, e.g. API_KEY=x go test ./cmd/plant_relays (api's init exits without one).
+
 import (
 	"slices"
 	"testing"
@@ -11,6 +13,8 @@ func at(name string, x, y float64) star {
 	return star{Name: name, Pos: model.Position{X: x, Y: y}, Explored: true}
 }
 
+func xy(x, y float64) model.Position { return model.Position{X: x, Y: y} }
+
 func names(route []star) []string {
 	var out []string
 	for _, s := range route {
@@ -19,79 +23,34 @@ func names(route []star) []string {
 	return out
 }
 
-func TestPlanChainsOutward(t *testing.T) {
-	// B is out of reach of R but within reach of A, so A must come first,
-	// even though the vessel starts nearer B.
-	relays := []star{at("R", 0, 0)}
-	cands := []star{at("B", 12, 0), at("A", 6, 0), at("FAR", 40, 0)}
-	route := plan(model.Position{X: 13}, relays, cands, 10)
-	if got, want := names(route), []string{"A", "B"}; !slices.Equal(got, want) {
-		t.Errorf("route = %v, want %v", got, want)
-	}
-	if !valid(route, relays) {
-		t.Error("route not valid")
-	}
-	if got := unreachable(route, cands); len(got) != 1 || got[0].Name != "FAR" {
-		t.Errorf("unreachable = %v, want [FAR]", names(got))
+func TestConnectableChainsOutward(t *testing.T) {
+	// B is only in reach via A; FAR is out of reach of everything.
+	mesh := []star{at("R", 0, 0)}
+	cands := []star{at("B", 12, 0), at("FAR", 40, 0), at("A", 6, 0)}
+	if got, want := names(connectable(mesh, cands)), []string{"A", "B"}; !slices.Equal(got, want) {
+		t.Errorf("connectable = %v, want %v", got, want)
 	}
 }
 
-func TestPlanRespectsLimit(t *testing.T) {
-	relays := []star{at("R", 0, 0)}
-	cands := []star{at("A", 1, 0), at("B", 2, 0), at("C", 3, 0)}
-	if got := plan(model.Position{}, relays, cands, 2); len(got) != 2 {
-		t.Errorf("got %v, want 2 stops", names(got))
+func TestConnectableGrowsNearestFirst(t *testing.T) {
+	mesh := []star{at("R", 0, 0)}
+	cands := []star{at("A", 5, 0), at("B", -1, 0), at("C", 9, 0)}
+	// B (1 from R), then A (5 from R), then C (4 from A).
+	if got, want := names(connectable(mesh, cands)), []string{"B", "A", "C"}; !slices.Equal(got, want) {
+		t.Errorf("connectable = %v, want %v", got, want)
 	}
 }
 
 func TestReachIsStrict(t *testing.T) {
-	relays := []star{at("R", 0, 0)}
-	if got := plan(model.Position{}, relays, []star{at("EDGE", reach, 0)}, 5); len(got) != 0 {
+	if got := connectable([]star{at("R", 0, 0)}, []star{at("EDGE", reach, 0)}); len(got) != 0 {
 		t.Errorf("got %v, want nothing at exactly %v ly", names(got), reach)
 	}
 }
 
-func TestTwoOptImproves(t *testing.T) {
-	// A zig-zagging route that 2-opt should straighten out.
-	relays := []star{at("R", 0, 0)}
-	start := model.Position{}
-	route := []star{at("A", 1, 0), at("B", -1, 0), at("C", 2, 0), at("D", -2, 0)}
-	before := length(start, route)
-	got := twoOpt(start, slices.Clone(route), relays)
-	if after := length(start, got); after >= before {
-		t.Errorf("2-opt didn't improve: %v (%.2f) -> %v (%.2f)", names(route), before, names(got), after)
-	}
-	if !valid(got, relays) {
-		t.Error("2-opt produced invalid route")
-	}
-}
-
-func TestTwoOptKeepsValidity(t *testing.T) {
-	// Reversing A,B would be shorter from the start at 13, but B needs A.
-	relays := []star{at("R", 0, 0)}
-	got := twoOpt(model.Position{X: 13}, []star{at("A", 6, 0), at("B", 12, 0)}, relays)
-	if want := []string{"A", "B"}; !slices.Equal(names(got), want) {
-		t.Errorf("got %v, want %v", names(got), want)
-	}
-}
-
-func TestPlanInTwo(t *testing.T) {
-	relays := []star{at("R", 0, 0)}
-	cands := []star{at("A", 2, 0), at("B", 4, 0), at("C", 9, 0), at("D", -3, 0)}
-	route := planInTwo(model.Position{}, relays, cands, 2)
-	if len(route) != 4 || !valid(route, relays) {
-		t.Fatalf("route = %v", names(route))
-	}
-	// The first two are the best two-stop route on their own.
-	if got := names(route[:2]); !slices.Equal(got, names(plan(model.Position{}, relays, cands, 2))) {
-		t.Errorf("first part = %v", got)
-	}
-}
-
 func TestDescribe(t *testing.T) {
-	relays := []star{at("R", 0, 0)}
-	stops := describe(model.Position{}, []star{at("A", 6, 0), at("B", 12, 0)}, relays)
-	if stops[1].Via != "A" || stops[1].ViaDist != 6 || stops[1].Total != 12 {
+	mesh := []star{at("R", 0, 0), at("A", 6, 0), at("B", 12, 0)}
+	stops := describe(xy(0, 0), 3, []star{at("A", 6, 0), at("B", 12, 0)}, mesh)
+	if stops[1].Via != "A" || stops[1].ViaDist != 6 || stops[1].Total != 15 {
 		t.Errorf("stop 2 = %+v", stops[1])
 	}
 }
@@ -99,26 +58,42 @@ func TestDescribe(t *testing.T) {
 func TestSplit(t *testing.T) {
 	stars := []model.Star{{Designation: "R"}, {Designation: "A"}}
 	in := split(stars, map[string]bool{"R": true, "ELSEWHERE": true})
-	if len(in.relays) != 1 || len(in.candidates) != 1 || !slices.Equal(in.offMap, []string{"ELSEWHERE"}) {
+	if len(in.mesh) != 1 || len(in.candidates) != 1 || !slices.Equal(in.offMap, []string{"ELSEWHERE"}) {
 		t.Errorf("split = %+v", in)
 	}
 }
 
-func TestRelayStarsSkipsStowed(t *testing.T) {
-	got := relayStars([]model.Device{
-		{Location: "MIRETH-4-L4"},
-		{Location: "SOL-3-L5", StowedInDeviceCode: "V1"},
-		{Location: ""},
+func TestRelayingStars(t *testing.T) {
+	got := relayingStars([]model.Device{
+		{Location: "MIRETH-4-L4", Status: "relaying"},
+		{Location: "SOL-3-L5", Status: "relaying", StowedInDeviceCode: "V1"},
+		{Location: "ZETA-BELT-1", Status: "idle"},
+		{Location: "OMEGA-2-L4", Status: "inactive"},
 	})
 	if len(got) != 1 || !got["MIRETH"] {
-		t.Errorf("relayStars = %v", got)
+		t.Errorf("relayingStars = %v", got)
+	}
+}
+
+func TestAvailableBelts(t *testing.T) {
+	got := availableBelts([]model.Device{
+		{DeviceCode: "R2", Location: "ZETA-BELT-1", Status: "idle", ReplicantCode: "X"},
+		{DeviceCode: "R1", Location: "ZETA-BELT-1", Status: "idle", ReplicantCode: "Y"},
+		{DeviceCode: "R3", Location: "ALPHA-BELT-2", Status: "idle"},
+		{DeviceCode: "S", Location: "ALPHA-BELT-2", Status: "idle", StowedInDeviceCode: "V"},
+		{DeviceCode: "L", Location: "MIRETH-4-L4", Status: "relaying"},
+		{DeviceCode: "P", Location: "MIRETH-4", Status: "idle"},
+	})
+	if len(got) != 2 || got[0].Loc != "ALPHA-BELT-2" || len(got[0].Relays) != 1 ||
+		got[1].Loc != "ZETA-BELT-1" || !slices.Equal(got[1].Relays, []relay{{"R1", "Y"}, {"R2", "X"}}) {
+		t.Errorf("availableBelts = %+v", got)
 	}
 }
 
 func TestStowedRelayCodes(t *testing.T) {
 	v := &model.Device{StowedDevices: []model.StowedDevice{
 		{DeviceCode: "R1", DeviceType: "ftl_relay"},
-		{DeviceCode: "M1", DeviceType: "mining_drone"},
+		{DeviceCode: "M1", DeviceType: "replicant_matrix"},
 		{DeviceCode: "R2", DeviceType: "ftl_relay"},
 	}}
 	if got := stowedRelayCodes(v); !slices.Equal(got, []string{"R1", "R2"}) {

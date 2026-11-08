@@ -2,27 +2,60 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/gcapell/replicant/api"
 	"github.com/gcapell/replicant/auto"
 	"github.com/gcapell/replicant/model"
 )
 
-// plantAll follows route, planting one of relays (codes of stowed ftl_relays)
-// at each stop, until it runs out of relays or stops. It exits at the first
-// failure.
-func plantAll(ctx context.Context, vessel string, route []star, relays []string) error {
+// runTeams runs every team with a route at once. A team stops at its first
+// failure; the others carry on.
+func runTeams(ctx context.Context, teams []team) error {
 	hub := api.NewHub(ctx)
-	n := min(len(route), len(relays))
-	for i, s := range route[:n] {
-		log.Printf("=== stop %d/%d: %s", i+1, n, s.Name)
-		if err := plantAt(ctx, hub, vessel, s, relays[i]); err != nil {
+	errs := make([]error, len(teams))
+	var wg sync.WaitGroup
+	for i, t := range teams {
+		if len(t.Route) == 0 {
+			continue
+		}
+		wg.Go(func() {
+			if err := runTeam(ctx, hub, t); err != nil {
+				errs[i] = fmt.Errorf("%s: %w", t.Vessel.Code, err)
+				log.Printf("%s stopped: %v", t.Vessel.Code, err)
+			}
+		})
+	}
+	wg.Wait()
+	return errors.Join(errs...)
+}
+
+// runTeam fetches the team's relays (if it needs to), then plants one at
+// each star on its route.
+func runTeam(ctx context.Context, hub *api.Hub, t team) error {
+	v := t.Vessel
+	if f := t.Fetch; f.Loc != "" {
+		log.Printf("%s fetching %d relay(s) from %s", v.Code, len(f.Relays), f.Loc)
+		if err := auto.GoTo(ctx, hub, v.Code, f.Loc); err != nil {
+			return err
+		}
+		for i, r := range f.Relays {
+			if err := auto.StowInto(ctx, r.Code, r.Owner, v.Code, v.Replicant); err != nil {
+				return fmt.Errorf("fetching from %s (%d/%d stowed): %w", f.Loc, i, len(f.Relays), err)
+			}
+		}
+	}
+	n := len(t.Route)
+	for i, s := range t.Route {
+		log.Printf("=== %s stop %d/%d: %s", v.Code, i+1, n, s.Name)
+		if err := plantAt(ctx, hub, v.Code, s, t.Relays[i]); err != nil {
 			return fmt.Errorf("stop %d/%d %s: %w", i+1, n, s.Name, err)
 		}
 	}
-	log.Printf("planted %d relay(s)", n)
+	log.Printf("%s planted %d relay(s)", v.Code, n)
 	return nil
 }
 

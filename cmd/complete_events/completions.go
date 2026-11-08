@@ -101,24 +101,12 @@ func idleVessels(ctx context.Context) ([]vessel, error) {
 	}
 	var vs []vessel
 	for _, d := range ds {
-		if hasReplicant(d) {
+		if auto.ReadyReplicant(d) {
 			vs = append(vs, vessel{Code: d.DeviceCode, At: place{Loc: d.Location}})
 		}
 	}
 	log.Printf("%d idle heaven_vessels with a replicant (of %d)", len(vs), len(ds))
 	return vs, nil
-}
-
-func hasReplicant(d model.Device) bool {
-	if d.Status != "idle" || d.AttachedToDeviceCode != "" || d.StowedInDeviceCode != "" {
-		return false
-	}
-	for _, s := range d.StowedDevices {
-		if s.DeviceType == "replicant_matrix" {
-			return true
-		}
-	}
-	return false
 }
 
 // completeAll runs every vessel's route at once. A vessel whose travel

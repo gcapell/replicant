@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"os"
 	"slices"
 	"strings"
 
@@ -23,10 +24,20 @@ func sortedMap[K cmp.Ordered, V any](m map[K]V) iter.Seq2[K, V] {
 	}
 }
 
+// Usage: summarize_devices [device_type]
 func main() {
 	ctx := context.Background()
+	path := "/devices"
+	switch len(os.Args) {
+	case 1:
+	case 2:
+		path += "?device_type=" + os.Args[1]
+	default:
+		fmt.Fprintln(os.Stderr, "usage: summarize_devices [device_type]")
+		os.Exit(2)
+	}
 	byType := make(map[string][]model.Device)
-	for list, err := range api.Paged[model.DeviceList](ctx, "/devices") {
+	for list, err := range api.Paged[model.DeviceList](ctx, path) {
 		if err != nil {
 			fmt.Println("Error:", err)
 			return

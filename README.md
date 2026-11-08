@@ -14,6 +14,7 @@ This file records how the code is put together and the conventions we've settled
 | `api/` | Thin HTTP client: one small function per endpoint or command, plus the SSE event hub. |
 | `model/` | Response structs (`model.go`, `device.go`) and SSE event payloads (`sse.go`). |
 | `auto/` | Shared higher-level helpers used by the commands (device listing, travel-and-wait, location tests). |
+| `store/` | The local SQLite database (see [The store](#the-store-store)). |
 | `cmd/<name>/` | One `main` package per tool. |
 | `ui/` | Angular dashboard (see [UI](#ui)). |
 
@@ -58,10 +59,11 @@ API_KEY=x go test -race ./...
 - **Device status** values include `idle`, `travelling`, and `inactive` (an FTL relay that isn't relaying).
 - **Moving devices:**
   - `stow` is sent to the *device being stowed*: `{"command":"stow","target":<host device>}`. It is immediate: no error means it worked.
-  - `change_owner` is sent to the device: `{"command":"change_owner","target":<replicant_code>}`. Both replicants must be on the same account.
+  - `change_owner` is sent to the device: `{"command":"change_owner","target":<replicant_code>}`. Both replicants must be on the same account. A device must belong to a vessel's replicant before it can be stowed in that vessel.
   - `deploy` is sent to the *stowed device*, with no arguments (as the UI's deploy button does). It's immediate: fetch the device straight afterwards and its `location` is the host's.
   - `activate` is sent to the deployed ftl_relay and takes effect at once: its status should be `relaying` straight afterwards.
   - `attach` and `detach` are sent to the carrier with `targets: [...]`. The two devices must be at the same location.
+- **FTL relays** are normally either `relaying` at an `-L4` point, `idle` at a `-BELT-` location where they were just made (the spares), or stowed in a heaven_vessel. Only `relaying` ones count towards the mesh. heaven_vessels can travel outside the mesh.
 - **Travel and cargo:**
   - `travel` takes just a `destination`. Surge-capable devices (e.g. cargo_freighter) work out their own route.
   - `collect_resources` and `deposit_resources` are synchronous; we still look for the confirming event (see the hub section).
@@ -141,6 +143,8 @@ How the hub behaves:
 - `auto.ShortRoute(start, points, pos)`: a short open path through points (nearest neighbour, then 2-opt), with `auto.RouteLength`.
 - Device listing helpers: `auto.Devices(ctx, type)`, `auto.Everything(ctx, loc)` (all types), `auto.DevicesInSystem(ctx, star, type)` and `auto.DevicesAt(ctx, loc, type)`.
 - `auto.RelayStars(ctx)`: the stars with a `relaying` (not stowed) ftl_relay.
+- `auto.StowInto(ctx, device, owner, host, hostReplicant)`: `change_owner` to the host's replicant if needed, then `stow`. Any device stowed in a heaven_vessel must belong to its replicant first.
+- `auto.ReadyReplicant(d)`: an idle, unattached, unstowed heaven_vessel carrying a `replicant_matrix`.
 
 ### Splitting work among devices (`auto/spread.go`)
 
@@ -152,6 +156,24 @@ These are generic over the item type, taking a position function as `ShortRoute`
 - `auto.Order(start, group, pos)`: the nearest item first, then `ShortRoute`.
 - `auto.DistToSet(p, set, pos)`.
 
+## The store (`store/`)
+
+A SQLite database (`modernc.org/sqlite`, pure Go) at `~/.replicant/replicant.db` (`store.DefaultPath()`), where we remember what we've learnt from the API so we don't have to ask again. Several commands use it at once, so `store.Open` sets `busy_timeout`, WAL and `_txlock=immediate` (transactions take the write lock when they begin).
+
+- **The schema is `store/schema.sql`.** To change it, edit the file. `store.Open` runs it in an empty in-memory database, compares that with the real one's `sqlite_master`, and makes them match (`store.Migrate`), in one `BEGIN IMMEDIATE` transaction:
+  - a new table is created;
+  - a table whose `CREATE` differs (ignoring comments and whitespace) is rebuilt: a new table is created, the shared columns are copied across, the old table is dropped and the new one renamed;
+  - indexes, views and triggers that differ are dropped and recreated.
+- **Dropping a table or column loses data**, so `Open` refuses to. Run `go run ./cmd/migrate_db -allow-drops` to allow it.
+- **Renaming** a table or column looks like a drop plus an add, so its data is lost.
+- **A new `NOT NULL` column needs a `DEFAULT`**, or rebuilding a table with rows fails (and the migration changes nothing).
+- Tables are `STRICT`: a value that can't be converted losslessly to a column's type is an error. Booleans are `INTEGER` 0/1. Times are `INTEGER` Unix milliseconds (`time.UnixMilli`); read one with `datetime(t / 1000.0, 'unixepoch', 'subsec')`.
+- **`events`** records every event received from the stream: the envelope's fields as columns, and `payload` as JSON. An event should be recorded in the same transaction that applies it, so the last row (highest `seq`) is where to resume the stream. Event IDs (`1794115235797-0`) don't sort as text, which is why there's `seq`. There are no per-row timestamps elsewhere.
+- **`stars`:** position, `entry_point`, and the planet and moon counts (NULL until the system is scanned). `is_fully_scanned` is generated (`STORED`) from the counts.
+- **`devices`:** `owner` is the replicant code. `raw` holds the whole `/devices` response as JSON, so `json_extract` reaches fields we haven't given a column. `star` is a generated `STORED` column (the part of `location` before the first `-`; NULL if `location` is).
+- **`relay_stars`** (a view): stars with a `relaying` ftl_relay, worked out from `devices`.
+- Nothing writes to the store yet.
+
 ## Commands
 
 | Command | Does |
@@ -160,12 +182,13 @@ These are generic over the item type, taking a position function as `ShortRoute`
 | `auto_salvage` | Detaches the miners, AMI controller and any maintenance_drones from transport `E62C8DC1` and puts the maintenance drones on `patrol`. Salvages every site at the star (not belts or `-OBJ-`, and never at SOL), then clears the maintenance drones' directive, brings everything back to the transport and re-attaches it, moves to the star with the most resource sites and repeats. Maintenance drones are remembered only for the current run, so after a crash, reattach them by hand. |
 | `auto_ferry STAR FREIGHTER DEST` | One freighter: fill from STAR's planets and moons, deliver to DEST, repeat until the star is empty. |
 | `slurp [-replicant ID]` | All idle (and, once arrived, travelling) cargo_freighters greedily move resources from planets and moons to the nearest belt already holding more than 1000. A ledger of claims (inventory re-read on each decision, minus outstanding claims) stops two freighters going for the same stockpile. Exits when nothing is left to claim. |
-| `collect_ftl_relays VESSEL` | Stows the `inactive` ftl_relays at a heaven_vessel's exact location into it, changing their owner to the vessel's replicant first. Exits on the first failure. |
-| `plant_relays [-n] [-stars 50] VESSEL` | Checks the heaven_vessel is idle and carrying ftl_relays, then plans a route through the nearest stars without a relay. Each stop must be under 7.5 ly from a relay star: an existing one (active or inactive) or one planted earlier on the route. It picks the nearest reachable star each time, then shortens the order with 2-opt moves that keep that rule. The first N stops (N = relays on board) are planned on their own; the rest continue from there, and stars out of reach are listed with their nearest relay star. It then follows the plan for as many stops as it has relays. At each stop it goes to the entry point (or, if that isn't known yet, to `STAR-OORT` and runs a `system_scan` first), deploys a relay and checks it's at the entry point, then activates it and checks it's `relaying`. It exits at the first failure. `-n` prints the plan only. |
+| `collect_ftl_relays VESSEL` | Stows the `inactive` ftl_relays at a heaven_vessel's exact location into it (`auto.StowInto`, which changes their owner to the vessel's replicant first). Exits on the first failure. |
+| `plant_relays [-n] [-stars 50]` | Plants ftl_relays at every star among the nearest 50 (to the first vessel's replicant) that can join the relay mesh, using every idle heaven_vessel carrying a `replicant_matrix` (`auto.ReadyReplicant`; each read with `/devices/{code}`). The mesh is the stars with a `relaying` relay; a star can join if it's under 7.5 ly from a mesh star or another joining star (`connectable`, in growth order, so a prefix is still connected). Relays may be planted temporarily out of range, as long as the finished mesh is connected. **Phase 1 (`fetch.go`):** spare relays are the unstowed, non-relaying ones at `-BELT-` locations. Each vessel either stays or goes to one of its 4 nearest belts, and takes every relay there it has room for (`stow_capacity - stow_used`; vessels sharing a belt split it). All combinations are tried, preferring, in order: the fewest relays short, the fewest vessels left with none, the shortest longest trip to a belt, the shortest total. If still short, only the first N connectable stars are planned. **Phase 2 (`divide.go`):** one seed star per vessel holding relays (`auto.Seeds`), each seed given a vessel (`auto.Assign`, from where the vessel will be after fetching), then the vessel with the cheapest trip so far (fetch distance plus `auto.Order` route) that still has a spare relay takes the unclaimed star nearest its stars. `-n` prints the plan. Otherwise all vessels run at once: go to the belt, `auto.StowInto` each relay, then at each star go to the entry point (or `STAR-OORT` and `system_scan` first if it isn't known), deploy and check it's at the entry point, activate and check it's `relaying`. A vessel stops at its first failure; the others carry on. Spare relays stay on board. |
 | `gaze [-n] [-stars 50]` | Cycles the galactic_observatories: compact, attach to a surge transport, travel to the next relay star's entry point (the star's `entry_point`, not wherever its `relaying` ftl_relay sits) (nearest the centre of relay stars first, skipping those listed in `$HOME/observed_from.txt`), detach, unfurl, and prospect pointing outward from the centre. It does the short steps, starts the next long one (compact, unfurl, prospect) and exits, so run it again later. `-n` prints the plan only. Spec in `cmd/gaze/README.md`. |
 | `complete_events [-n]` | Plans and does everything for location events (`/accounts/events`). **Rule: we never complete an event at a location without an `ftl_beacon`.** For each event it picks an option: a satisfied one (everything there), else the first whose missing devices we have spare (counting beacons first, and taking each choice off the spare count), else the first (FIXME: resources don't affect the choice). **Resources:** it works out what's missing (`required - current`) and looks for the nearest relay star whose planets, moons and belts (not event locations) hold all of it, using stock from `api.InventoryAt(ctx, "")`. Events are taken greedily, nearest source first, and each claim comes off the stock. Each sourced event gets at most one `idle` cargo_freighter, covering as many events as possible while keeping the longest freighter-to-source distance short. A freighter collects what fits (first unloading cargo that isn't for this delivery, if it needs the room), deposits just that at the event (`DepositResources`), and repeats until done. A stockpile that has shrunk is delivered short. **Devices:** each event without a beacon needs one, plus its option's missing devices. Spares are ftl_beacons at a `-BELT-` location, or other `idle` devices; neither may be attached, stowed, at an event location or at `-OBJ-`. Idle surge_carrier/platform/plate devices with free `attach_capacity` carry them, each device counting as 1. The planner (`devices.go`) is a pickup-and-delivery heuristic: each job considers its 4 nearest spares, and jobs are inserted greedily (furthest first) and then relocated. It aims for the earliest finish, then the least total travel. Cost is star distance plus 0.1 per move (FIXME: calibrate). At each stop a carrier detaches, then attaches only devices that are still free there, and checks `attached_devices` after each step. **Completions:** ready events (option satisfied, beacon present) are split among idle heaven_vessels carrying a `replicant_matrix`. It takes N = min(vessels, events) seeds with `auto.Seeds`, every other event joins its nearest seed, each group gets a vessel via `auto.Assign`, and each route follows `auto.Order`. A vessel travels to each event and POSTs the completion; a failed completion is logged and the vessel moves on. `-n` prints the three plans. Otherwise freighters, carriers and vessels all run at once, and a failed device stops while the others carry on. Events made ready by this run are completed by the next. |
+| `migrate_db [-db PATH] [-allow-drops]` | Brings the database into line with `store/schema.sql`. Every command that opens the store does this anyway; this is for `-allow-drops`. |
 | `star_map` | Writes and opens an interactive 3D Plotly map of the nearest stars, centred on the mean of the explored ones. |
-| `summarize_devices` | Devices by type, then by star, with status counts: `"OTHYONAL" monitoring(3)`. |
+| `summarize_devices [DEVICE_TYPE]` | Devices by type (or just DEVICE_TYPE, e.g. `heaven_vessel`), then by star, with status counts: `"OTHYONAL" monitoring(3)`. |
 | `stars`, `observatory_plan`, `sse_demo`, `sqlite_demo` | Older experiments and demos. |
 
 Don't run `slurp` and `auto_ferry` on the same freighter at once.

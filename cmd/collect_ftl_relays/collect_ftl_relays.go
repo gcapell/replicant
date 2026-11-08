@@ -54,7 +54,7 @@ func run(ctx context.Context, vesselID string) error {
 			log.Printf("%s hold is full", vesselID)
 			break
 		}
-		if err := collect(ctx, r, v); err != nil {
+		if err := auto.StowInto(ctx, r.DeviceCode, r.ReplicantCode, v.DeviceCode, v.ReplicantCode); err != nil {
 			return fmt.Errorf("%s: %w (stowed %d before this: %s)", r.DeviceCode, err, len(stowed), stowed)
 		}
 		// Stow is immediate: no error means it's in the hold.
@@ -64,21 +64,6 @@ func run(ctx context.Context, vesselID string) error {
 
 	log.Printf("stowed %d relay(s) %s; %d inactive relay(s) left at %s",
 		len(stowed), stowed, len(relays)-len(stowed), v.Location)
-	return nil
-}
-
-// collect transfers relay r to the vessel's replicant if needed, then stows it.
-func collect(ctx context.Context, r model.Device, v *model.Device) error {
-	if r.ReplicantCode != v.ReplicantCode {
-		if err := api.ChangeOwner(ctx, r.DeviceCode, v.ReplicantCode); err != nil {
-			return fmt.Errorf("change owner %s -> %s: %w", r.ReplicantCode, v.ReplicantCode, err)
-		}
-		log.Printf("%s now owned by %s (was %s)", r.DeviceCode, v.ReplicantCode, r.ReplicantCode)
-	}
-	if err := api.Stow(ctx, r.DeviceCode, v.DeviceCode); err != nil {
-		return fmt.Errorf("stow in %s: %w", v.DeviceCode, err)
-	}
-	log.Printf("stowed %s in %s", r.DeviceCode, v.DeviceCode)
 	return nil
 }
 

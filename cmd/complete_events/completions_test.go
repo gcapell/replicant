@@ -3,8 +3,6 @@ package main
 import (
 	"slices"
 	"testing"
-
-	"github.com/gcapell/replicant/model"
 )
 
 func comp(loc string, x float64) completion { return completion{Event: loc + "-EVT-1", At: at(loc, x)} }
@@ -54,23 +52,6 @@ func TestPlanCompletionsMoreVessels(t *testing.T) {
 	}
 	if r := planCompletions(nil, []completion{comp("E", 0)}); len(r) != 0 {
 		t.Errorf("no vessels: %+v", r)
-	}
-}
-
-func TestHasReplicant(t *testing.T) {
-	matrix := []model.StowedDevice{{DeviceType: "ftl_relay"}, {DeviceType: "replicant_matrix"}}
-	for _, tc := range []struct {
-		d    model.Device
-		want bool
-	}{
-		{model.Device{Status: "idle", StowedDevices: matrix}, true},
-		{model.Device{Status: "travelling", StowedDevices: matrix}, false},
-		{model.Device{Status: "idle", StowedDevices: matrix[:1]}, false},
-		{model.Device{Status: "idle", StowedDevices: matrix, AttachedToDeviceCode: "X"}, false},
-	} {
-		if got := hasReplicant(tc.d); got != tc.want {
-			t.Errorf("hasReplicant(%+v) = %v", tc.d, got)
-		}
 	}
 }
 
