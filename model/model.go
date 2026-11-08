@@ -132,7 +132,17 @@ func (l Location) Unscanned() int {
 }
 
 type AsteroidBelt struct {
-	Present bool `json:"present"`
+	Present bool         `json:"present"`
+	Belts   []SystemBelt `json:"belts"`
+}
+
+// SystemBelt is one asteroid belt in a star's GET /locations response.
+type SystemBelt struct {
+	Density       string                  `json:"density"`
+	Designation   string                  `json:"designation"`
+	InnerRadiusAU float64                 `json:"inner_radius_au"`
+	OuterRadiusAU float64                 `json:"outer_radius_au"`
+	Resources     map[ResourceType]string `json:"resources"` // levels: low, moderate, high
 }
 
 type OuterSystem struct {
