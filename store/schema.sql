@@ -146,7 +146,8 @@ CREATE TABLE devices (
 	stowed_in TEXT,                  -- stowed_in_device_code
 	controller TEXT,                 -- controller_device_code
 	destination TEXT,                -- travel.final_destination, while travelling
-	arrives_at INTEGER               -- travel.final_arrives_at, while travelling
+	arrives_at INTEGER,              -- travel.final_arrives_at, while travelling
+	completes_at INTEGER             -- while compacting or unfurling (from its event)
 ) STRICT;
 
 CREATE INDEX devices_by_location ON devices (location);

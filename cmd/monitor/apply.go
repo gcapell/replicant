@@ -36,6 +36,11 @@ var handlers = map[string]handler{
 	"device.attached": direct(attached),
 	"device.detached": direct(detached),
 
+	"device.compacting": direct(compacting),
+	"device.compacted":  direct(compacted),
+	"device.unfurling":  direct(unfurling),
+	"device.unfurled":   unfurled,
+
 	"ami.mining.digest": direct(miningDigest),
 	"ami.survey.digest": direct(surveyDigest),
 	"ami.adopted":       direct(adopted),
@@ -91,16 +96,9 @@ func released(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) er
 // /devices/{code}: when replaying old events that's the status now, not then.
 // A device the API doesn't know, or of a different type, is an error.
 func directive(ctx context.Context, _ store.Reader, env api.Envelope, _ any) (change, error) {
-	if env.DeviceCode == "" {
-		return nil, fmt.Errorf("no device_code")
-	}
-	d, err := fetchDevice(ctx, env.DeviceCode)
+	d, err := eventDevice(ctx, env)
 	if err != nil {
 		return nil, err
-	}
-	if d.DeviceCode != env.DeviceCode || d.DeviceType != env.DeviceType {
-		return nil, fmt.Errorf("event is about %s %s, but /devices/%s is %s %s",
-			env.DeviceType, env.DeviceCode, env.DeviceCode, d.DeviceType, d.DeviceCode)
 	}
 	return func(ctx context.Context, tx *sql.Tx) error {
 		return store.SetStatus(ctx, tx, d.DeviceCode, d.Status)
@@ -148,6 +146,23 @@ func detached(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) er
 
 // fetchDevice is api.Device, replaceable in tests.
 var fetchDevice = api.Device
+
+// eventDevice fetches the envelope's device from /devices/{code}. A device
+// the API doesn't know, or of a different type, is an error.
+func eventDevice(ctx context.Context, env api.Envelope) (*model.Device, error) {
+	if env.DeviceCode == "" {
+		return nil, fmt.Errorf("no device_code")
+	}
+	d, err := fetchDevice(ctx, env.DeviceCode)
+	if err != nil {
+		return nil, err
+	}
+	if d.DeviceCode != env.DeviceCode || d.DeviceType != env.DeviceType {
+		return nil, fmt.Errorf("event is about %s %s, but /devices/%s is %s %s",
+			env.DeviceType, env.DeviceCode, env.DeviceCode, d.DeviceType, d.DeviceCode)
+	}
+	return d, nil
+}
 
 // printed adds a newly printed device to the store, as /devices/{code}
 // describes it now (when replaying old events, that may be after it has moved
