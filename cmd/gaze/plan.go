@@ -13,36 +13,51 @@ import (
 type candidate struct {
 	Name string
 	Pos  model.Position
-	Dest string         // where to take the observatory: the relay's location (entry point)
+	Dest string         // where to take the observatory: the system's entry point
 	Dist float64        // from the centre
 	Dir  model.Position // prospect direction: straight out from the centre
 }
 
-// candidates returns the stars holding one of relays (not stowed), nearest the
-// centre first, along with the centre (their mean position). Relay stars not in
-// stars are returned in offMap, sorted.
-func candidates(stars []model.Star, relays []model.Device) (cands []candidate, centre model.Position, offMap []string) {
-	dest := map[string]string{} // star -> relay location
+// relayingStars returns the stars holding one of relays that is relaying (and
+// not stowed).
+func relayingStars(relays []model.Device) map[string]bool {
+	set := map[string]bool{}
 	for _, r := range relays {
-		if r.StowedInDeviceCode == "" && r.Location != "" {
-			dest[auto.StarOf(r.Location)] = r.Location
+		if r.Status == "relaying" && r.StowedInDeviceCode == "" && r.Location != "" {
+			set[auto.StarOf(r.Location)] = true
 		}
 	}
+	return set
+}
+
+// candidates returns the stars holding a relaying ftl_relay, nearest the centre
+// first, along with the centre (their mean position). Each candidate's Dest is
+// the star's entry point, not the relay's location: a relay can sit elsewhere
+// in the system. Relay stars not in stars are returned in offMap, and those
+// whose entry point isn't known in noEntry, both sorted.
+func candidates(stars []model.Star, relays []model.Device) (cands []candidate, centre model.Position, offMap, noEntry []string) {
+	relaying := relayingStars(relays)
 	seen := map[string]bool{}
 	for _, s := range stars {
-		if loc, ok := dest[s.Designation]; ok && !seen[s.Designation] {
-			seen[s.Designation] = true
-			cands = append(cands, candidate{Name: s.Designation, Pos: s.Position, Dest: loc})
+		if !relaying[s.Designation] || seen[s.Designation] {
+			continue
 		}
+		seen[s.Designation] = true
+		if s.EntryPoint == "" {
+			noEntry = append(noEntry, s.Designation)
+			continue
+		}
+		cands = append(cands, candidate{Name: s.Designation, Pos: s.Position, Dest: s.EntryPoint})
 	}
-	for name := range dest {
+	for name := range relaying {
 		if !seen[name] {
 			offMap = append(offMap, name)
 		}
 	}
 	slices.Sort(offMap)
+	slices.Sort(noEntry)
 	if len(cands) == 0 {
-		return nil, centre, offMap
+		return nil, centre, offMap, noEntry
 	}
 	for _, c := range cands {
 		centre.X += c.Pos.X
@@ -58,7 +73,7 @@ func candidates(stars []model.Star, relays []model.Device) (cands []candidate, c
 	slices.SortStableFunc(cands, func(a, b candidate) int {
 		return cmp.Or(cmp.Compare(a.Dist, b.Dist), cmp.Compare(a.Name, b.Name))
 	})
-	return cands, centre, offMap
+	return cands, centre, offMap, noEntry
 }
 
 // obsPlan is what one observatory should do next.

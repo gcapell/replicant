@@ -52,9 +52,11 @@ that's already at such a star therefore prospects there without moving.
 
 ## Choosing the next star and direction
 
-- **Candidates:** stars with one of our ftl_relays that isn't stowed. The relay sits at the
-  system's entry point, so its location is the travel destination, and there's no
-  need for a `system_scan`.
+- **Candidates:** stars with one of our ftl_relays that is `relaying` (and not
+  stowed). The travel destination is the star's `entry_point`, from `/stars` or,
+  failing that, `/locations/STAR`; it is *not* the relay's location, since a relay
+  can sit elsewhere in the system (e.g. on a belt). A relay star whose entry point
+  isn't known is skipped with a warning.
 - **Centre:** the mean position of the candidate stars. Positions come from
   `/replicants/4698E8E6/stars?per_page=N` (`-stars`, default 50). Relay stars
   that aren't in that list are ignored, with a warning.

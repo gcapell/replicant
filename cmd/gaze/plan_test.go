@@ -8,12 +8,15 @@ import (
 	"github.com/gcapell/replicant/model"
 )
 
+// star's entry point is where relay(entry[name]) puts its relay.
 func star(name string, x float64) model.Star {
-	return model.Star{Designation: name, Position: model.Position{X: x}}
+	return model.Star{Designation: name, EntryPoint: entry[name], Position: model.Position{X: x}}
 }
 
+var entry = map[string]string{"A": "A-3-L4", "B": "B-1-L4", "C": "C-2-L5", "D": "D-1-L4"}
+
 func relay(loc string) model.Device {
-	return model.Device{DeviceCode: "R-" + loc, DeviceType: "ftl_relay", Location: loc}
+	return model.Device{DeviceCode: "R-" + loc, DeviceType: "ftl_relay", Location: loc, Status: "relaying"}
 }
 
 func transport(code, loc string, capacity int) model.Device {
@@ -29,7 +32,7 @@ func TestCandidates(t *testing.T) {
 	stars := []model.Star{star("A", 0), star("B", 10), star("C", 4), star("D", 100)}
 	relays := []model.Device{relay("A-3-L4"), relay("B-1-L4"), relay("C-2-L5"), relay("Z-1-L4"),
 		{DeviceCode: "S", Location: "D-1-L4", StowedInDeviceCode: "V"}}
-	cands, centre, off := candidates(stars, relays)
+	cands, centre, off, _ := candidates(stars, relays)
 	if centre.X != 14.0/3 {
 		t.Errorf("centre %v, want x=14/3", centre)
 	}
@@ -48,9 +51,30 @@ func TestCandidates(t *testing.T) {
 	}
 }
 
+// A relay away from the entry point, or one that isn't relaying, mustn't
+// decide where the observatory goes.
+func TestCandidatesUseEntryPoint(t *testing.T) {
+	inactive := relay("C-2-L5")
+	inactive.Status = "inactive"
+	noEntry := star("E", 3)
+	cands, _, _, missing := candidates(
+		[]model.Star{star("A", 0), star("B", 10), star("C", 4), noEntry},
+		[]model.Device{relay("A-BELT-1"), relay("B-1-L4"), relay("B-BELT-2"), inactive, relay("E-1-L4")})
+	var got []string
+	for _, c := range cands {
+		got = append(got, c.Name+" "+c.Dest)
+	}
+	if want := []string{"A A-3-L4", "B B-1-L4"}; !slices.Equal(got, want) {
+		t.Errorf("candidates %v, want %v", got, want)
+	}
+	if !slices.Equal(missing, []string{"E"}) {
+		t.Errorf("noEntry %v, want [E]", missing)
+	}
+}
+
 // world: candidates nearest-first are C (x=4), A (x=0), B (x=10).
 func world() []candidate {
-	cands, _, _ := candidates(
+	cands, _, _, _ := candidates(
 		[]model.Star{star("A", 0), star("B", 10), star("C", 4)},
 		[]model.Device{relay("A-3-L4"), relay("B-1-L4"), relay("C-2-L5")})
 	return cands

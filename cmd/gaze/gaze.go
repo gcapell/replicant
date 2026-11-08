@@ -69,9 +69,15 @@ func run(ctx context.Context, nStars int, dryRun bool) error {
 		return err
 	}
 
-	cands, centre, offMap := candidates(stars.Stars, relays)
+	if err := fillEntryPoints(ctx, stars.Stars, relayingStars(relays)); err != nil {
+		return err
+	}
+	cands, centre, offMap, noEntry := candidates(stars.Stars, relays)
 	for _, name := range offMap {
 		log.Printf("relay star %s isn't among the %d nearest stars; ignoring it", name, nStars)
+	}
+	for _, name := range noEntry {
+		log.Printf("relay star %s has no known entry point; ignoring it", name)
 	}
 
 	fmt.Printf("Observed from (%s): %d stars\n", path, len(led))
@@ -94,6 +100,22 @@ func run(ctx context.Context, nStars int, dryRun bool) error {
 	}
 	fmt.Println()
 	return executeAll(ctx, &ledgerFile{path: path}, plans)
+}
+
+// fillEntryPoints looks up, in /locations/STAR, the entry point of each relay
+// star that /stars didn't give one for.
+func fillEntryPoints(ctx context.Context, stars []model.Star, relaying map[string]bool) error {
+	for i, s := range stars {
+		if s.EntryPoint != "" || !relaying[s.Designation] {
+			continue
+		}
+		loc, err := api.Location(ctx, s.Designation)
+		if err != nil {
+			return fmt.Errorf("entry point of %s: %w", s.Designation, err)
+		}
+		stars[i].EntryPoint = loc.EntryPoint
+	}
+	return nil
 }
 
 // executeAll carries out each observatory's plan concurrently. A failure stops
