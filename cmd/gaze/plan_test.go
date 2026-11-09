@@ -15,8 +15,12 @@ func star(name string, x float64) model.Star {
 
 var entry = map[string]string{"A": "A-3-L4", "B": "B-1-L4", "C": "C-2-L5", "D": "D-1-L4"}
 
-func relay(loc string) model.Device {
-	return model.Device{DeviceCode: "R-" + loc, DeviceType: "ftl_relay", Location: loc, Status: "relaying"}
+func set(names ...string) map[string]bool {
+	m := map[string]bool{}
+	for _, n := range names {
+		m[n] = true
+	}
+	return m
 }
 
 func transport(code, loc string, capacity int) model.Device {
@@ -30,9 +34,7 @@ func observatory(code, loc, status string) model.Device {
 
 func TestCandidates(t *testing.T) {
 	stars := []model.Star{star("A", 0), star("B", 10), star("C", 4), star("D", 100)}
-	relays := []model.Device{relay("A-3-L4"), relay("B-1-L4"), relay("C-2-L5"), relay("Z-1-L4"),
-		{DeviceCode: "S", Location: "D-1-L4", StowedInDeviceCode: "V"}}
-	cands, centre, off, _ := candidates(stars, relays)
+	cands, centre, off, _ := candidates(stars, set("A", "B", "C", "Z"))
 	if centre.X != 14.0/3 {
 		t.Errorf("centre %v, want x=14/3", centre)
 	}
@@ -51,15 +53,11 @@ func TestCandidates(t *testing.T) {
 	}
 }
 
-// A relay away from the entry point, or one that isn't relaying, mustn't
-// decide where the observatory goes.
-func TestCandidatesUseEntryPoint(t *testing.T) {
-	inactive := relay("C-2-L5")
-	inactive.Status = "inactive"
-	noEntry := star("E", 3)
+// A relaying star whose entry point isn't known is skipped.
+func TestCandidatesNoEntryPoint(t *testing.T) {
 	cands, _, _, missing := candidates(
-		[]model.Star{star("A", 0), star("B", 10), star("C", 4), noEntry},
-		[]model.Device{relay("A-BELT-1"), relay("B-1-L4"), relay("B-BELT-2"), inactive, relay("E-1-L4")})
+		[]model.Star{star("A", 0), star("B", 10), star("C", 4), star("E", 3)},
+		set("A", "B", "E"))
 	var got []string
 	for _, c := range cands {
 		got = append(got, c.Name+" "+c.Dest)
@@ -72,12 +70,17 @@ func TestCandidatesUseEntryPoint(t *testing.T) {
 	}
 }
 
-// world: candidates nearest-first are C (x=4), A (x=0), B (x=10).
-func world() []candidate {
+// threeStars: candidates nearest-first are C (x=4), A (x=0), B (x=10). Stars
+// F (x=1) and G (x=20) have no relay.
+func threeStars() []candidate {
 	cands, _, _, _ := candidates(
 		[]model.Star{star("A", 0), star("B", 10), star("C", 4)},
-		[]model.Device{relay("A-3-L4"), relay("B-1-L4"), relay("C-2-L5")})
+		set("A", "B", "C"))
 	return cands
+}
+
+var starPos = map[string]model.Position{
+	"A": {X: 0}, "B": {X: 10}, "C": {X: 4}, "F": {X: 1}, "G": {X: 20},
 }
 
 func steps(p obsPlan) string {
@@ -112,6 +115,37 @@ func TestPlan(t *testing.T) {
 			obs:     []model.Device{observatory("O1", "A-3-L4", compacted)},
 			others:  []model.Device{transport("T1", "A-3-L4", 1)},
 			problem: "no free",
+		},
+		{
+			name: "same system beats a nearer star",
+			obs:  []model.Device{observatory("O1", "A-3-L4", compacted)},
+			others: []model.Device{transport("TF", "F-1-L4", 1), transport("TA", "A-BELT-1", 9),
+				transport("TG", "G-1", 1)},
+			target:    "C",
+			transport: "TA",
+			steps:     []string{"fetch TA A-BELT-1 -> A-3-L4", "attach to TA", "TA travels A-3-L4 -> C-2-L5", "detach", "unfurl"},
+		},
+		{
+			name:      "nearest star, then smallest capacity",
+			obs:       []model.Device{observatory("O1", "A-3-L4", compacted)},
+			others:    []model.Device{transport("TG", "G-1", 1), transport("TF2", "F-2", 4), transport("TF1", "F-1-L4", 2)},
+			target:    "C",
+			transport: "TF1",
+			steps:     []string{"fetch TF1 F-1-L4 -> A-3-L4", "attach to TF1", "-> C-2-L5", "detach", "unfurl"},
+		},
+		{
+			name: "busy, carrying or unknown-star transports are skipped",
+			obs:  []model.Device{observatory("O1", "A-3-L4", compacted)},
+			others: []model.Device{
+				{DeviceCode: "T1", Location: "A-3-L4", Status: "travelling", Features: []string{"surge", "attach"}, AttachCapacity: 1},
+				{DeviceCode: "T2", Location: "A-3-L4", Status: "idle", Features: []string{"surge", "attach"}, AttachCapacity: 4, AttachUsed: 1},
+				{DeviceCode: "T3", Location: "A-3-L4", Status: "idle", Features: []string{"attach"}, AttachCapacity: 1},
+				transport("T4", "Q-1", 1),
+				transport("T5", "G-1", 9),
+			},
+			target:    "C",
+			transport: "T5",
+			steps:     []string{"fetch T5 G-1 -> A-3-L4", "attach to T5", "-> C-2-L5", "detach", "unfurl"},
 		},
 		{
 			name:   "compacted at fresh star unfurls there",
@@ -175,9 +209,8 @@ func TestPlan(t *testing.T) {
 			if tt.problem == "no free" {
 				tt.others[0].AttachUsed = 1
 			}
-			devices := append(slices.Clone(tt.obs), tt.others...)
 			var p obsPlan
-			for _, pl := range planAll(tt.obs, devices, world(), led) {
+			for _, pl := range planAll(tt.obs, tt.others, threeStars(), starPos, led) {
 				if pl.Obs.DeviceCode == "O1" {
 					p = pl
 				}

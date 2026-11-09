@@ -18,25 +18,12 @@ type candidate struct {
 	Dir  model.Position // prospect direction: straight out from the centre
 }
 
-// relayingStars returns the stars holding one of relays that is relaying (and
-// not stowed).
-func relayingStars(relays []model.Device) map[string]bool {
-	set := map[string]bool{}
-	for _, r := range relays {
-		if r.Status == "relaying" && r.StowedInDeviceCode == "" && r.Location != "" {
-			set[auto.StarOf(r.Location)] = true
-		}
-	}
-	return set
-}
-
-// candidates returns the stars holding a relaying ftl_relay, nearest the centre
-// first, along with the centre (their mean position). Each candidate's Dest is
-// the star's entry point, not the relay's location: a relay can sit elsewhere
-// in the system. Relay stars not in stars are returned in offMap, and those
-// whose entry point isn't known in noEntry, both sorted.
-func candidates(stars []model.Star, relays []model.Device) (cands []candidate, centre model.Position, offMap, noEntry []string) {
-	relaying := relayingStars(relays)
+// candidates returns the relaying stars, nearest the centre first, along with
+// the centre (their mean position). Each candidate's Dest is the star's entry
+// point, not the relay's location: a relay can sit elsewhere in the system.
+// Relaying stars not in stars are returned in offMap, and those whose entry
+// point isn't known in noEntry, both sorted.
+func candidates(stars []model.Star, relaying map[string]bool) (cands []candidate, centre model.Position, offMap, noEntry []string) {
 	seen := map[string]bool{}
 	for _, s := range stars {
 		if !relaying[s.Designation] || seen[s.Designation] {
@@ -99,19 +86,22 @@ const (
 type planner struct {
 	cands   []candidate
 	byName  map[string]*candidate
-	devices map[string]model.Device // all devices by code (for transports)
+	devices map[string]model.Device // transports by code
+	starPos map[string]model.Position
 	led     ledger
 	claimed map[string]string // star -> observatory going to (or staying at) it
 	used    map[string]bool   // transports already taken this run
 }
 
 // planAll plans the next steps for each observatory (in device-code order).
-// devices must include the transports.
-func planAll(obs []model.Device, devices []model.Device, cands []candidate, led ledger) []obsPlan {
+// transports are every device with surge and attach; starPos gives the
+// position of every star we know.
+func planAll(obs, transports []model.Device, cands []candidate, starPos map[string]model.Position, led ledger) []obsPlan {
 	p := &planner{
 		cands:   cands,
 		byName:  map[string]*candidate{},
 		devices: map[string]model.Device{},
+		starPos: starPos,
 		led:     led,
 		claimed: map[string]string{},
 		used:    map[string]bool{},
@@ -119,7 +109,7 @@ func planAll(obs []model.Device, devices []model.Device, cands []candidate, led 
 	for i := range cands {
 		p.byName[cands[i].Name] = &cands[i]
 	}
-	for _, d := range devices {
+	for _, d := range transports {
 		p.devices[d.DeviceCode] = d
 	}
 	obs = slices.SortedFunc(slices.Values(obs), func(a, b model.Device) int {
@@ -219,10 +209,13 @@ func (p *planner) plan(o model.Device) obsPlan {
 		if !attached {
 			tr, ok := p.transport(o.Location)
 			if !ok {
-				pl.Problem = "no free surge+attach transport at " + o.Location
+				pl.Problem = "no free surge+attach transport for " + o.Location
 				return pl
 			}
 			pl.Transport = tr.DeviceCode
+			if tr.Location != o.Location {
+				pl.Steps = append(pl.Steps, step{Kind: fetch, Transport: tr.DeviceCode, From: tr.Location, Dest: o.Location})
+			}
 			pl.Steps = append(pl.Steps, step{Kind: attach, Transport: tr.DeviceCode, Capacity: tr.AttachCapacity})
 		}
 		c := p.next(o)
@@ -252,19 +245,47 @@ func (p *planner) plan(o model.Device) obsPlan {
 	return pl
 }
 
-// transport claims and returns the free surge+attach transport at loc with the
-// smallest attach capacity.
+// transport claims and returns the best free transport for an observatory at
+// loc. A free transport is idle, has surge and attach, isn't attached, stowed or
+// carrying anything, and hasn't been taken this run. The best is one at loc,
+// then one elsewhere in loc's system, then the one whose star is nearest loc's
+// star; ties go to the smallest attach capacity, then the device code. A
+// transport at a star we don't know the position of is only used in loc's own
+// system.
 func (p *planner) transport(loc string) (model.Device, bool) {
+	type rank struct {
+		tier int // 0: at loc, 1: same system, 2: another system
+		dist float64
+	}
+	star := auto.StarOf(loc)
+	here, hereKnown := p.starPos[star]
 	var best model.Device
+	var bestRank rank
 	found := false
 	for _, d := range p.devices {
-		if d.Location != loc || p.used[d.DeviceCode] || d.Status != "idle" ||
-			!slices.Contains(d.Features, "surge") || !slices.Contains(d.Features, "attach") ||
-			d.AttachUsed >= d.AttachCapacity {
+		if d.Location == "" || p.used[d.DeviceCode] || d.Status != "idle" ||
+			d.AttachedToDeviceCode != "" || d.StowedInDeviceCode != "" || d.AttachUsed > 0 ||
+			!slices.Contains(d.Features, "surge") || !slices.Contains(d.Features, "attach") {
 			continue
 		}
-		if !found || cmp.Or(cmp.Compare(d.AttachCapacity, best.AttachCapacity), cmp.Compare(d.DeviceCode, best.DeviceCode)) < 0 {
-			best, found = d, true
+		var r rank
+		switch tstar := auto.StarOf(d.Location); {
+		case d.Location == loc:
+		case tstar == star:
+			r.tier = 1
+		default:
+			pos, ok := p.starPos[tstar]
+			if !ok || !hereKnown {
+				continue
+			}
+			r = rank{2, pos.Distance(here)}
+		}
+		if !found || cmp.Or(
+			cmp.Compare(r.tier, bestRank.tier),
+			cmp.Compare(r.dist, bestRank.dist),
+			cmp.Compare(d.AttachCapacity, best.AttachCapacity),
+			cmp.Compare(d.DeviceCode, best.DeviceCode)) < 0 {
+			best, bestRank, found = d, r, true
 		}
 	}
 	if found {
@@ -277,6 +298,7 @@ type stepKind int
 
 const (
 	waitTrip stepKind = iota // wait for Transport to finish its trip
+	fetch                    // Transport comes From -> Dest, where the observatory is
 	attach                   // attach the observatory to Transport
 	travel                   // Transport carries it From -> Dest
 	detach                   // detach it from Transport, which should be at Dest's star
@@ -298,6 +320,8 @@ func (s step) String() string {
 	switch s.Kind {
 	case waitTrip:
 		return "wait for " + s.Transport + " to arrive"
+	case fetch:
+		return fmt.Sprintf("fetch %s %s -> %s", s.Transport, s.From, s.Dest)
 	case attach:
 		return fmt.Sprintf("attach to %s (attach capacity %d)", s.Transport, s.Capacity)
 	case travel:
@@ -318,7 +342,7 @@ func (s step) String() string {
 func needsHub(plans []obsPlan) bool {
 	for _, p := range plans {
 		for _, s := range p.Steps {
-			if s.Kind == waitTrip || s.Kind == travel {
+			if s.Kind == waitTrip || s.Kind == fetch || s.Kind == travel {
 				return true
 			}
 		}

@@ -19,6 +19,7 @@ For each observatory, repeat:
 | # | Step | Sent to | Takes | We… |
 |---|---|---|---|---|
 | 1 | `compact` | observatory | hours | start it and move on |
+| 2a | `travel` to the observatory, if the transport isn't already there | transport | ~10 min | wait (`auto.GoTo`) |
 | 2 | `attach` (`targets: [obs]`) | transport at the same location | instant | do it |
 | 3 | `travel` to the next star's entry point | transport | ~10 min | wait (`auto.GoTo`) |
 | 4 | `detach` (`targets: [obs]`) | transport | instant | do it |
@@ -31,8 +32,11 @@ things on.
 
 ## Working out where an observatory is in the cycle
 
-Nothing is saved between runs except the [ledger](#ledger). State comes from the
-device each time:
+Nothing is saved between runs except the [ledger](#ledger). Where devices are
+comes from the store (`~/.replicant/replicant.db`, `-db`), so `monitor` must be
+running. Each observatory's status comes from `/devices/{code}`, and it's an
+error (for the whole run, all problems listed) if the API and the store disagree
+about its type, `location`, `attached_to` or `stowed_in`:
 
 | Device | State | Next steps |
 |---|---|---|
@@ -41,7 +45,7 @@ device each time:
 | `compacted`, attached, at a star we can prospect from | arrived | detach, unfurl |
 | `compacted`, attached, elsewhere | — | travel, detach, unfurl |
 | `compacted`, not attached, at a star we can prospect from | — | unfurl |
-| `compacted`, not attached, elsewhere | — | attach, travel, detach, unfurl |
+| `compacted`, not attached, elsewhere | — | (fetch a transport), attach, travel, detach, unfurl |
 | `idle`, at a star we can prospect from | unfurled | prospect |
 | `idle`, elsewhere (already prospected here) | unfurled | compact |
 | anything else | unknown | none: report it |
@@ -52,14 +56,12 @@ that's already at such a star therefore prospects there without moving.
 
 ## Choosing the next star and direction
 
-- **Candidates:** stars with one of our ftl_relays that is `relaying` (and not
-  stowed). The travel destination is the star's `entry_point`, from `/stars` or,
-  failing that, `/locations/STAR`; it is *not* the relay's location, since a relay
-  can sit elsewhere in the system (e.g. on a belt). A relay star whose entry point
-  isn't known is skipped with a warning.
-- **Centre:** the mean position of the candidate stars. Positions come from
-  `/replicants/4698E8E6/stars?per_page=N` (`-stars`, default 50). Relay stars
-  that aren't in that list are ignored, with a warning.
+- **Candidates:** the store's `relay_stars` (stars with a `relaying` ftl_relay).
+  The travel destination is the star's `entry_point` in the store's `stars`; it
+  is *not* the relay's location, since a relay can sit elsewhere in the system
+  (e.g. on a belt). A relay star whose entry point isn't known, or that isn't in
+  `stars` at all, is skipped with a warning.
+- **Centre:** the mean position of the candidate stars, from the store.
 - **Order:** by distance from the centre, nearest first, as in `observatory_plan`, so the explored sphere fills in as densely as possible.
 - **Excluded:** stars in the ledger (prospected from, or refused as too dense), and
   stars claimed by another observatory: the one it's sitting at, if it can prospect
@@ -70,14 +72,37 @@ that's already at such a star therefore prospects there without moving.
 
 ## Choosing a transport
 
-Fetching: we never list every device. We fetch the observatories and ftl_relays
-by `device_type`, then `/devices?location=LOC` for each observatory's location,
-plus the transport of any observatory that's attached (by code, since it may be
-travelling). Candidate transports are those at the observatory's exact location, with features `surge` and `attach`, status
-`idle`, and `attach_used < attach_capacity`. Of those, take the smallest
-`attach_capacity`. Each transport is used by at most one observatory per run. If
-none is free, report it and skip that observatory. After `detach` the transport
-stays at the new star, ready for that observatory's next cycle.
+Transports come from the store: every device whose `features` include `surge`
+and `attach` (devices with no `features` in the store can't be considered, and
+their number is logged). Its attach capacity is its blueprint's, and it's
+carrying something if any device's `attached_to` is it.
+
+A transport is free if the store has it `idle`, at a location (not travelling or
+stowed), not attached to anything, carrying nothing, and not already taken by
+another observatory this run. Of the free ones, take, in order of preference:
+
+1. one at the observatory's exact location;
+2. one elsewhere in the observatory's system;
+3. the one whose star is nearest the observatory's star (star distance; a
+   transport at a star the store has no position for isn't considered).
+
+Ties go to the smallest attach capacity, then the device code. A transport that
+isn't at the observatory's location first travels there (the "fetch" step).
+
+This is greedy: a free transport may be one that's waiting for a work crew it
+dropped off (e.g. `auto_scan`'s, or `auto_salvage`'s E62C8DC1), and taking it
+leaves the crew to be picked up some other way. Sharing transports between
+crews properly is for later.
+
+**Checking with the API:** the transports were chosen from the store's statuses,
+so before anything is sent (and with `-n` too) every transport a plan uses is
+fetched from `/devices/{code}`. It's an error, for the whole run with all
+problems listed, if the API disagrees with the store about its type, location,
+`attached_to`, `stowed_in` or status, or (if travelling) its final destination,
+or if one that's to pick up an observatory is already carrying something.
+
+After `detach` the transport stays at the new star, ready for that observatory's
+next cycle (or anyone else's).
 
 ## Ledger
 
@@ -106,8 +131,8 @@ something travels.
 - **attach / detach:** sent to the transport with `targets: [obs]`. We then fetch
   the observatory to check `attached_to_device_code`. After detach we also check
   it's in the destination system before unfurling, since unfurling takes hours.
-- **travel:** `auto.GoTo` on the transport; a trip already under way uses
-  `auto.FinishTrip`.
+- **fetch / travel:** `auto.GoTo` on the transport; a trip already under way
+  uses `auto.FinishTrip`.
 - **compact / unfurl:** we send it, then fetch the device and log its status.
 - **prospect:** sent with `direction`. On success the star is added to the
   ledger (`prospected <time>`). A 400 whose body reports `ratio`s is recorded as
@@ -134,5 +159,8 @@ on. The program exits non-zero if any observatory failed.
 
 ## Status
 
-Both modes are implemented. Only `-n` has been run against the live API; the
-actions haven't been tried yet.
+Both modes are implemented. Only `-n` has been run against the live API, and
+not since it moved to the store; the actions, including fetching a transport,
+haven't been tried yet. `-n` reads from the API (statuses), but sends no
+commands. Once `monitor` tracks prospecting starting and finishing, the
+observatories' statuses could come from the store too.

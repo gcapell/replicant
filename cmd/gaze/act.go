@@ -46,7 +46,7 @@ func do(ctx context.Context, hub *api.Hub, led *ledgerFile, obs string, s step) 
 		}
 		log.Printf("%s attached to %s at %s", obs, s.Transport, d.Location)
 
-	case travel:
+	case fetch, travel:
 		return auto.GoTo(ctx, hub, s.Transport, s.Dest)
 
 	case detach:

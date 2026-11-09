@@ -3,10 +3,12 @@
 // detach, unfurl, and prospect outward from the centre of explored space. See
 // README.md for the full spec.
 //
-// It does every short step it can (attach, travel, detach), starts the next
-// long one (compact, unfurl, prospect), and exits. -n prints the plan only.
+// It plans from the store (stars, relays, where devices are), checks the
+// statuses it relies on with the API, does every short step it can (fetch a
+// transport, attach, travel, detach), starts the next long one (compact,
+// unfurl, prospect), and exits. -n prints the plan only.
 //
-//	gaze [-n] [-stars 50]
+//	gaze [-n] [-db PATH]
 package main
 
 import (
@@ -20,17 +22,15 @@ import (
 	"sync"
 
 	"github.com/gcapell/replicant/api"
-	"github.com/gcapell/replicant/auto"
 	"github.com/gcapell/replicant/model"
+	"github.com/gcapell/replicant/store"
 )
 
-const replicant = "4698E8E6"
-
 func main() {
-	nStars := flag.Int("stars", 50, "how many nearby stars to consider")
-	dryRun := flag.Bool("n", false, "show the plan only; send nothing")
+	dbPath := flag.String("db", store.DefaultPath(), "store path")
+	dryRun := flag.Bool("n", false, "show the plan only; send no commands")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %s [-n] [-stars N]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "usage: %s [-n] [-db PATH]\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -38,12 +38,12 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := run(context.Background(), *nStars, *dryRun); err != nil {
+	if err := run(context.Background(), *dbPath, *dryRun); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(ctx context.Context, nStars int, dryRun bool) error {
+func run(ctx context.Context, dbPath string, dryRun bool) error {
 	path, err := ledgerPath()
 	if err != nil {
 		return err
@@ -52,29 +52,29 @@ func run(ctx context.Context, nStars int, dryRun bool) error {
 	if err != nil {
 		return fmt.Errorf("ledger %s: %w", path, err)
 	}
-	obs, err := auto.Devices(ctx, "galactic_observatory")
+	db, err := store.OpenReadOnly(ctx, dbPath)
 	if err != nil {
 		return err
 	}
-	relays, err := auto.Devices(ctx, "ftl_relay")
+	defer db.Close()
+	w, err := load(ctx, db)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading the store: %w", err)
 	}
-	devices, err := nearby(ctx, obs)
-	if err != nil {
-		return err
+	if w.noFeatures > 0 {
+		log.Printf("%d devices have no features in the store, so can't be considered as transports", w.noFeatures)
 	}
-	stars, err := api.Stars(ctx, replicant, nStars)
+
+	// Observatories' statuses come from the API; the store must agree on
+	// where they are.
+	obs, err := freshObservatories(ctx, w.obs)
 	if err != nil {
 		return err
 	}
 
-	if err := fillEntryPoints(ctx, stars.Stars, relayingStars(relays)); err != nil {
-		return err
-	}
-	cands, centre, offMap, noEntry := candidates(stars.Stars, relays)
+	cands, centre, offMap, noEntry := candidates(w.stars, w.relaying)
 	for _, name := range offMap {
-		log.Printf("relay star %s isn't among the %d nearest stars; ignoring it", name, nStars)
+		log.Printf("relay star %s isn't in the store's stars; ignoring it", name)
 	}
 	for _, name := range noEntry {
 		log.Printf("relay star %s has no known entry point; ignoring it", name)
@@ -90,32 +90,25 @@ func run(ctx context.Context, nStars int, dryRun bool) error {
 		fmt.Printf("  %-20s %6.2f  %-20s%s\n", c.Name, c.Dist, c.Dest, mark)
 	}
 
+	starPos := map[string]model.Position{}
+	for _, s := range w.stars {
+		starPos[s.Designation] = s.Position
+	}
 	fmt.Printf("\nObservatories (%d):\n", len(obs))
-	plans := planAll(obs, devices, cands, led)
+	plans := planAll(obs, w.transports, cands, starPos, led)
 	for _, p := range plans {
 		printPlan(p)
+	}
+	// Transports were chosen from the store's statuses: check them before
+	// anything is sent.
+	if err := verifyTransports(ctx, plans, w.transports); err != nil {
+		return err
 	}
 	if dryRun {
 		return nil
 	}
 	fmt.Println()
 	return executeAll(ctx, &ledgerFile{path: path}, plans)
-}
-
-// fillEntryPoints looks up, in /locations/STAR, the entry point of each relay
-// star that /stars didn't give one for.
-func fillEntryPoints(ctx context.Context, stars []model.Star, relaying map[string]bool) error {
-	for i, s := range stars {
-		if s.EntryPoint != "" || !relaying[s.Designation] {
-			continue
-		}
-		loc, err := api.Location(ctx, s.Designation)
-		if err != nil {
-			return fmt.Errorf("entry point of %s: %w", s.Designation, err)
-		}
-		stars[i].EntryPoint = loc.EntryPoint
-	}
-	return nil
 }
 
 // executeAll carries out each observatory's plan concurrently. A failure stops
@@ -142,44 +135,6 @@ func executeAll(ctx context.Context, led *ledgerFile, plans []obsPlan) error {
 	}
 	wg.Wait()
 	return errors.Join(errs...)
-}
-
-// nearby returns the devices that could carry obs: everything at each
-// observatory's location, plus the transport any of them is attached to (which
-// may be travelling, so not at a location).
-func nearby(ctx context.Context, obs []model.Device) ([]model.Device, error) {
-	var devices []model.Device
-	seen := map[string]bool{}
-	add := func(ds ...model.Device) {
-		for _, d := range ds {
-			if !seen[d.DeviceCode] {
-				seen[d.DeviceCode] = true
-				devices = append(devices, d)
-			}
-		}
-	}
-	locs := map[string]bool{}
-	for _, o := range obs {
-		if o.Location == "" || locs[o.Location] {
-			continue
-		}
-		locs[o.Location] = true
-		ds, err := auto.Everything(ctx, o.Location)
-		if err != nil {
-			return nil, err
-		}
-		add(ds...)
-	}
-	for _, o := range obs {
-		if c := o.AttachedToDeviceCode; c != "" && !seen[c] {
-			d, err := api.Device(ctx, c)
-			if err != nil {
-				return nil, err
-			}
-			add(*d)
-		}
-	}
-	return devices, nil
 }
 
 func printPlan(p obsPlan) {
