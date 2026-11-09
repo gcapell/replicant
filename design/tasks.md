@@ -4,7 +4,7 @@ It might help to organise our work if we maintain a database of _tasks_, e.g. "m
 
 ## Built so far
 
-- `monitor`'s startup files a `survey_system` task for each relay star that isn't fully surveyed, and assigns the free survey teams (min-max distance, not the greedy choice described below). `monitor -n` prints the plan. No handler carries the tasks out yet, and nothing archives them (see the `is_fully_scanned` prerequisite below).
+- `monitor`'s startup files a `survey_system` task for each relay star that isn't fully surveyed, and assigns the free survey teams (min-max distance, not the greedy choice described below). `monitor -n` prints the plan. Startup then calls the handler for each `assigned` task, in priority order (`cmd/monitor/tasks.go`: `taskHandlers`, one per task type, named in camelCase). They're called one after another for now, not in goroutines, and nothing wakes them on events yet. `surveySystem` only logs its task, so nothing carries the tasks out yet, and nothing archives them (see the `is_fully_scanned` prerequisite below).
 
 ## Decisions so far
 

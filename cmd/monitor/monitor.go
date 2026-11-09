@@ -19,7 +19,8 @@
 //
 // It then files a survey_system task for each relay star not fully surveyed
 // and gives the free survey teams one each (survey.go). -n just prints that
-// plan, from the store as it is, and exits.
+// plan, from the store as it is, and exits. After that it calls the handler
+// for every assigned task, highest priority first (handlers.go).
 //
 // Then, until interrupted, it records each event in the events table,
 // applies the ones it handles (apply.go) and prints it.
@@ -88,6 +89,9 @@ func main() {
 		}
 	}
 	if err := fileSurveys(ctx, db, os.Stdout); err != nil {
+		log.Fatal(err)
+	}
+	if err := runAssigned(ctx, db); err != nil {
 		log.Fatal(err)
 	}
 	log.Print("startup done")

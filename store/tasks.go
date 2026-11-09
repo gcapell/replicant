@@ -11,14 +11,27 @@ type Task struct {
 	ID       int64
 	Task     string
 	Location string
+	Priority int
 	Status   string
 	Assignee string // "" if unassigned
+	Details  string // JSON, "" if none
 }
+
+const taskColumns = `id, task, coalesce(location, ''), priority, status, coalesce(assignee, ''), coalesce(details, '')`
 
 // TasksOfType lists every task of the given type, failed ones included.
 func TasksOfType(ctx context.Context, q Reader, task string) ([]Task, error) {
-	rows, err := q.QueryContext(ctx, `SELECT id, task, coalesce(location, ''), status, coalesce(assignee, '')
-		FROM tasks WHERE task = ? ORDER BY id`, task)
+	return tasks(ctx, q, `SELECT `+taskColumns+` FROM tasks WHERE task = ? ORDER BY id`, task)
+}
+
+// AssignedTasks lists the tasks that are assigned (so not pending, blocked or
+// failed), highest priority (lowest number) first, then oldest first.
+func AssignedTasks(ctx context.Context, q Reader) ([]Task, error) {
+	return tasks(ctx, q, `SELECT `+taskColumns+` FROM tasks WHERE status = 'assigned' ORDER BY priority, id`)
+}
+
+func tasks(ctx context.Context, q Reader, query string, args ...any) ([]Task, error) {
+	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +39,7 @@ func TasksOfType(ctx context.Context, q Reader, task string) ([]Task, error) {
 	var ts []Task
 	for rows.Next() {
 		var t Task
-		if err := rows.Scan(&t.ID, &t.Task, &t.Location, &t.Status, &t.Assignee); err != nil {
+		if err := rows.Scan(&t.ID, &t.Task, &t.Location, &t.Priority, &t.Status, &t.Assignee, &t.Details); err != nil {
 			return nil, err
 		}
 		ts = append(ts, t)

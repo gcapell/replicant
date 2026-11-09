@@ -2,13 +2,15 @@ package main
 
 // Startup's first step towards the task executor (design/tasks.md): file a
 // survey_system task for every relay star that isn't fully surveyed, and give
-// the free survey teams one each. Nothing carries the tasks out yet.
+// the free survey teams one each. surveySystem is the task handler; for now
+// it only logs its task.
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"maps"
 	"slices"
 	"strings"
@@ -155,4 +157,12 @@ func (p surveyPlan) print(w io.Writer) {
 	for _, s := range p.Waiting {
 		fmt.Fprintf(w, "  %s %s: pending, no free team\n", surveyTask, s)
 	}
+}
+
+// surveySystem will scan every planet and moon at t.Location (a star) with
+// t.Assignee's survey team. For now it only logs what it was given.
+func surveySystem(ctx context.Context, t store.Task) error {
+	log.Printf("surveySystem: id=%d location=%s priority=%d assignee=%s details=%q",
+		t.ID, t.Location, t.Priority, t.Assignee, t.Details)
+	return nil
 }
