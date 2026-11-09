@@ -18,11 +18,16 @@
 //     present) are split among idle heaven_vessels carrying a
 //     replicant_matrix, which travel to each one and complete it.
 //
+// Star positions, relay stars and devices come from the store (kept up to
+// date by monitor); active events and the inventory come from the API.
+// Before a real run, every device the plans use is fetched and checked
+// against the store, and any difference stops it.
+//
 // -n prints the plans only. Otherwise freighters, carriers and vessels all
 // follow their plans at once. Events made ready by this run are completed by
 // the next one.
 //
-//	complete_events [-n]
+//	complete_events [-n] [-db PATH]
 package main
 
 import (
@@ -39,12 +44,14 @@ import (
 	"github.com/gcapell/replicant/api"
 	"github.com/gcapell/replicant/auto"
 	"github.com/gcapell/replicant/model"
+	"github.com/gcapell/replicant/store"
 )
 
 func main() {
 	dryRun := flag.Bool("n", false, "print the plan only")
+	dbPath := flag.String("db", store.DefaultPath(), "SQLite database (read-only)")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %s [-n]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "usage: %s [-n] [-db PATH]\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -52,12 +59,21 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := run(context.Background(), *dryRun); err != nil {
+	if err := run(context.Background(), *dbPath, *dryRun); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(ctx context.Context, dryRun bool) error {
+func run(ctx context.Context, dbPath string, dryRun bool) error {
+	db, err := store.OpenReadOnly(ctx, dbPath)
+	if err != nil {
+		return err
+	}
+	w, err := loadWorld(ctx, db)
+	db.Close()
+	if err != nil {
+		return err
+	}
 	events, err := fetchEvents(ctx)
 	if err != nil {
 		return err
@@ -66,14 +82,8 @@ func run(ctx context.Context, dryRun bool) error {
 	for _, e := range events {
 		eventLocs[e.Loc] = true
 	}
-	relays, err := auto.RelayStars(ctx)
-	if err != nil {
-		return err
-	}
-	devices, err := devicesOfTypes(ctx, wantedTypes(events))
-	if err != nil {
-		return err
-	}
+	relays := w.relays
+	devices := ofTypes(w.devices, wantedTypes(events)...)
 	beacons := beaconLocations(devices)
 	var spares []spare
 	spareCount := map[string]int{}
@@ -98,70 +108,52 @@ func run(ctx context.Context, dryRun bool) error {
 		return err
 	}
 
-	starPos := map[string]model.Position{}
-	position := func(star string) (model.Position, error) {
-		if p, ok := starPos[star]; ok {
-			return p, nil
-		}
-		loc, err := api.Location(ctx, star)
-		if err != nil {
-			return model.Position{}, fmt.Errorf("star %s: %w", star, err)
-		}
-		starPos[star] = loc.Star.Position
-		return loc.Star.Position, nil
-	}
 	locate := func(p *place) (err error) {
-		p.Pos, err = position(auto.StarOf(p.Loc))
+		p.Pos, err = w.position(auto.StarOf(p.Loc))
 		return err
 	}
 	for i := range needs {
 		n := &needs[i]
 		n.Beacon = beacons[n.Loc]
 		n.Relay = slices.Contains(relays, n.Star)
-		if n.Pos, err = position(n.Star); err != nil {
-			return err
+		if n.Pos, err = w.position(n.Star); err != nil {
+			return fmt.Errorf("event at %s: %w", n.Loc, err)
 		}
 	}
 	for star := range starTotals(stock) {
-		if _, err := position(star); err != nil {
+		if _, err := w.position(star); err != nil {
 			return err
 		}
 	}
-	freighters, err := idleFreighters(ctx)
-	if err != nil {
-		return err
-	}
+	freighters := idleFreighters(w.devices)
 	for i := range freighters {
-		if freighters[i].Pos, err = position(freighters[i].Star); err != nil {
-			return err
+		if freighters[i].Pos, err = w.position(freighters[i].Star); err != nil {
+			return fmt.Errorf("freighter %s: %w", freighters[i].Code, err)
 		}
 	}
-	carriers, err := idleCarriers(ctx)
+	carriers, err := idleCarriers(w.devices)
 	if err != nil {
 		return err
 	}
 	for i := range carriers {
 		if err := locate(&carriers[i].At); err != nil {
-			return err
+			return fmt.Errorf("carrier %s: %w", carriers[i].Code, err)
 		}
 	}
 	for i := range spares {
 		if err := locate(&spares[i].At); err != nil {
-			return err
+			return fmt.Errorf("spare %s: %w", spares[i].Code, err)
 		}
 	}
-	vessels, err := idleVessels(ctx)
-	if err != nil {
-		return err
-	}
+	vessels := idleVessels(w.devices)
 	for i := range vessels {
 		if err := locate(&vessels[i].At); err != nil {
-			return err
+			return fmt.Errorf("vessel %s: %w", vessels[i].Code, err)
 		}
 	}
 
-	as := plan(needs, stock, starPos)
-	ds := assignFreighters(as, freighters, starPos)
+	as := plan(needs, stock, w.starPos)
+	ds := assignFreighters(as, freighters, w.starPos)
 	for _, line := range describe(as, ds, needs) {
 		fmt.Println(line)
 	}
@@ -177,6 +169,11 @@ func run(ctx context.Context, dryRun bool) error {
 	}
 	if dryRun {
 		return nil
+	}
+	used := usedDevices(ds, dp, spares, carriers, vr)
+	log.Printf("checking %d devices against the API", len(used))
+	if err := verify(ctx, used, w.devices); err != nil {
+		return err
 	}
 	// Freighters (resources), carriers (devices) and vessels (completions)
 	// are different devices, so all three plans run at once.
@@ -223,52 +220,6 @@ func wantedTypes(events []locatedEvent) []string {
 	}
 	slices.Sort(types)
 	return slices.Compact(types)
-}
-
-func devicesOfTypes(ctx context.Context, types []string) ([]model.Device, error) {
-	var all []model.Device
-	for _, t := range types {
-		ds, err := auto.Devices(ctx, t)
-		if err != nil {
-			return nil, err
-		}
-		all = append(all, ds...)
-	}
-	return all, nil
-}
-
-// idleCarriers returns the idle surge carriers with room to attach more.
-func idleCarriers(ctx context.Context) ([]carrier, error) {
-	var cs []carrier
-	for _, t := range carrierTypes {
-		ds, err := auto.Devices(ctx, t)
-		if err != nil {
-			return nil, err
-		}
-		for _, d := range ds {
-			if d.Status == "idle" && d.AttachedToDeviceCode == "" && d.StowedInDeviceCode == "" && d.AttachUsed < d.AttachCapacity {
-				cs = append(cs, carrier{Code: d.DeviceCode, Type: t, At: place{Loc: d.Location}, Free: d.AttachCapacity - d.AttachUsed})
-			}
-		}
-	}
-	log.Printf("%d idle carriers with room", len(cs))
-	return cs, nil
-}
-
-// idleFreighters returns the cargo_freighters whose status is "idle".
-func idleFreighters(ctx context.Context) ([]freighter, error) {
-	devices, err := auto.Devices(ctx, "cargo_freighter")
-	if err != nil {
-		return nil, err
-	}
-	var fs []freighter
-	for _, d := range devices {
-		if d.Status == "idle" {
-			fs = append(fs, freighter{Code: d.DeviceCode, Star: auto.StarOf(d.Location)})
-		}
-	}
-	log.Printf("%d idle cargo_freighters (of %d)", len(fs), len(devices))
-	return fs, nil
 }
 
 // beaconLocations returns the locations where an ftl_beacon sits (not

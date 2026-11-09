@@ -93,22 +93,6 @@ func describeCompletions(routes []vesselRoute, events []completion) []string {
 	return lines
 }
 
-// idleVessels returns the idle heaven_vessels carrying a replicant_matrix.
-func idleVessels(ctx context.Context) ([]vessel, error) {
-	ds, err := auto.Devices(ctx, "heaven_vessel")
-	if err != nil {
-		return nil, err
-	}
-	var vs []vessel
-	for _, d := range ds {
-		if auto.ReadyReplicant(d) {
-			vs = append(vs, vessel{Code: d.DeviceCode, At: place{Loc: d.Location}})
-		}
-	}
-	log.Printf("%d idle heaven_vessels with a replicant (of %d)", len(vs), len(ds))
-	return vs, nil
-}
-
 // completeAll runs every vessel's route at once. A vessel whose travel
 // fails stops; a completion that fails is logged and the vessel moves on.
 func completeAll(ctx context.Context, hub *api.Hub, routes []vesselRoute) error {
