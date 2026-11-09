@@ -17,6 +17,10 @@
 // With -catchup EVENT,... it then applies every recorded event of those
 // types again, oldest first (see catchUp).
 //
+// It then files a survey_system task for each relay star not fully surveyed
+// and gives the free survey teams one each (survey.go). -n just prints that
+// plan, from the store as it is, and exits.
+//
 // Then, until interrupted, it records each event in the events table,
 // applies the ones it handles (apply.go) and prints it.
 package main
@@ -42,10 +46,17 @@ func main() {
 	nStars := flag.Int("stars", 60, "how many of the nearest stars to fetch")
 	since := flag.String("since", "", "replay events after this event ID (default: after the last one recorded)")
 	catchup := flag.String("catchup", "", "on startup, apply every recorded event of these comma-separated types again, oldest first (e.g. device.deployed,relay.activated)")
+	dryRun := flag.Bool("n", false, "print the survey tasks startup would file and assign, from the store as it is, and exit (no API calls, no writes)")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	if *dryRun {
+		if err := planOnly(ctx, *path); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	db, err := store.Open(ctx, *path)
 	if err != nil {
 		log.Fatal(err)
@@ -76,12 +87,30 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+	if err := fileSurveys(ctx, db, os.Stdout); err != nil {
+		log.Fatal(err)
+	}
 	log.Print("startup done")
 
 	err = recordAll(ctx, db, events, p, replaying)
 	if ctx.Err() == nil {
 		log.Fatal(err)
 	}
+}
+
+// planOnly prints the survey plan from the store, read-only.
+func planOnly(ctx context.Context, path string) error {
+	db, err := store.OpenReadOnly(ctx, path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	p, err := readSurveyPlan(ctx, db)
+	if err != nil {
+		return err
+	}
+	p.print(os.Stdout)
+	return nil
 }
 
 // snapshot fills each empty table from the API.

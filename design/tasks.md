@@ -2,6 +2,10 @@
 
 It might help to organise our work if we maintain a database of _tasks_, e.g. "mine all salvage locations at OTHYONAL".
 
+## Built so far
+
+- `monitor`'s startup files a `survey_system` task for each relay star that isn't fully surveyed, and assigns the free survey teams (min-max distance, not the greedy choice described below). `monitor -n` prints the plan. No handler carries the tasks out yet, and nothing archives them (see the `is_fully_scanned` prerequisite below).
+
 ## Decisions so far
 
 - **`monitor` becomes the executor** (and probably gets renamed, e.g. `executor`). It stays the only program that writes to the store. It already has the event stream, the store and the "fetch first, then write" pattern.
