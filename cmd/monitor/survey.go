@@ -1,13 +1,13 @@
 package main
 
-// Startup's first step towards the task executor (design/tasks.md): file a
-// survey_system task for every relay star that isn't fully surveyed, and give
-// the free survey teams one each. surveySystem is the task handler; for now
-// it only logs its task.
+// survey_system tasks (design/tasks.md). At startup, fileSurveys files one
+// for every relay star that isn't fully surveyed, and gives the free survey
+// teams one each. surveySystem is the task's handler.
 
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gcapell/replicant/api"
 	"github.com/gcapell/replicant/auto"
 	"github.com/gcapell/replicant/model"
 	"github.com/gcapell/replicant/store"
@@ -130,7 +131,7 @@ func fileSurveys(ctx context.Context, db *sql.DB, w io.Writer) error {
 			ids[star] = t.ID
 		}
 		for _, star := range p.New {
-			if ids[star], err = store.AddTask(ctx, tx, surveyTask, star, now); err != nil {
+			if ids[star], err = store.AddTask(ctx, tx, surveyTask, star, "", now); err != nil {
 				return err
 			}
 		}
@@ -159,10 +160,188 @@ func (p surveyPlan) print(w io.Writer) {
 	}
 }
 
-// surveySystem will scan every planet and moon at t.Location (a star) with
-// t.Assignee's survey team. For now it only logs what it was given.
-func surveySystem(ctx context.Context, t store.Task) error {
-	log.Printf("surveySystem: id=%d location=%s priority=%d assignee=%s details=%q",
-		t.ID, t.Location, t.Priority, t.Assignee, t.Details)
-	return nil
+// surveyDirective is the AMI directive that scans every planet and moon in
+// the controller's system.
+const surveyDirective = "survey_system"
+
+// surveySystem is the survey_system task's handler: t.Assignee is an
+// ami_survey_controller, which with its survey_drones scans every planet and
+// moon at t.Location (a star). Each call takes one step (decideSurvey); the
+// team's devices are fetched from the API first, so it acts on how they are
+// now, not on the store.
+func surveySystem(ctx context.Context, db store.Reader, t store.Task) (change, error) {
+	drones, err := store.ControlledBy(ctx, db, t.Assignee)
+	if err != nil {
+		return nil, err
+	}
+	team := make([]member, 0, 1+len(drones))
+	c, err := fetchMember(ctx, t.Assignee, "ami_survey_controller", "")
+	if err != nil {
+		return nil, err
+	}
+	team = append(team, c)
+	for _, d := range drones {
+		m, err := fetchMember(ctx, d, "survey_drone", t.Assignee)
+		if err != nil {
+			return nil, err
+		}
+		team = append(team, m)
+	}
+	s := surveyState{Target: t.Location, Team: team}
+	if s.TargetEntry, err = store.EntryPoint(ctx, db, t.Location); err != nil {
+		return nil, err
+	}
+	if s.Complete, err = store.IsFullyScanned(ctx, db, t.Location); err != nil {
+		return nil, err
+	}
+	if c.Location != "" && auto.StarOf(c.Location) != t.Location {
+		if s.HomeEntry, err = store.EntryPoint(ctx, db, auto.StarOf(c.Location)); err != nil {
+			return nil, err
+		}
+	}
+	a, err := decideSurvey(s)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("task %d %s %s (%s): %s", t.ID, t.Task, t.Location, t.Assignee, a.Why)
+
+	switch a.Step {
+	case surveyWait:
+		return nil, nil
+	case surveyStart:
+		return nil, api.SurveySystem(ctx, t.Assignee)
+	case surveyGather:
+		for _, d := range a.Travellers {
+			if err := api.Travel(ctx, d, a.Dest); err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
+	case surveyDone:
+		return func(ctx context.Context, tx *sql.Tx) error {
+			if _, err := store.FinishTask(ctx, tx, t.ID, time.Now()); err != nil {
+				return err
+			}
+			_, err := assignNext(ctx, tx, t.Assignee, "ami_survey_controller", t.Location, time.Now())
+			return err
+		}, nil
+	case surveyBlock:
+		codes := make([]string, len(team))
+		for i, m := range team {
+			codes[i] = m.Code
+		}
+		return blockOnMove(t.ID, a.Dest, s.TargetEntry, codes), nil
+	}
+	return nil, fmt.Errorf("unknown step %d", a.Step)
+}
+
+type surveyStep int
+
+const (
+	surveyWait   surveyStep = iota // nothing to do until something happens
+	surveyStart                    // send survey_system to the controller
+	surveyGather                   // send Travellers to Dest
+	surveyDone                     // finish the task, find the team another
+	surveyBlock                    // wait at Dest for a move_devices task to bring the team over
+)
+
+type surveyAction struct {
+	Step       surveyStep
+	Travellers []string // surveyGather: who to send
+	Dest       string   // surveyGather: where to; surveyBlock: where the team waits
+	Why        string   // for the log
+}
+
+type surveyState struct {
+	Target      string   // the star to survey
+	TargetEntry string   // its entry point
+	HomeEntry   string   // the entry point of the controller's star, if that isn't Target
+	Complete    bool     // every planet and moon at Target is scanned. TODO (important): stale during a survey; see store.IsFullyScanned
+	Team        []member // the controller first, then its drones
+}
+
+// decideSurvey is the survey_system task's next step:
+//
+//	in the target system?
+//	  directive running? wait
+//	  survey incomplete? start the survey
+//	  anyone away from the entry point? send them there
+//	  done
+//	elsewhere: anyone away from our own entry point? send them there
+//	  else file a move_devices task and wait for it
+//	a member with no location (travelling or carried)? wait until it arrives
+//
+// Anything unexpected is an error: a team split across systems, a member
+// attached to a carrier when it needs to act, or the controller running a
+// directive other than survey_system (or any directive outside the target).
+func decideSurvey(s surveyState) (surveyAction, error) {
+	if len(s.Team) == 0 {
+		return surveyAction{}, errors.New("no team")
+	}
+	c := s.Team[0]
+	for _, m := range s.Team {
+		if m.Location == "" {
+			return surveyAction{Step: surveyWait, Why: fmt.Sprintf("waiting: %s is %s with no location (destination %q)", m.Code, m.Status, m.Destination)}, nil
+		}
+	}
+	star := auto.StarOf(c.Location)
+	for _, m := range s.Team {
+		if auto.StarOf(m.Location) != star {
+			return surveyAction{}, fmt.Errorf("team split: controller %s is at %s, but %s is at %s", c.Code, c.Location, m.Code, m.Location)
+		}
+	}
+	if c.Directive != "" && c.Directive != surveyDirective {
+		return surveyAction{}, fmt.Errorf("controller %s is running directive %s", c.Code, c.Directive)
+	}
+
+	if star == s.Target {
+		for _, m := range s.Team {
+			if m.AttachedTo != "" {
+				return surveyAction{}, fmt.Errorf("%s is still attached to %s in the target system", m.Code, m.AttachedTo)
+			}
+		}
+		if c.Directive == surveyDirective {
+			return surveyAction{Step: surveyWait, Why: "waiting: survey under way"}, nil
+		}
+		if !s.Complete {
+			return surveyAction{Step: surveyStart, Why: "starting " + surveyDirective}, nil
+		}
+		if away := awayFrom(s.Team, s.TargetEntry); len(away) > 0 {
+			return gather(away, s.TargetEntry, "survey complete; gathering at"), nil
+		}
+		return surveyAction{Step: surveyDone, Why: "survey complete, team at " + s.TargetEntry}, nil
+	}
+
+	if c.Directive != "" {
+		return surveyAction{}, fmt.Errorf("controller %s is running %s at %s, not %s", c.Code, c.Directive, star, s.Target)
+	}
+	if s.HomeEntry == "" {
+		return surveyAction{}, fmt.Errorf("no entry point for %s", star)
+	}
+	away := awayFrom(s.Team, s.HomeEntry)
+	if len(away) == 0 {
+		return surveyAction{Step: surveyBlock, Dest: s.HomeEntry,
+			Why: fmt.Sprintf("team at %s; filing move_devices to %s", s.HomeEntry, s.TargetEntry)}, nil
+	}
+	for _, m := range s.Team {
+		if m.AttachedTo != "" && slices.Contains(away, m.Code) {
+			return surveyAction{}, fmt.Errorf("%s is attached to %s at %s, away from %s", m.Code, m.AttachedTo, m.Location, s.HomeEntry)
+		}
+	}
+	return gather(away, s.HomeEntry, "not in "+s.Target+"; gathering at"), nil
+}
+
+func awayFrom(team []member, loc string) []string {
+	var away []string
+	for _, m := range team {
+		if m.Location != loc {
+			away = append(away, m.Code)
+		}
+	}
+	return away
+}
+
+func gather(away []string, dest, why string) surveyAction {
+	return surveyAction{Step: surveyGather, Travellers: away, Dest: dest,
+		Why: fmt.Sprintf("%s %s: sending %s", why, dest, strings.Join(away, " "))}
 }

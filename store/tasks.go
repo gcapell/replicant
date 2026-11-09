@@ -2,7 +2,10 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -47,15 +50,106 @@ func tasks(ctx context.Context, q Reader, query string, args ...any) ([]Task, er
 	return ts, rows.Err()
 }
 
-// AddTask inserts a pending task and returns its id.
-func AddTask(ctx context.Context, q Queryer, task, location string, now time.Time) (int64, error) {
+// AddTask inserts a pending task and returns its id. details is JSON, or ""
+// for none.
+func AddTask(ctx context.Context, q Queryer, task, location, details string, now time.Time) (int64, error) {
 	var id int64
-	err := q.QueryRowContext(ctx, `INSERT INTO tasks (task, location, created_at, updated_at)
-		VALUES (?, ?, ?, ?) RETURNING id`, task, null(location), now.UnixMilli(), now.UnixMilli()).Scan(&id)
+	err := q.QueryRowContext(ctx, `INSERT INTO tasks (task, location, details, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?) RETURNING id`, task, null(location), null(details), now.UnixMilli(), now.UnixMilli()).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("adding %s task at %s: %w", task, location, err)
 	}
 	return id, nil
+}
+
+// PendingTasks lists the pending, unassigned tasks of the given types,
+// highest priority first, then oldest.
+func PendingTasks(ctx context.Context, q Reader, types ...string) ([]Task, error) {
+	if len(types) == 0 {
+		return nil, nil
+	}
+	query := `SELECT ` + taskColumns + ` FROM tasks WHERE status = 'pending' AND assignee IS NULL AND task IN (?` +
+		strings.Repeat(", ?", len(types)-1) + `) ORDER BY priority, id`
+	args := make([]any, len(types))
+	for i, t := range types {
+		args[i] = t
+	}
+	return tasks(ctx, q, query, args...)
+}
+
+// FinishTask moves task id to archived_tasks as done. Deleting it removes its
+// blockers rows, and any blocked task left with no blockers becomes assigned
+// (or pending, if it has no assignee). It returns the ids of the tasks it
+// unblocked.
+//
+// TODO: a failed task must not unblock its dependents like this; it should
+// wake them to decide (design/tasks.md). There's no FailTask yet.
+func FinishTask(ctx context.Context, tx *sql.Tx, id int64, now time.Time) ([]int64, error) {
+	res, err := tx.ExecContext(ctx, `INSERT INTO archived_tasks
+		(id, task, location, priority, status, assignee, details, error, created_at, updated_at, finished_at)
+		SELECT id, task, location, priority, 'done', assignee, details, error, created_at, ?, ?
+		FROM tasks WHERE id = ? AND status = 'assigned'`, now.UnixMilli(), now.UnixMilli(), id)
+	if err != nil {
+		return nil, fmt.Errorf("archiving task %d: %w", id, err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return nil, err
+	} else if n != 1 {
+		return nil, fmt.Errorf("archiving task %d: no assigned task with that id", id)
+	}
+	var blocked []int64
+	rows, err := tx.QueryContext(ctx, `SELECT task FROM blockers WHERE dep = ?`, id)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var t int64
+		if err := rows.Scan(&t); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		blocked = append(blocked, t)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, id); err != nil {
+		return nil, fmt.Errorf("deleting task %d: %w", id, err)
+	}
+	var unblocked []int64
+	for _, t := range blocked {
+		res, err := tx.ExecContext(ctx, `UPDATE tasks
+			SET status = CASE WHEN assignee IS NULL THEN 'pending' ELSE 'assigned' END, updated_at = ?
+			WHERE id = ? AND status = 'blocked' AND NOT EXISTS (SELECT 1 FROM blockers WHERE task = ?)`,
+			now.UnixMilli(), t, t)
+		if err != nil {
+			return nil, err
+		}
+		if n, _ := res.RowsAffected(); n == 1 {
+			unblocked = append(unblocked, t)
+		}
+	}
+	return unblocked, nil
+}
+
+// Block makes task wait for dep: it adds the blockers row and sets task
+// blocked (it keeps its assignee). task must be assigned or pending.
+func Block(ctx context.Context, ex Execer, task, dep int64, now time.Time) error {
+	if _, err := ex.ExecContext(ctx, `INSERT INTO blockers (task, dep) VALUES (?, ?)`, task, dep); err != nil {
+		return fmt.Errorf("blocking task %d on %d: %w", task, dep, err)
+	}
+	res, err := ex.ExecContext(ctx, `UPDATE tasks SET status = 'blocked', updated_at = ?
+		WHERE id = ? AND status IN ('assigned', 'pending')`, now.UnixMilli(), task)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return err
+	} else if n != 1 {
+		return fmt.Errorf("blocking task %d: no assigned or pending task with that id", task)
+	}
+	return nil
 }
 
 // AssignTask gives the pending, unassigned task id to assignee. Anything else
@@ -137,4 +231,60 @@ func FreeSurveyTeams(ctx context.Context, q Reader) ([]SurveyTeam, error) {
 		teams = append(teams, t)
 	}
 	return teams, rows.Err()
+}
+
+// EntryPoint is star's entry point. A star that isn't in the store, or whose
+// entry point we don't know, is an error.
+func EntryPoint(ctx context.Context, q Queryer, star string) (string, error) {
+	var ep sql.NullString
+	err := q.QueryRowContext(ctx, `SELECT entry_point FROM stars WHERE designation = ?`, star).Scan(&ep)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", fmt.Errorf("star %s isn't in the store", star)
+	}
+	if err != nil {
+		return "", err
+	}
+	if !ep.Valid || ep.String == "" {
+		return "", fmt.Errorf("star %s: entry point not known", star)
+	}
+	return ep.String, nil
+}
+
+// IsFullyScanned reports whether every planet and moon at star is scanned.
+//
+// TODO (important): the scan counts are only written when monitor first reads
+// a system, so during a survey this stays false. monitor must update them
+// (from ami.survey.digest's progress, or by reading /locations/STAR again on
+// directive.completed) before survey_system tasks can ever finish.
+func IsFullyScanned(ctx context.Context, q Queryer, star string) (bool, error) {
+	var full sql.NullBool
+	err := q.QueryRowContext(ctx, `SELECT is_fully_scanned FROM stars WHERE designation = ?`, star).Scan(&full)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, fmt.Errorf("star %s isn't in the store", star)
+	}
+	if err != nil {
+		return false, err
+	}
+	if !full.Valid {
+		return false, fmt.Errorf("star %s: we haven't read its system (no scan counts)", star)
+	}
+	return full.Bool, nil
+}
+
+// ControlledBy lists the devices whose controller is controller, by code.
+func ControlledBy(ctx context.Context, q Reader, controller string) ([]string, error) {
+	rows, err := q.QueryContext(ctx, `SELECT device_code FROM devices WHERE controller = ? ORDER BY device_code`, controller)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var codes []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, err
+		}
+		codes = append(codes, c)
+	}
+	return codes, rows.Err()
 }

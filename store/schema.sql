@@ -187,11 +187,6 @@ CREATE TABLE tasks (
 -- A device works on at most one task at a time.
 CREATE UNIQUE INDEX tasks_by_assignee ON tasks (assignee) WHERE assignee IS NOT NULL;
 
--- Creating tasks is idempotent: startup scans and events can both propose
--- add_relay at ASTRANOVA without making two. A second deliver_resources to
--- the same location is merged into the existing task's details instead.
-CREATE UNIQUE INDEX tasks_unique ON tasks (task, location) WHERE status != 'failed';
-
 -- task can't proceed until dep is finished.
 CREATE TABLE blockers (
 	task INTEGER NOT NULL REFERENCES tasks (id) ON DELETE CASCADE,

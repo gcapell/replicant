@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gcapell/replicant/store"
 )
@@ -23,9 +25,9 @@ func TestRunAssigned(t *testing.T) {
 	var got []string
 	saved := taskHandlers[surveyTask]
 	t.Cleanup(func() { taskHandlers[surveyTask] = saved })
-	taskHandlers[surveyTask] = func(_ context.Context, task store.Task) error {
+	taskHandlers[surveyTask] = func(_ context.Context, _ store.Reader, task store.Task) (change, error) {
 		got = append(got, fmt.Sprintf("%s %d %s %s", task.Location, task.Priority, task.Assignee, task.Details))
-		return nil
+		return nil, nil
 	}
 	if err := runAssigned(t.Context(), db); err != nil {
 		t.Fatal(err)
@@ -45,5 +47,118 @@ func TestRunAssigned(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Errorf("handlers ran: %q", got)
+	}
+}
+
+// taskStore has stars HOME (x=0), NEAR (x=1) and FAR (x=9).
+func taskStore(t *testing.T) *sql.DB {
+	t.Helper()
+	db := openStore(t)
+	exec(t, db, `INSERT INTO stars (designation, x, y, z) VALUES ('HOME', 0, 0, 0), ('NEAR', 1, 0, 0), ('FAR', 9, 0, 0)`)
+	return db
+}
+
+func taskRows(t *testing.T, db *sql.DB, table string) []string {
+	t.Helper()
+	rows, err := db.QueryContext(t.Context(), `SELECT id, task, coalesce(location, ''), status, coalesce(assignee, ''), coalesce(details, '') FROM `+table+` ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var id int64
+		var task, loc, status, assignee, details string
+		if err := rows.Scan(&id, &task, &loc, &status, &assignee, &details); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, strings.TrimSpace(fmt.Sprintf("%d %s %s %s %s %s", id, task, loc, status, assignee, details)))
+	}
+	return got
+}
+
+func TestAssignNext(t *testing.T) {
+	db := taskStore(t)
+	ctx := t.Context()
+	exec(t, db, `INSERT INTO tasks (task, location, priority, status, assignee, created_at, updated_at) VALUES
+		('survey_system', 'FAR', 3, 'pending', NULL, 0, 0),
+		('survey_system', 'NEAR', 3, 'pending', NULL, 0, 0),
+		('survey_system', 'HOME', 4, 'pending', NULL, 0, 0),
+		('move_devices', 'HOME-1-L4', 0, 'pending', NULL, 0, 0)`)
+	// Priority 3 beats 4; NEAR is nearer than FAR. move_devices isn't for a controller.
+	err := inTx(ctx, db, func(tx *sql.Tx) error {
+		got, err := assignNext(ctx, tx, "C1", "ami_survey_controller", "HOME", time.Now())
+		if err == nil && (got == nil || got.Location != "NEAR") {
+			t.Errorf("assigned %+v, want NEAR", got)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Nothing for a type with no task types.
+	err = inTx(ctx, db, func(tx *sql.Tx) error {
+		got, err := assignNext(ctx, tx, "X", "mining_drone", "HOME", time.Now())
+		if got != nil {
+			t.Errorf("assigned %+v to a mining_drone", got)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"1 survey_system FAR pending", "2 survey_system NEAR assigned C1", "3 survey_system HOME pending", "4 move_devices HOME-1-L4 pending"}
+	if got := taskRows(t, db, "tasks"); !slices.Equal(got, want) {
+		t.Errorf("tasks = %q, want %q", got, want)
+	}
+}
+
+func TestBlockOnMoveThenFinish(t *testing.T) {
+	db := taskStore(t)
+	ctx := t.Context()
+	exec(t, db, `INSERT INTO tasks (task, location, status, assignee, created_at, updated_at)
+		VALUES ('survey_system', 'FAR', 'assigned', 'C1', 0, 0)`)
+	if err := inTx(ctx, db, func(tx *sql.Tx) error {
+		return blockOnMove(1, "HOME-1-L4", "FAR-2-L4", []string{"C1", "D1"})(ctx, tx)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"1 survey_system FAR blocked C1",
+		`2 move_devices HOME-1-L4 pending  {"dst":"FAR-2-L4","devices":["C1","D1"]}`,
+	}
+	if got := taskRows(t, db, "tasks"); !slices.Equal(got, want) {
+		t.Errorf("tasks = %q, want %q", got, want)
+	}
+
+	// Finishing the move unblocks the survey, which keeps its assignee.
+	exec(t, db, `UPDATE tasks SET status = 'assigned', assignee = 'T1' WHERE id = 2`)
+	var unblocked []int64
+	if err := inTx(ctx, db, func(tx *sql.Tx) (err error) {
+		unblocked, err = store.FinishTask(ctx, tx, 2, time.Now())
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(unblocked, []int64{1}) {
+		t.Errorf("unblocked %v, want [1]", unblocked)
+	}
+	if got, want := taskRows(t, db, "tasks"), []string{"1 survey_system FAR assigned C1"}; !slices.Equal(got, want) {
+		t.Errorf("tasks = %q, want %q", got, want)
+	}
+	if got := taskRows(t, db, "archived_tasks"); len(got) != 1 || !strings.HasPrefix(got[0], "2 move_devices HOME-1-L4 done T1") {
+		t.Errorf("archived = %q", got)
+	}
+	if n, err := store.Count(ctx, db, "blockers"); err != nil || n != 0 {
+		t.Errorf("blockers: %d, %v", n, err)
+	}
+
+	// Only an assigned task can be finished.
+	exec(t, db, `UPDATE tasks SET status = 'pending', assignee = NULL WHERE id = 1`)
+	if err := inTx(ctx, db, func(tx *sql.Tx) error {
+		_, err := store.FinishTask(ctx, tx, 1, time.Now())
+		return err
+	}); err == nil {
+		t.Error("finished a pending task")
 	}
 }

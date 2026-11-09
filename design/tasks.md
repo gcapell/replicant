@@ -4,7 +4,11 @@ It might help to organise our work if we maintain a database of _tasks_, e.g. "m
 
 ## Built so far
 
-- `monitor`'s startup files a `survey_system` task for each relay star that isn't fully surveyed, and assigns the free survey teams (min-max distance, not the greedy choice described below). `monitor -n` prints the plan. Startup then calls the handler for each `assigned` task, in priority order (`cmd/monitor/tasks.go`: `taskHandlers`, one per task type, named in camelCase). They're called one after another for now, not in goroutines, and nothing wakes them on events yet. `surveySystem` only logs its task, so nothing carries the tasks out yet, and nothing archives them (see the `is_fully_scanned` prerequisite below).
+- `monitor`'s startup files a `survey_system` task for each relay star that isn't fully surveyed, and assigns the free survey teams (min-max distance, not the greedy choice described below). `monitor -n` prints the plan.
+- Startup then calls the handler once for each `assigned` task, in priority order (`cmd/monitor/tasks.go`: `taskHandlers`, one per task type, named in camelCase and living in the task's own file). Handlers return a `change` that's applied in its own transaction. They're called one after another, not in goroutines, and nothing wakes them on events yet.
+- `surveySystem` takes real steps (see `decideSurvey` in `cmd/monitor/survey.go`): gather at an entry point, file and block on a `move_devices` task, start the survey, gather again, finish. Finishing calls `assignNext`, the generic "what should this device do next" (pending tasks its type can do, by priority then distance).
+- **TODO (important):** survey completion reads `stars.is_fully_scanned`, which goes stale during a survey (see the prerequisite below), so a survey task can't finish yet.
+- Nothing handles `move_devices` yet.
 
 ## Decisions so far
 
@@ -24,7 +28,7 @@ It might help to organise our work if we maintain a database of _tasks_, e.g. "m
 
 The tables are in [`store/schema.sql`](../store/schema.sql), after the snapshot tables:
 
-- **`tasks`**: work in progress or waiting. Has the task type, `location` (plus a generated `star`), `priority` (0 is highest), `status` (pending, blocked, assigned, failed), one `assignee` (a device can be assigned to at most one task), task-specific `details` as JSON, `error`, and created and updated times. `(task, location)` is unique among tasks that haven't failed, so creating a task twice does nothing. Ids are `AUTOINCREMENT`, so they never clash with archived ones.
+- **`tasks`**: work in progress or waiting. Has the task type, `location` (plus a generated `star`), `priority` (0 is highest), `status` (pending, blocked, assigned, failed), one `assignee` (a device can be assigned to at most one task), task-specific `details` as JSON, `error`, and created and updated times. Nothing in the schema stops two tasks of the same type at the same location (two teams can need a `move_devices` from the same entry point), so whatever files a task checks for an existing one itself, as the survey task finder does. Ids are `AUTOINCREMENT`, so they never clash with archived ones.
 - **`blockers`**: `(task, dep)`: the task waits until the dep is finished.
 - **`claimed_resources`**: `(task, location, resource, quantity)` a task has earmarked.
 - **`claimed_devices`**: loose devices (e.g. spare ftl_beacons) a task has earmarked; each device claimed by one task at most.
@@ -36,7 +40,7 @@ Notes:
 - Archiving a task means: insert it into `archived_tasks`, then delete it from `tasks`. The cascade removes its blockers and claims (but not `adopted_maintenance_drones`, which isn't about tasks).
   - Deleting a `blockers` row can leave its `task` unblocked. The same transaction should look for tasks with `status = 'blocked'` and no remaining `blockers` rows, set them to `assigned` (or `pending` if they have no assignee), and wake their handlers once it commits.
   - **A failed dep** must not silently unblock its parent. Archiving a dep as `failed` should wake the parent, which decides what to do: retry, file a new dep, or fail too.
-- `failed` stays a status in `tasks` so that a human can look at a failure before it's archived (and so that `tasks_unique` lets the task be filed again).
+- `failed` stays a status in `tasks` so that a human can look at a failure before it's archived.
 
 ### Free devices
 
@@ -119,7 +123,7 @@ When the executor applies an event, it also works out which tasks the event conc
 In steady state, events create (and finish) tasks. When the executor starts, it also:
 
 1. runs the handler once for every `assigned` task (they're reconcilers, so this resumes whatever was under way);
-2. runs the task finders that events would otherwise trigger: systems that could join the relay network, systems with salvage, active location events, ... `tasks_unique` makes it safe to propose tasks that already exist;
+2. runs the task finders that events would otherwise trigger: systems that could join the relay network, systems with salvage, active location events, ... each finder skips tasks that already exist;
 3. assigns free devices to `pending` tasks, as above.
 
 ## Open questions

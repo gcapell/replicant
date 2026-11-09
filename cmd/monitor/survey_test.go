@@ -157,3 +157,57 @@ func TestFileSurveysUnreadSystem(t *testing.T) {
 		t.Errorf("tasks filed despite the error: %q", got)
 	}
 }
+
+func TestDecideSurvey(t *testing.T) {
+	at := func(code, loc string) member { return member{Code: code, Location: loc, Status: "idle"} }
+	with := func(m member, f func(*member)) member { f(&m); return m }
+	surveying := func(m *member) { m.Directive = surveyDirective }
+	base := surveyState{Target: "FAR", TargetEntry: "FAR-2-L4", HomeEntry: "HOME-1-L4"}
+	state := func(complete bool, team ...member) surveyState {
+		s := base
+		s.Complete, s.Team = complete, team
+		return s
+	}
+	for _, tc := range []struct {
+		name   string
+		s      surveyState
+		step   surveyStep
+		who    []string
+		dest   string
+		errHas string
+	}{
+		{name: "travelling", s: state(false, at("C", ""), at("D1", "HOME-1-L4")), step: surveyWait},
+		{name: "drone travelling", s: state(false, at("C", "FAR-3"), at("D1", "")), step: surveyWait},
+		{name: "split", s: state(false, at("C", "FAR-3"), at("D1", "HOME-1")), errHas: "split"},
+		{name: "other directive", s: state(false, with(at("C", "FAR-3"), func(m *member) { m.Directive = "patrol" }), at("D1", "FAR-3")), errHas: "patrol"},
+
+		{name: "in target, start", s: state(false, at("C", "FAR-3"), at("D1", "FAR-4")), step: surveyStart},
+		{name: "in target, surveying", s: state(false, with(at("C", "FAR-3"), surveying), at("D1", "FAR-4")), step: surveyWait},
+		{name: "in target, complete but directive still on", s: state(true, with(at("C", "FAR-3"), surveying), at("D1", "FAR-4")), step: surveyWait},
+		{name: "in target, attached", s: state(false, with(at("C", "FAR-2-L4"), func(m *member) { m.AttachedTo = "T" }), at("D1", "FAR-2-L4")), errHas: "attached"},
+		{name: "in target, gather", s: state(true, at("C", "FAR-2-L4"), at("D1", "FAR-4"), at("D2", "FAR-2-L4")), step: surveyGather, who: []string{"D1"}, dest: "FAR-2-L4"},
+		{name: "in target, done", s: state(true, at("C", "FAR-2-L4"), at("D1", "FAR-2-L4")), step: surveyDone},
+
+		{name: "elsewhere, gather", s: state(false, at("C", "HOME-3"), at("D1", "HOME-1-L4")), step: surveyGather, who: []string{"C"}, dest: "HOME-1-L4"},
+		{name: "elsewhere, at entry", s: state(false, at("C", "HOME-1-L4"), at("D1", "HOME-1-L4")), step: surveyBlock, dest: "HOME-1-L4"},
+		{name: "elsewhere, at entry, attached", s: state(false, with(at("C", "HOME-1-L4"), func(m *member) { m.AttachedTo = "T" }), at("D1", "HOME-1-L4")), step: surveyBlock, dest: "HOME-1-L4"},
+		{name: "elsewhere, attached away", s: state(false, with(at("C", "HOME-3"), func(m *member) { m.AttachedTo = "T" }), at("D1", "HOME-3")), errHas: "attached"},
+		{name: "elsewhere, directive", s: state(false, with(at("C", "HOME-3"), surveying), at("D1", "HOME-3")), errHas: "running"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, err := decideSurvey(tc.s)
+			if tc.errHas != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.errHas) {
+					t.Fatalf("err = %v, want one containing %q (action %+v)", err, tc.errHas, a)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if a.Step != tc.step || !slices.Equal(a.Travellers, tc.who) || a.Dest != tc.dest {
+				t.Errorf("got %+v, want step %d %v %q", a, tc.step, tc.who, tc.dest)
+			}
+		})
+	}
+}
