@@ -18,84 +18,17 @@ It might help to organise our work if we maintain a database of _tasks_, e.g. "m
 
 ## Schema
 
-```sql
-CREATE TABLE tasks (
-	id INTEGER PRIMARY KEY,
-	task TEXT NOT NULL,      -- e.g. 'salvage'
-	location TEXT,           -- e.g. 'OTHYONAL' (salvage), 'OTHYONAL-1' (event delivery)
-	star TEXT AS (CASE WHEN instr(location, '-') = 0 THEN location
-	                   ELSE substr(location, 1, instr(location, '-') - 1) END) STORED,
-	priority INTEGER NOT NULL DEFAULT 3 CHECK (priority BETWEEN 0 AND 5), -- 0 is highest
-	status TEXT NOT NULL DEFAULT 'pending'
-		CHECK (status IN ('pending', 'blocked', 'assigned', 'failed')),
-	assignee TEXT,           -- device code; NULL until assigned
-	details TEXT,            -- task-specific JSON, e.g. {"carbon":400,"silicates":100}
-	error TEXT,              -- why it failed
-	created_at INTEGER NOT NULL,  -- Unix ms
-	updated_at INTEGER NOT NULL   -- Unix ms
-) STRICT;
+The tables are in [`store/schema.sql`](../store/schema.sql), after the snapshot tables:
 
--- A device works on at most one task at a time.
-CREATE UNIQUE INDEX tasks_by_assignee ON tasks(assignee) WHERE assignee IS NOT NULL;
-
--- Creating tasks is idempotent: startup scans and events can both propose
--- 'add_relay at ASTRANOVA' without making two. A second deliver_resources to
--- the same location is merged into the existing task's details instead.
-CREATE UNIQUE INDEX tasks_unique ON tasks(task, location) WHERE status != 'failed';
-
--- task can't proceed until dep is finished.
-CREATE TABLE blockers (
-	task INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-	dep INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-	PRIMARY KEY (task, dep)
-) STRICT;
-CREATE INDEX blockers_by_dep ON blockers(dep);
-
--- Resources a task has earmarked, so no other task counts on them.
-CREATE TABLE claimed_resources (
-	task INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-	location TEXT NOT NULL,
-	resource TEXT NOT NULL,  -- e.g. 'carbon'
-	quantity INTEGER NOT NULL CHECK (quantity > 0),
-	PRIMARY KEY (task, location, resource)
-) STRICT;
-
--- Loose devices a task has earmarked for itself, e.g. the spare ftl_beacons
--- a deliver_devices task will pick up. A device can be claimed by only one task.
-CREATE TABLE claimed_devices (
-	device TEXT PRIMARY KEY,
-	task INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE
-) STRICT;
-CREATE INDEX claimed_devices_by_task ON claimed_devices(task);
-
--- Team membership: each mining controller's own maintenance_drone.
--- One drone per controller, and one controller per drone. Not tied to any
--- task, so it lasts from task to task. No foreign key to devices, which
--- monitor upserts from snapshots.
-CREATE TABLE adopted_maintenance_drones (
-	drone TEXT PRIMARY KEY,
-	controller TEXT NOT NULL UNIQUE
-) STRICT;
-
--- Finished (done or failed) tasks, moved out of tasks.
-CREATE TABLE archived_tasks (
-	id INTEGER PRIMARY KEY,  -- the id it had in tasks
-	task TEXT NOT NULL,
-	location TEXT,
-	priority INTEGER NOT NULL,
-	status TEXT NOT NULL CHECK (status IN ('done', 'failed')),
-	assignee TEXT,
-	details TEXT,
-	error TEXT,
-	created_at INTEGER NOT NULL,
-	updated_at INTEGER NOT NULL,
-	finished_at INTEGER NOT NULL
-) STRICT;
-```
+- **`tasks`**: work in progress or waiting. Has the task type, `location` (plus a generated `star`), `priority` (0 is highest), `status` (pending, blocked, assigned, failed), one `assignee` (a device can be assigned to at most one task), task-specific `details` as JSON, `error`, and created and updated times. `(task, location)` is unique among tasks that haven't failed, so creating a task twice does nothing. Ids are `AUTOINCREMENT`, so they never clash with archived ones.
+- **`blockers`**: `(task, dep)`: the task waits until the dep is finished.
+- **`claimed_resources`**: `(task, location, resource, quantity)` a task has earmarked.
+- **`claimed_devices`**: loose devices (e.g. spare ftl_beacons) a task has earmarked; each device claimed by one task at most.
+- **`adopted_maintenance_drones`**: each mining controller's own maintenance_drone (one to one). Team membership, so it isn't tied to a task.
+- **`archived_tasks`**: finished tasks (`done` or `failed`), with `finished_at`.
 
 Notes:
 
-- SQLite enforces `REFERENCES` only with `PRAGMA foreign_keys=ON`, so `store.Open` needs to set it.
 - Archiving a task means: insert it into `archived_tasks`, then delete it from `tasks`. The cascade removes its blockers and claims (but not `adopted_maintenance_drones`, which isn't about tasks).
   - Deleting a `blockers` row can leave its `task` unblocked. The same transaction should look for tasks with `status = 'blocked'` and no remaining `blockers` rows, set them to `assigned` (or `pending` if they have no assignee), and wake their handlers once it commits.
   - **A failed dep** must not silently unblock its parent. Archiving a dep as `failed` should wake the parent, which decides what to do: retry, file a new dep, or fail too.

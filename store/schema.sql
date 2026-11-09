@@ -158,3 +158,87 @@ CREATE INDEX devices_by_type ON devices (device_type, status);
 CREATE VIEW relay_stars AS
 	SELECT DISTINCT star FROM devices
 	WHERE device_type = 'ftl_relay' AND status = 'relaying';
+
+-- Tasks: work the executor is doing or will do. See design/tasks.md.
+-- Nothing writes these yet, apart from adopted_maintenance_drones by hand.
+
+-- Work in progress or waiting. A finished task moves to archived_tasks, in
+-- the transaction that finishes it. AUTOINCREMENT so an id is never reused
+-- (a reused id would clash with archived_tasks).
+CREATE TABLE tasks (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	task TEXT NOT NULL,              -- e.g. salvage, add_relay, deliver_resources
+	location TEXT,                   -- e.g. OTHYONAL (salvage), OTHYONAL-1 (event delivery)
+	star TEXT AS (                   -- the part of location before the first '-'
+		CASE WHEN instr(location, '-') > 0
+			THEN substr(location, 1, instr(location, '-') - 1)
+			ELSE location END
+	) STORED,
+	priority INTEGER NOT NULL DEFAULT 3 CHECK (priority BETWEEN 0 AND 5), -- 0 is highest
+	status TEXT NOT NULL DEFAULT 'pending'
+		CHECK (status IN ('pending', 'blocked', 'assigned', 'failed')),
+	assignee TEXT,                   -- device_code; NULL until assigned
+	details TEXT,                    -- task-specific JSON, e.g. {"carbon":400,"silicates":100}
+	error TEXT,                      -- why it failed
+	created_at INTEGER NOT NULL,
+	updated_at INTEGER NOT NULL
+) STRICT;
+
+-- A device works on at most one task at a time.
+CREATE UNIQUE INDEX tasks_by_assignee ON tasks (assignee) WHERE assignee IS NOT NULL;
+
+-- Creating tasks is idempotent: startup scans and events can both propose
+-- add_relay at ASTRANOVA without making two. A second deliver_resources to
+-- the same location is merged into the existing task's details instead.
+CREATE UNIQUE INDEX tasks_unique ON tasks (task, location) WHERE status != 'failed';
+
+-- task can't proceed until dep is finished.
+CREATE TABLE blockers (
+	task INTEGER NOT NULL REFERENCES tasks (id) ON DELETE CASCADE,
+	dep INTEGER NOT NULL REFERENCES tasks (id) ON DELETE CASCADE,
+	PRIMARY KEY (task, dep)
+) STRICT;
+
+CREATE INDEX blockers_by_dep ON blockers (dep);
+
+-- Resources a task has earmarked, so no other task counts on them.
+CREATE TABLE claimed_resources (
+	task INTEGER NOT NULL REFERENCES tasks (id) ON DELETE CASCADE,
+	location TEXT NOT NULL,
+	resource TEXT NOT NULL,          -- e.g. carbon
+	quantity INTEGER NOT NULL CHECK (quantity > 0),
+	PRIMARY KEY (task, location, resource)
+) STRICT;
+
+-- Loose devices a task has earmarked for itself, e.g. the spare ftl_beacons a
+-- deliver_devices task will pick up. A device can be claimed by only one task.
+CREATE TABLE claimed_devices (
+	device TEXT PRIMARY KEY,         -- device_code
+	task INTEGER NOT NULL REFERENCES tasks (id) ON DELETE CASCADE
+) STRICT;
+
+CREATE INDEX claimed_devices_by_task ON claimed_devices (task);
+
+-- Team membership: each mining controller's own maintenance_drone. One drone
+-- per controller, and one controller per drone. Not tied to any task, so it
+-- lasts from task to task. No foreign key to devices, which monitor upserts
+-- from snapshots.
+CREATE TABLE adopted_maintenance_drones (
+	drone TEXT PRIMARY KEY,          -- device_code
+	controller TEXT NOT NULL UNIQUE  -- device_code of an ami_mining_controller
+) STRICT;
+
+-- Finished tasks, moved out of tasks.
+CREATE TABLE archived_tasks (
+	id INTEGER PRIMARY KEY,          -- the id it had in tasks
+	task TEXT NOT NULL,
+	location TEXT,
+	priority INTEGER NOT NULL,
+	status TEXT NOT NULL CHECK (status IN ('done', 'failed')),
+	assignee TEXT,
+	details TEXT,
+	error TEXT,
+	created_at INTEGER NOT NULL,
+	updated_at INTEGER NOT NULL,
+	finished_at INTEGER NOT NULL
+) STRICT;
