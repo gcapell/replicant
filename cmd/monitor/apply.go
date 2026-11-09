@@ -55,6 +55,8 @@ var handlers = map[string]handler{
 	"prospect.completed": prospected,
 
 	"experience.gained": experienced,
+
+	"blueprint.unlocked": unlockedBlueprint,
 }
 
 // surveyDigest is miningDigest for an ami_survey_controller.
