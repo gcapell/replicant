@@ -17,6 +17,7 @@ This file records how the code is put together and the conventions we've settled
 | `store/` | The local SQLite database (see [The store](#the-store-store)). |
 | `cmd/<name>/` | One `main` package per tool. |
 | `ui/` | Angular dashboard (see [UI](#ui)). |
+| `design/` | Design notes for work not built yet. [tasks.md](design/tasks.md) plans a task table and turning `monitor` into an executor that carries tasks out. |
 
 **Showing resources:** abbreviate them as C (carbon), Co (conductive), R (rares), Si (silicates), S (structural) and V (volatiles), and always list them in alphabetical order of the full name: `C=low Co=high R=scarce Si=scarce S=moderate V=scarce`. In Go, `model.Resources` is that order and `ResourceType.Abbrev()` gives the short name.
 
