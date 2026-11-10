@@ -17,8 +17,12 @@
 // With -catchup EVENT,... it then applies every recorded event of those
 // types again, oldest first (see catchUp).
 //
+// With -startup_sites it files a salvage task for each planet or moon with
+// resource sites (salvage.go).
+//
 // It then files a survey_system task for each relay star not fully surveyed
-// and gives the free survey teams one each (survey.go). -n just prints that
+// and gives the free survey teams one each (survey.go), and gives pending
+// salvage tasks free mining teams (salvage.go). -n just prints that
 // plan, from the store as it is, and exits. Next it gives pending move_devices
 // tasks to free transports (move.go). After that it calls the handler
 // for every assigned task, highest priority first (tasks.go); tasks that one
@@ -53,6 +57,8 @@ func main() {
 	since := flag.String("since", "", "replay events after this event ID (default: after the last one recorded)")
 	catchup := flag.String("catchup", "", "on startup, apply every recorded event of these comma-separated types again, oldest first (e.g. device.deployed,relay.activated)")
 	sweepEvery := flag.Duration("sweep", 15*time.Minute, "how often to run every assigned task's handler, in case an event that should have woken one was missed (0: never)")
+	startupSites := flag.Bool("startup_sites", false, "at startup, file a salvage task for each planet or moon at a relay star that /locations says has resource sites, and has no salvage task")
+	addMinersFlag := flag.Bool("add_miners", false, "at startup, file a mine task, assigned to it, for each ami_mining_controller running gather_evenly that has no task")
 	dryRun := flag.Bool("n", false, "print the survey and move tasks startup would file and assign, from the store as it is, and exit (no API calls, no writes)")
 	flag.Parse()
 
@@ -94,6 +100,16 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+	if *addMinersFlag {
+		if err := addMiners(ctx, db, os.Stdout); err != nil {
+			log.Fatal(err)
+		}
+	}
+	if *startupSites {
+		if err := findSalvageSites(ctx, db, os.Stdout); err != nil {
+			log.Fatal(err)
+		}
+	}
 	if err := sweepTasks(ctx, db, os.Stdout); err != nil {
 		log.Fatal(err)
 	}
@@ -123,6 +139,11 @@ func planOnly(ctx context.Context, path string) error {
 		return err
 	}
 	p.print(os.Stdout)
+	sp, err := readSalvagePlan(ctx, db)
+	if err != nil {
+		return err
+	}
+	sp.print(os.Stdout)
 	// Moves are planned as the store is now: not counting moves filed by the
 	// survey plan above, or transports it would free.
 	m, err := readMovePlan(ctx, db)

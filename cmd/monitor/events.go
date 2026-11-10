@@ -113,6 +113,14 @@ func execute(ctx context.Context, db *sql.DB, in <-chan received, p *printer, re
 			if err != nil {
 				return fmt.Errorf("%w\n%s", err, fullEvent(r.env))
 			}
+			if assign := assignAfter[r.env.Event]; assign != nil {
+				p.endLine()
+				more, err := assign(ctx, db, p.w)
+				if err != nil {
+					return fmt.Errorf("%w\nassigning after %s", err, fullEvent(r.env))
+				}
+				ids = append(ids, more...)
+			}
 			if len(ids) == 0 {
 				continue
 			}
@@ -129,6 +137,13 @@ func execute(ctx context.Context, db *sql.DB, in <-chan received, p *printer, re
 			}
 		}
 	}
+}
+
+// assignAfter lists, per event, what to run after it's applied to give the
+// tasks it filed to free devices. Each returns the tasks it assigned, which
+// then run.
+var assignAfter = map[string]func(ctx context.Context, db *sql.DB, w io.Writer) ([]int64, error){
+	"salvage.discovered": assignSalvageDB,
 }
 
 // executor is what execute needs to run tasks.

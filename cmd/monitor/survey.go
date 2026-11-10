@@ -131,7 +131,7 @@ func fileSurveys(ctx context.Context, db *sql.DB, w io.Writer) error {
 			ids[star] = t.ID
 		}
 		for _, star := range p.New {
-			if ids[star], err = store.AddTask(ctx, tx, surveyTask, star, "", now); err != nil {
+			if ids[star], err = store.AddTask(ctx, tx, surveyTask, star, "", store.DefaultPriority, now); err != nil {
 				return err
 			}
 		}
@@ -236,7 +236,7 @@ func surveySystem(ctx context.Context, db store.Reader, t store.Task) (taskChang
 		for i, m := range team {
 			codes[i] = m.Code
 		}
-		return blockOnMove(t.ID, a.Dest, s.TargetEntry, codes), nil
+		return blockOnMove(t, a.Dest, s.TargetEntry, codes), nil
 	}
 	return nil, fmt.Errorf("unknown step %d", a.Step)
 }

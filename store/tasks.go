@@ -38,6 +38,15 @@ func TaskByID(ctx context.Context, q Reader, id int64) (t Task, ok bool, err err
 	return ts[0], true, nil
 }
 
+// TaskOfAssignee is the task device is assigned to, if any.
+func TaskOfAssignee(ctx context.Context, q Reader, device string) (t Task, ok bool, err error) {
+	ts, err := tasks(ctx, q, `SELECT `+taskColumns+` FROM tasks WHERE assignee = ?`, device)
+	if err != nil || len(ts) == 0 {
+		return Task{}, false, err
+	}
+	return ts[0], true, nil
+}
+
 // AssignedTasks lists the tasks that are assigned (so not pending, blocked or
 // failed), highest priority (lowest number) first, then oldest first.
 func AssignedTasks(ctx context.Context, q Reader) ([]Task, error) {
@@ -61,12 +70,15 @@ func tasks(ctx context.Context, q Reader, query string, args ...any) ([]Task, er
 	return ts, rows.Err()
 }
 
+// DefaultPriority is the priority of most tasks (0 is highest, 5 lowest).
+const DefaultPriority = 3
+
 // AddTask inserts a pending task and returns its id. details is JSON, or ""
 // for none.
-func AddTask(ctx context.Context, q Queryer, task, location, details string, now time.Time) (int64, error) {
+func AddTask(ctx context.Context, q Queryer, task, location, details string, priority int, now time.Time) (int64, error) {
 	var id int64
-	err := q.QueryRowContext(ctx, `INSERT INTO tasks (task, location, details, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?) RETURNING id`, task, null(location), null(details), now.UnixMilli(), now.UnixMilli()).Scan(&id)
+	err := q.QueryRowContext(ctx, `INSERT INTO tasks (task, location, details, priority, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?) RETURNING id`, task, null(location), null(details), priority, now.UnixMilli(), now.UnixMilli()).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("adding %s task at %s: %w", task, location, err)
 	}
@@ -393,13 +405,123 @@ func SetPhase(ctx context.Context, ex Execer, id int64, phase string, now time.T
 	return nil
 }
 
-// ControllerOf is device's controller, or "" if it has none or isn't in the
-// store.
-func ControllerOf(ctx context.Context, q Queryer, device string) (string, error) {
+// TeamOf is the controller whose team device is in: its controller, or the
+// mining controller it's the maintenance_drone of (adopted_maintenance_drones).
+// "" if neither, or it isn't in the store.
+func TeamOf(ctx context.Context, q Queryer, device string) (string, error) {
 	var c sql.NullString
-	err := q.QueryRowContext(ctx, `SELECT controller FROM devices WHERE device_code = ?`, device).Scan(&c)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
-	}
+	err := q.QueryRowContext(ctx, `SELECT coalesce(
+			(SELECT controller FROM devices WHERE device_code = ?),
+			(SELECT controller FROM adopted_maintenance_drones WHERE drone = ?))`, device, device).Scan(&c)
 	return c.String, err
+}
+
+// TaskAt is the task of type task at location, of any status, if there is
+// one. More than one is an error.
+func TaskAt(ctx context.Context, q Reader, task, location string) (t Task, ok bool, err error) {
+	ts, err := tasks(ctx, q, `SELECT `+taskColumns+` FROM tasks WHERE task = ? AND location = ? ORDER BY id`, task, location)
+	if err != nil || len(ts) == 0 {
+		return Task{}, false, err
+	}
+	if len(ts) > 1 {
+		return Task{}, false, fmt.Errorf("%d %s tasks at %s (ids %d, %d, ...)", len(ts), task, location, ts[0].ID, ts[1].ID)
+	}
+	return ts[0], true, nil
+}
+
+// SetDetails replaces task id's details (JSON).
+func SetDetails(ctx context.Context, ex Execer, id int64, details string, now time.Time) error {
+	res, err := ex.ExecContext(ctx, `UPDATE tasks SET details = ?, updated_at = ? WHERE id = ?`, null(details), now.UnixMilli(), id)
+	if err != nil {
+		return fmt.Errorf("setting task %d's details: %w", id, err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return err
+	} else if n != 1 {
+		return fmt.Errorf("setting task %d's details: no such task", id)
+	}
+	return nil
+}
+
+// RelayStars lists the stars with a relaying ftl_relay (the relay_stars view).
+func RelayStars(ctx context.Context, q Reader) ([]string, error) {
+	rows, err := q.QueryContext(ctx, `SELECT star FROM relay_stars ORDER BY star`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var stars []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		stars = append(stars, s)
+	}
+	return stars, rows.Err()
+}
+
+// MaintenanceDroneOf is mining controller's maintenance_drone, from
+// adopted_maintenance_drones; ok is false if it has none.
+func MaintenanceDroneOf(ctx context.Context, q Queryer, controller string) (drone string, ok bool, err error) {
+	err = q.QueryRowContext(ctx, `SELECT drone FROM adopted_maintenance_drones WHERE controller = ?`, controller).Scan(&drone)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	return drone, err == nil, err
+}
+
+// MiningTeam is an ami_mining_controller, what it controls, and its
+// maintenance_drone, as the store has them.
+type MiningTeam struct {
+	Controller, Location, Star string   // Location "" if travelling or stowed
+	Miners                     int      // mining_drones it controls
+	Others                     []string // other devices it controls, as "CODE@LOCATION (type)", apart from its maintenance drone
+	Maint                      string   // its maintenance_drone (adopted_maintenance_drones), "" if none
+	MaintLocation, MaintStar   string   // "" if the drone has no location or isn't in the store
+}
+
+// IdleMiningTeams lists the ami_mining_controllers that aren't any task's
+// assignee, whatever their status or directive.
+func IdleMiningTeams(ctx context.Context, q Reader) ([]MiningTeam, error) {
+	rows, err := q.QueryContext(ctx, `SELECT c.device_code, coalesce(c.location, ''), coalesce(c.star, ''),
+			(SELECT count(*) FROM devices d WHERE d.controller = c.device_code AND d.device_type = 'mining_drone'),
+			(SELECT group_concat(d.device_code || '@' || coalesce(d.location, '?') || ' (' || d.device_type || ')', ', ')
+				FROM devices d WHERE d.controller = c.device_code AND d.device_type != 'mining_drone'
+					AND d.device_code IS NOT a.drone),
+			coalesce(a.drone, ''), coalesce(m.location, ''), coalesce(m.star, '')
+		FROM devices c
+			LEFT JOIN adopted_maintenance_drones a ON a.controller = c.device_code
+			LEFT JOIN devices m ON m.device_code = a.drone
+		WHERE c.device_type = 'ami_mining_controller'
+			AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.assignee = c.device_code)
+		ORDER BY c.device_code`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var teams []MiningTeam
+	for rows.Next() {
+		var t MiningTeam
+		var others sql.NullString
+		if err := rows.Scan(&t.Controller, &t.Location, &t.Star, &t.Miners, &others, &t.Maint, &t.MaintLocation, &t.MaintStar); err != nil {
+			return nil, err
+		}
+		if others.Valid {
+			t.Others = strings.Split(others.String, ", ")
+		}
+		teams = append(teams, t)
+	}
+	return teams, rows.Err()
+}
+
+// MaxTransportCapacity is the largest attach_capacity of any transport we
+// have (a device with surge and attach), or 0 if we have none.
+func MaxTransportCapacity(ctx context.Context, q Queryer) (int, error) {
+	var n int
+	err := q.QueryRowContext(ctx, `SELECT coalesce(max(b.attach_capacity), 0)
+		FROM devices d JOIN blueprints b USING (device_type)
+		WHERE instr(',' || coalesce(d.features, '') || ',', ',surge,') > 0
+			AND instr(',' || coalesce(d.features, '') || ',', ',attach,') > 0`).Scan(&n)
+	return n, err
 }

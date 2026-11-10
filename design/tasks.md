@@ -9,6 +9,7 @@ It might help to organise our work if we maintain a database of _tasks_, e.g. "m
 - `surveySystem` takes real steps (see `decideSurvey` in `cmd/monitor/survey.go`): gather at an entry point, file and block on a `move_devices` task, start the survey, gather again, finish. Finishing calls `assignNext`, the generic "what should this device do next" (pending tasks its type can do, by priority then distance).
 - Survey completion reads `stars.is_fully_scanned`. `monitor` keeps it current: the last `ami.survey.digest` marks the system done, and `directive.completed` (survey_system) reads `/locations/STAR` again as a check (the prerequisite below).
 - Startup also gives pending `move_devices` tasks to free transports (surge and attach, room for every device, carrying nothing; `cmd/monitor/move.go`). The `moveDevices` handler goes to the pickup, attaches, travels, detaches and finishes, one step per call (`decideMove`).
+- `salvage` (one task per planet or moon, priority 4): `salvage.discovered` files one (resources in `details`), as does startup with `-startup_sites` (from `/locations`). Free mining teams (ami_mining_controller with no task, at least 4 mining_drones, and its maintenance_drone from `adopted_maintenance_drones` in the same system) are assigned at once and in each sweep; others are logged with a `WARNING`. The handler takes the team over (clearing any directive), gathers and moves it as a survey does, puts the maintenance_drone on `patrol` and sends `gather_salvage` from wherever the team is in the system, and finishes on the controller's `directive.completed`. Its next task is usually another site in the same system.
 - Tasks run themselves: a handler's change reports the tasks it unblocked or assigned, which run straight away; each new event wakes the tasks it concerns (`cmd/monitor/wake.go`, by assignee, the assignee's team, star or location); and a sweep (every 15 minutes) files, assigns and runs everything, in case an event was missed. All on the event loop's goroutine, so a task never runs twice at once. A failing handler still stops `monitor`.
 
 ## Decisions so far
@@ -55,9 +56,9 @@ A team's maintenance_drone belongs to its mining controller through `adopted_mai
 
 Finite tasks (archived once done):
 
-- `add_relay`: add a relay at a system.
+- `add_relay`: add a relay at a system. Filed as `plant_relay` (`location` = the bare star) for every star that can join the mesh, on each sweep and after each `prospect.completed`; the handler is a stub that logs.
 - `survey_system`: scan the planets and moons at a system.
-- `salvage`: collect all the salvage from a system.
+- `salvage`: collect the salvage at one planet or moon.
 - `move_devices`: move a group of devices from a source to a destination.
 - `complete_event`: complete the event at a location.
 - `deliver_resources`: bring exactly the given resources (from anywhere) to a location, e.g. 300 carbon to X. There's at most one per location; a new request is added to its `details` (`{carbon:100}` + `{carbon:100, silicates:100}` -> `{carbon:200, silicates:100}`). Because the target can grow mid-flight, `details` should record what has been delivered so far as well as the target, and the handler delivers the difference.
@@ -65,7 +66,8 @@ Finite tasks (archived once done):
 
 Continual tasks (never finish; they hold their assignee until cancelled):
 
-- `mine`: at a belt.
+- `mine`: at a belt. Built: `monitor -add_miners` files one for each controller already running `gather_evenly`; its handler does nothing.
+- `gaze`: a galactic_observatory cycling through observation points (reserve the next relay star in `observations`, get carried to its entry point by a `move_devices`, unfurl, prospect, compact). Built: `cmd/monitor/gaze.go`; one is filed for each observatory with no task.
 - `consolidate`: keep moving all resources in a system to one location, e.g. OTHYONAL-3-L4.
 - `ferry`: keep moving resources between two interstellar locations, e.g. ANTHALON-1-L4 -> OTHYONAL-3-L4.
 

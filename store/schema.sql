@@ -162,6 +162,27 @@ CREATE VIEW relay_stars AS
 	SELECT DISTINCT star FROM devices
 	WHERE device_type = 'ftl_relay' AND status = 'relaying';
 
+-- Stars we've observed (prospected) from with a galactic_observatory, or
+-- reserved to observe from. A star can be prospected from only once, so a
+-- star with a row of any status is never chosen again. Written by the gaze
+-- task (cmd/monitor/gaze.go) and prospect.completed.
+CREATE TABLE observations (
+	star TEXT PRIMARY KEY,           -- where the observatory prospects from (at its entry point)
+	dir_x REAL,                      -- prospect direction: out from the centre of the relay stars
+	dir_y REAL,                      -- through this star; NULL for rows seeded by hand
+	dir_z REAL,
+	device_code TEXT,                -- the galactic_observatory; NULL for rows seeded by hand
+	status TEXT NOT NULL CHECK (status IN
+		('not_yet', 'prospecting', 'success', 'too_dense', 'already_surveyed_from')),
+	stars_found TEXT,                -- comma-separated, from prospect.completed
+	created_at INTEGER NOT NULL,
+	updated_at INTEGER NOT NULL
+) STRICT;
+
+-- An observatory has at most one observation under way.
+CREATE UNIQUE INDEX observations_active ON observations (device_code)
+	WHERE status IN ('not_yet', 'prospecting');
+
 -- Tasks: work the executor is doing or will do. See design/tasks.md.
 -- Nothing writes these yet, apart from adopted_maintenance_drones by hand.
 

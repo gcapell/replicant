@@ -9,6 +9,7 @@ import (
 	"log"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gcapell/replicant/api"
 	"github.com/gcapell/replicant/model"
@@ -18,12 +19,18 @@ import (
 // fetchStar is api.StarNear, replaceable in tests.
 var fetchStar = api.StarNear
 
-// prospected handles prospect.completed: an observatory at origin (the
-// envelope's star) has found new stars, given by name only. We look each one
-// up with /replicants/{code}/stars/{star}, for the placed replicant nearest
-// the origin, and store what it says. It's an error if the payload doesn't
-// hang together, if the origin or a replicant's star isn't in the store, if
-// no replicant is placed, or if a lookup fails.
+// prospected handles prospect.completed: an observatory (the envelope's
+// device) at origin (the envelope's star) has found new stars, given by name
+// only. We look each one up with /replicants/{code}/stars/{star}, for the
+// placed replicant nearest the origin, and store what it says. The
+// observatory's observation from origin becomes success, with the stars
+// found (store.ObservationCompleted), and its status is fetched from
+// /devices/{code} (we set it to prospecting ourselves). Then plant_relay
+// tasks are filed for any star that can now join the mesh. It's an error if
+// the payload doesn't hang together, if the envelope's device isn't a
+// galactic_observatory, if the origin or a replicant's star isn't in the
+// store, if no replicant is placed, if a lookup fails, or if the observatory
+// has no observation prospecting from origin.
 func prospected(ctx context.Context, db store.Reader, env api.Envelope, payload any) (change, error) {
 	p, ok := payload.(*model.ProspectCompleted)
 	if !ok {
@@ -35,8 +42,24 @@ func prospected(ctx context.Context, db store.Reader, env api.Envelope, payload 
 	if len(p.Stars) != p.StarsGenerated {
 		return nil, fmt.Errorf("stars_generated %d, but %d stars listed", p.StarsGenerated, len(p.Stars))
 	}
+	if env.DeviceType != observatory {
+		return nil, fmt.Errorf("prospect.completed from %s, a %s", env.DeviceCode, env.DeviceType)
+	}
+	d, err := eventDevice(ctx, env)
+	if err != nil {
+		return nil, err
+	}
+	done := func(ctx context.Context, tx *sql.Tx) error {
+		if err := store.ObservationCompleted(ctx, tx, p.Origin, env.DeviceCode, p.Stars, time.Now()); err != nil {
+			return err
+		}
+		if err := store.SetStatus(ctx, tx, d.DeviceCode, d.Status); err != nil {
+			return err
+		}
+		return filePlantRelays(ctx, tx, log.Writer())
+	}
 	if len(p.Stars) == 0 {
-		return func(context.Context, *sql.Tx) error { return nil }, nil
+		return done, nil
 	}
 
 	origin, err := store.StarPosition(ctx, db, p.Origin)
@@ -69,7 +92,7 @@ func prospected(ctx context.Context, db store.Reader, env api.Envelope, payload 
 				return err
 			}
 		}
-		return nil
+		return done(ctx, tx)
 	}, nil
 }
 

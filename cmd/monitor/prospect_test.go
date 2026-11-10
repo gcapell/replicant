@@ -35,11 +35,20 @@ func prospectStore(t *testing.T) *sql.DB {
 		{DeviceCode: "MNEAR001", DeviceType: "replicant_matrix", Status: "stowed", StowedInDeviceCode: "VNEAR001"},
 		{DeviceCode: "VMOVE001", DeviceType: "heaven_vessel", ReplicantCode: "MOVING", Status: "travelling"},
 		{DeviceCode: "MMOVE001", DeviceType: "replicant_matrix", Status: "stowed", StowedInDeviceCode: "VMOVE001"},
+		{DeviceCode: "68D1D1CA", DeviceType: "galactic_observatory", Status: "prospecting", Location: "INTERRANAE-3-L4"},
+		{DeviceCode: "RINT0001", DeviceType: "ftl_relay", Status: "relaying", Location: "INTERRANAE-3-L4"},
 	} {
 		if err := store.PutDevice(ctx, db, d); err != nil {
 			t.Fatal(err)
 		}
 	}
+	exec(t, db, `INSERT INTO observations (star, dir_x, dir_y, dir_z, device_code, status, created_at, updated_at)
+		VALUES ('INTERRANAE', 1, 0, 0, '68D1D1CA', 'prospecting', 0, 0)`)
+	// The observatory reports idle once it's done.
+	fetchDevice = func(ctx context.Context, code string) (*model.Device, error) {
+		return &model.Device{DeviceCode: code, DeviceType: "galactic_observatory", Status: "idle", Location: "INTERRANAE-3-L4"}, nil
+	}
+	t.Cleanup(func() { fetchDevice = api.Device })
 	return db
 }
 
@@ -89,6 +98,22 @@ func TestProspected(t *testing.T) {
 	if n, _ := store.Count(ctx, db, "stars"); n != 5 {
 		t.Errorf("%d stars, want 5", n)
 	}
+	var status, found, devStatus string
+	db.QueryRow(`SELECT status, stars_found FROM observations WHERE star = 'INTERRANAE'`).Scan(&status, &found)
+	if status != "success" || found != "STAR7,STAR120" {
+		t.Errorf("observation: %s %q, want success STAR7,STAR120", status, found)
+	}
+	db.QueryRow(`SELECT status FROM devices WHERE device_code = '68D1D1CA'`).Scan(&devStatus)
+	if devStatus != "idle" {
+		t.Errorf("observatory status %q, want idle", devStatus)
+	}
+	// From the relay at INTERRANAE (x=0): CORBRENEUS (3), STAR7 (4 on from
+	// there), CORVALEX (3 on from STAR7). STAR120 is out of reach.
+	if got, want := taskRows(t, db, "tasks"), []string{
+		"1 plant_relay CORBRENEUS pending", "2 plant_relay STAR7 pending", "3 plant_relay CORVALEX pending",
+	}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("tasks = %q, want %q", got, want)
+	}
 
 	// Each of these stops monitor and leaves the event unrecorded.
 	unknown := prospectEvent("601-0", "STAR1", "STAR1001")
@@ -96,10 +121,15 @@ func TestProspected(t *testing.T) {
 	mismatch.payload.(*model.ProspectCompleted).StarsGenerated = 2
 	elsewhere := prospectEvent("603-0", "STAR1")
 	elsewhere.env.Star = "CORVALEX"
+	again := prospectEvent("604-0", "STAR1") // already done, with other stars
+	notObs := prospectEvent("605-0", "STAR1")
+	notObs.env.DeviceType = "ftl_relay"
 	for name, r := range map[string]received{
-		"unknown star":           unknown,
-		"stars_generated is off": mismatch,
-		"origin isn't the star":  elsewhere,
+		"unknown star":                    unknown,
+		"stars_generated is off":          mismatch,
+		"origin isn't the star":           elsewhere,
+		"no observation prospecting":      again,
+		"not from a galactic_observatory": notObs,
 	} {
 		if err := recordAll(ctx, db, feed(r), &printer{w: &strings.Builder{}}, false); err == nil {
 			t.Errorf("%s: accepted", name)

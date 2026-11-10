@@ -121,7 +121,7 @@ func TestBlockOnMoveThenFinish(t *testing.T) {
 	exec(t, db, `INSERT INTO tasks (task, location, status, assignee, created_at, updated_at)
 		VALUES ('survey_system', 'FAR', 'assigned', 'C1', 0, 0)`)
 	if err := inTx(ctx, db, func(tx *sql.Tx) error {
-		_, err := blockOnMove(1, "HOME-1-L4", "FAR-2-L4", []string{"C1", "D1"})(ctx, tx)
+		_, err := blockOnMove(store.Task{ID: 1, Priority: store.DefaultPriority}, "HOME-1-L4", "FAR-2-L4", []string{"C1", "D1"})(ctx, tx)
 		return err
 	}); err != nil {
 		t.Fatal(err)

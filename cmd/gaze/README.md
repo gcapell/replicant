@@ -1,5 +1,10 @@
 # gaze
 
+**Being replaced** by `monitor`'s `gaze` task (`cmd/monitor/gaze.go`), which keeps
+its ledger in the store's `observations` table instead of `~/observed_from.txt`.
+This command stays until the task version has proved itself. Don't run both:
+they don't see each other's claims.
+
 Cycles our `galactic_observatory` devices through observation points, prospecting
 outward from the centre of explored space.
 

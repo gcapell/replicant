@@ -4,12 +4,13 @@ import (
 	"math"
 	"slices"
 
+	"github.com/gcapell/replicant/auto"
 	"github.com/gcapell/replicant/model"
 )
 
 // reach is how close (in light years) a star must be to another relay star
 // to be part of the relay mesh.
-const reach = 7.5
+const reach = auto.RelayReach
 
 // star is a named point in space.
 type star struct {
@@ -35,28 +36,10 @@ func nearest(p model.Position, set []star, skip string) (s star, d float64, ok b
 	return s, d, ok
 }
 
-// connectable returns the candidates that can join the mesh: those within
-// reach of a mesh star, or of a candidate that can. They come in the order
-// the mesh would grow, nearest to it first, so any prefix of the result is
-// itself connected to the mesh.
+// connectable returns the candidates that can join the mesh, in the order
+// the mesh would grow (auto.Connectable).
 func connectable(mesh, candidates []star) []star {
-	covered := slices.Clone(mesh)
-	left := slices.Clone(candidates)
-	var out []star
-	for {
-		best, bestD := -1, math.Inf(1)
-		for i, c := range left {
-			if _, d, ok := nearest(c.Pos, covered, ""); ok && d < reach && d < bestD {
-				best, bestD = i, d
-			}
-		}
-		if best < 0 {
-			return out
-		}
-		out = append(out, left[best])
-		covered = append(covered, left[best])
-		left = slices.Delete(left, best, best+1)
-	}
+	return auto.Connectable(mesh, candidates, starPos)
 }
 
 // without returns the stars in all that aren't in some.

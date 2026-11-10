@@ -32,12 +32,17 @@ type taskChange func(ctx context.Context, tx *sql.Tx) (wake []int64, err error)
 var taskHandlers = map[string]taskHandler{
 	surveyTask:      surveySystem,
 	moveDevicesTask: moveDevices,
+	mineTask:        mine,
+	salvageTask:     salvage,
+	gazeTask:        gaze,
+	plantRelayTask:  plantRelay,
 }
 
 // taskTypesFor lists the task types each device type can be assigned.
 // Transports are the types with surge and attach in their blueprints.
 var taskTypesFor = map[string][]string{
 	"ami_survey_controller": {surveyTask},
+	"ami_mining_controller": {salvageTask},
 	"cargo_vessel":          {moveDevicesTask},
 	"mobile_fleet":          {moveDevicesTask},
 	"surge_carrier":         {moveDevicesTask},
@@ -64,10 +69,22 @@ var taskFits = map[string]func(ctx context.Context, q store.Queryer, t store.Tas
 }
 
 // sweepTasks is what startup does, and the sweep repeats: file survey tasks
-// and give them free teams (fileSurveys), give pending moves free transports
-// (assignMoves), then run every assigned task (runAssigned).
+// and give them free teams (fileSurveys), give pending salvage tasks free
+// mining teams (assignSalvage), file a gaze task for each observatory with
+// none (fileGazeTasks), file plant_relay tasks for stars that can join the
+// mesh (filePlantRelays), give pending moves free transports (assignMoves),
+// then run every assigned task (runAssigned).
 func sweepTasks(ctx context.Context, db *sql.DB, w io.Writer) error {
 	if err := fileSurveys(ctx, db, w); err != nil {
+		return err
+	}
+	if _, err := assignSalvageDB(ctx, db, w); err != nil {
+		return err
+	}
+	if err := fileGazeTasks(ctx, db, w); err != nil {
+		return err
+	}
+	if err := inTx(ctx, db, func(tx *sql.Tx) error { return filePlantRelays(ctx, tx, w) }); err != nil {
 		return err
 	}
 	if err := assignMoves(ctx, db, w); err != nil {
@@ -166,6 +183,10 @@ type member struct {
 	AttachedTo  string
 	Destination string // while travelling
 	Directive   string // the AMI directive it's running ("active"), "" if none or paused
+
+	// The AMI directive as the API gives it, whatever its status: e.g.
+	// gather_salvage and completed.
+	DirectiveName, DirectiveStatus string
 }
 
 // fetchMember reads device code from the API. Its type must be wantType
@@ -185,6 +206,7 @@ func fetchMember(ctx context.Context, code, wantType, controller string) (member
 	m := member{
 		Code: code, Type: d.DeviceType, Location: d.Location, Status: d.Status,
 		AttachedTo: d.AttachedToDeviceCode, Destination: d.Travel.FinalDestination,
+		DirectiveName: d.AmiDirective.Name, DirectiveStatus: d.AmiDirectiveStatus,
 	}
 	switch d.AmiDirectiveStatus {
 	case "active":
