@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -135,5 +137,46 @@ func putBelt(ctx context.Context, ex Execer, star string, b model.SystemBelt) er
 	}
 	_, err := ex.ExecContext(ctx, fmt.Sprintf(`INSERT INTO belts (designation, density, %s) VALUES (?, ?%s)`,
 		strings.Join(resources, ", "), strings.Repeat(", ?", len(resources))), args...)
+	return err
+}
+
+// SurveyProgress applies an ami.survey.digest's progress at star. Progress
+// counts planets and moons together, and its total grows as scanning planets
+// turns up their moons, so it can't be split into planets_scanned and
+// moons_scanned. All it can tell us is when the survey has finished: nothing
+// remaining, with as many scanned as the system's planets and moons put
+// together. Then both scanned counts are set to the totals. Anything else
+// changes nothing.
+//
+// A total of 0 means no system survey (a belt search's digest) and is
+// ignored. It's an error if the star isn't in the store or its system hasn't
+// been read, if scanned and remaining don't add up to the total, or if the
+// total is more than the planets and moons we know of.
+func SurveyProgress(ctx context.Context, ex ExecQueryer, star string, p model.SurveyProgress) error {
+	if p.Total == 0 {
+		return nil
+	}
+	if p.Scanned+p.Remaining != p.Total || p.Scanned < 0 || p.Remaining < 0 {
+		return fmt.Errorf("survey of %s: scanned %d + remaining %d != total %d", star, p.Scanned, p.Remaining, p.Total)
+	}
+	var planets, moons sql.NullInt64
+	err := ex.QueryRowContext(ctx, `SELECT planet_count, moon_count FROM stars WHERE designation = ?`, star).Scan(&planets, &moons)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("survey of %s: star isn't in the store", star)
+	}
+	if err != nil {
+		return err
+	}
+	if !planets.Valid || !moons.Valid {
+		return fmt.Errorf("survey of %s: we haven't read its system (no planet or moon count)", star)
+	}
+	known := int(planets.Int64 + moons.Int64)
+	if p.Total > known {
+		return fmt.Errorf("survey of %s: total %d is more than the %d planets and %d moons we know of", star, p.Total, planets.Int64, moons.Int64)
+	}
+	if p.Remaining > 0 || p.Scanned < known {
+		return nil
+	}
+	_, err = ex.ExecContext(ctx, `UPDATE stars SET planets_scanned = planet_count, moons_scanned = moon_count WHERE designation = ?`, star)
 	return err
 }

@@ -256,7 +256,7 @@ type surveyState struct {
 	Target      string   // the star to survey
 	TargetEntry string   // its entry point
 	HomeEntry   string   // the entry point of the controller's star, if that isn't Target
-	Complete    bool     // every planet and moon at Target is scanned. TODO (important): stale during a survey; see store.IsFullyScanned
+	Complete    bool     // every planet and moon at Target is scanned
 	Team        []member // the controller first, then its drones
 }
 

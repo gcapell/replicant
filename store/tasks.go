@@ -251,11 +251,9 @@ func EntryPoint(ctx context.Context, q Queryer, star string) (string, error) {
 }
 
 // IsFullyScanned reports whether every planet and moon at star is scanned.
-//
-// TODO (important): the scan counts are only written when monitor first reads
-// a system, so during a survey this stays false. monitor must update them
-// (from ami.survey.digest's progress, or by reading /locations/STAR again on
-// directive.completed) before survey_system tasks can ever finish.
+// monitor keeps the counts current during a survey: the final
+// ami.survey.digest marks the system done (SurveyProgress), and the
+// controller's directive.completed reads /locations/STAR again.
 func IsFullyScanned(ctx context.Context, q Queryer, star string) (bool, error) {
 	var full sql.NullBool
 	err := q.QueryRowContext(ctx, `SELECT is_fully_scanned FROM stars WHERE designation = ?`, star).Scan(&full)

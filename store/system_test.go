@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 
@@ -129,5 +130,54 @@ func TestReplaceInventory(t *testing.T) {
 			t.Errorf("%s: accepted", name)
 		}
 		tx.Rollback()
+	}
+}
+
+func TestSurveyProgress(t *testing.T) {
+	db := openTest(t)
+	ctx := t.Context()
+	mustExec(t, db, `INSERT INTO stars (designation, x, y, z, planet_count, planets_scanned, moon_count, moons_scanned)
+		VALUES ('ULSIOS', 0, 0, 0, 7, 0, 58, 0), ('UNREAD', 0, 0, 0, NULL, NULL, NULL, NULL)`)
+	counts := func() string {
+		t.Helper()
+		var ps, ms int
+		var full bool
+		if err := db.QueryRow(`SELECT planets_scanned, moons_scanned, is_fully_scanned FROM stars WHERE designation = 'ULSIOS'`).Scan(&ps, &ms, &full); err != nil {
+			t.Fatal(err)
+		}
+		return fmt.Sprintf("%d %d %v", ps, ms, full)
+	}
+	p := func(scanned, remaining, total int) model.SurveyProgress {
+		return model.SurveyProgress{Scanned: scanned, Remaining: remaining, Total: total}
+	}
+	// Under way, a belt search's empty progress, and a total that hasn't yet
+	// grown to include every moon (remaining 0, but short): no change.
+	for _, pr := range []model.SurveyProgress{p(5, 56, 61), {}, p(31, 0, 31)} {
+		if err := SurveyProgress(ctx, db, "ULSIOS", pr); err != nil {
+			t.Fatalf("%+v: %v", pr, err)
+		}
+		if got := counts(); got != "0 0 false" {
+			t.Errorf("after %+v: %s", pr, got)
+		}
+	}
+	for _, c := range []struct {
+		what string
+		star string
+		p    model.SurveyProgress
+	}{
+		{"doesn't add up", "ULSIOS", p(5, 5, 61)},
+		{"more than we know", "ULSIOS", p(66, 0, 66)},
+		{"unread system", "UNREAD", p(0, 7, 7)},
+		{"unknown star", "NOWHERE", p(0, 7, 7)},
+	} {
+		if err := SurveyProgress(ctx, db, c.star, c.p); err == nil {
+			t.Errorf("%s: no error", c.what)
+		}
+	}
+	if err := SurveyProgress(ctx, db, "ULSIOS", p(65, 0, 65)); err != nil {
+		t.Fatal(err)
+	}
+	if got := counts(); got != "7 58 true" {
+		t.Errorf("finished: %s", got)
 	}
 }

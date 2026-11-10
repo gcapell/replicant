@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/gcapell/replicant/api"
@@ -60,12 +61,24 @@ var handlers = map[string]handler{
 }
 
 // surveyDigest is miningDigest for an ami_survey_controller.
+// It also applies the report's progress to the star's scan counts
+// (store.SurveyProgress), which marks the system fully scanned once the
+// survey is done.
 func surveyDigest(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
 	p, ok := payload.(*model.SurveyDigest)
 	if !ok {
 		return fmt.Errorf("payload is %T", payload)
 	}
-	return digestDevices(ctx, tx, env, p.Devices)
+	if err := digestDevices(ctx, tx, env, p.Devices); err != nil {
+		return err
+	}
+	if p.Report.Progress.Total == 0 {
+		return nil
+	}
+	if env.Star == "" {
+		return fmt.Errorf("survey digest with progress but no star")
+	}
+	return store.SurveyProgress(ctx, tx, env.Star, p.Report.Progress)
 }
 
 // adopted: the envelope's device is the controller, adopting each of
@@ -101,13 +114,42 @@ func released(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) er
 // the device's status becomes (coordinating, idle, ...), so it's fetched from
 // /devices/{code}: when replaying old events that's the status now, not then.
 // A device the API doesn't know, or of a different type, is an error.
-func directive(ctx context.Context, _ store.Reader, env api.Envelope, _ any) (change, error) {
+//
+// When an ami_survey_controller completes survey_system, it also reads the
+// system again (/locations/STAR, the envelope's star) and stores it, as a
+// check on the scan counts the digests left. If the system still isn't fully
+// scanned it says so; the survey_system task will start another survey.
+func directive(ctx context.Context, _ store.Reader, env api.Envelope, payload any) (change, error) {
 	d, err := eventDevice(ctx, env)
 	if err != nil {
 		return nil, err
 	}
+	var sys *model.Location
+	if p, ok := payload.(*model.DirectiveCompleted); ok && p.Directive == surveyDirective {
+		if d.DeviceType != "ami_survey_controller" {
+			return nil, fmt.Errorf("%s completed %s, but it's a %s", d.DeviceCode, surveyDirective, d.DeviceType)
+		}
+		if env.Star == "" {
+			return nil, fmt.Errorf("%s completed %s with no star", d.DeviceCode, surveyDirective)
+		}
+		if sys, err = fetchLocation(ctx, env.Star); err != nil {
+			return nil, fmt.Errorf("reading surveyed system %s: %w", env.Star, err)
+		}
+		if sys.Location != env.Star {
+			return nil, fmt.Errorf("asked for /locations/%s, got %q", env.Star, sys.Location)
+		}
+		if sys.Unscanned() > 0 {
+			log.Printf("%s completed %s at %s, but %d planets and moons are still unscanned", d.DeviceCode, surveyDirective, env.Star, sys.Unscanned())
+		}
+	}
 	return func(ctx context.Context, tx *sql.Tx) error {
-		return store.SetStatus(ctx, tx, d.DeviceCode, d.Status)
+		if err := store.SetStatus(ctx, tx, d.DeviceCode, d.Status); err != nil {
+			return err
+		}
+		if sys != nil {
+			return store.PutSystem(ctx, tx, *sys)
+		}
+		return nil
 	}, nil
 }
 

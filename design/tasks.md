@@ -7,7 +7,7 @@ It might help to organise our work if we maintain a database of _tasks_, e.g. "m
 - `monitor`'s startup files a `survey_system` task for each relay star that isn't fully surveyed, and assigns the free survey teams (min-max distance, not the greedy choice described below). `monitor -n` prints the plan.
 - Startup then calls the handler once for each `assigned` task, in priority order (`cmd/monitor/tasks.go`: `taskHandlers`, one per task type, named in camelCase and living in the task's own file). Handlers return a `change` that's applied in its own transaction. They're called one after another, not in goroutines, and nothing wakes them on events yet.
 - `surveySystem` takes real steps (see `decideSurvey` in `cmd/monitor/survey.go`): gather at an entry point, file and block on a `move_devices` task, start the survey, gather again, finish. Finishing calls `assignNext`, the generic "what should this device do next" (pending tasks its type can do, by priority then distance).
-- **TODO (important):** survey completion reads `stars.is_fully_scanned`, which goes stale during a survey (see the prerequisite below), so a survey task can't finish yet.
+- Survey completion reads `stars.is_fully_scanned`. `monitor` keeps it current: the last `ami.survey.digest` marks the system done, and `directive.completed` (survey_system) reads `/locations/STAR` again as a check (the prerequisite below).
 - Nothing handles `move_devices` yet.
 
 ## Decisions so far
@@ -116,7 +116,7 @@ When the executor applies an event, it also works out which tasks the event conc
   * picks this team's next task (by priority, then distance).
 * If it was given a new task, its handler starts.
 
-**Prerequisite:** today `monitor` reads `/locations/STAR` only the first time a star's system is scanned (when `planet_count` is NULL). After that the scan counts don't change, so `is_fully_scanned` goes stale during a survey. `monitor` needs to update the counts, either from `ami.survey.digest`'s progress (scanned/total) or by reading the system again on `directive.completed`.
+**Prerequisite (done):** `is_fully_scanned` must stay current during a survey. `ami.survey.digest`'s progress counts planets and moons together (its total grows as moons turn up), so it only tells us when the survey is finished, and then `monitor` marks the system fully scanned. On the controller's `directive.completed` for `survey_system`, `monitor` reads `/locations/STAR` again and stores it.
 
 ## Startup
 
