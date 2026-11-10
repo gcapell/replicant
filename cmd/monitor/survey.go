@@ -207,16 +207,25 @@ func surveySystem(ctx context.Context, db store.Reader, t store.Task) (change, e
 
 	switch a.Step {
 	case surveyWait:
+		if c.Directive == surveyDirective {
+			return setPhase(t, phaseSurveying), nil
+		}
 		return nil, nil
 	case surveyStart:
-		return nil, api.SurveySystem(ctx, t.Assignee)
+		if err := api.SurveySystem(ctx, t.Assignee); err != nil {
+			return nil, err
+		}
+		return setPhase(t, phaseSurveying), nil
 	case surveyGather:
 		for _, d := range a.Travellers {
 			if err := api.Travel(ctx, d, a.Dest); err != nil {
 				return nil, err
 			}
 		}
-		return nil, nil
+		if a.Dest == s.TargetEntry {
+			return setPhase(t, phaseRegrouping), nil
+		}
+		return setPhase(t, phaseGathering), nil
 	case surveyDone:
 		return func(ctx context.Context, tx *sql.Tx) error {
 			if _, err := store.FinishTask(ctx, tx, t.ID, time.Now()); err != nil {
@@ -234,6 +243,15 @@ func surveySystem(ctx context.Context, db store.Reader, t store.Task) (change, e
 	}
 	return nil, fmt.Errorf("unknown step %d", a.Step)
 }
+
+// survey_system phases: gathering at the entry point of the system the
+// team is in (to be picked up), surveying, then regrouping at the target's
+// entry point. While a move brings the team over, the task is blocked.
+const (
+	phaseGathering  = "gathering"
+	phaseSurveying  = "surveying"
+	phaseRegrouping = "regrouping"
+)
 
 type surveyStep int
 

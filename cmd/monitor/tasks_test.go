@@ -187,3 +187,36 @@ func TestFetchMemberDirectiveStatus(t *testing.T) {
 		t.Error("unknown status accepted")
 	}
 }
+
+func TestSetPhase(t *testing.T) {
+	db := taskStore(t)
+	ctx := t.Context()
+	exec(t, db, `INSERT INTO tasks (task, location, status, assignee, created_at, updated_at) VALUES
+		('move_devices', 'NEAR-1-L4', 'assigned', 'T1', 0, 0),
+		('survey_system', 'FAR', 'blocked', 'C1', 0, 0)`)
+	task := store.Task{ID: 1, Task: moveDevicesTask, Location: "NEAR-1-L4"}
+	if err := inTx(ctx, db, func(tx *sql.Tx) error { return setPhase(task, phaseToPickup)(ctx, tx) }); err != nil {
+		t.Fatal(err)
+	}
+	ts, err := store.AssignedTasks(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ts) != 1 || ts[0].Phase != phaseToPickup {
+		t.Errorf("assigned tasks = %+v, want task 1 in phase %s", ts, phaseToPickup)
+	}
+	var updated int64
+	db.QueryRow(`SELECT updated_at FROM tasks WHERE id = 1`).Scan(&updated)
+	if updated == 0 {
+		t.Error("updated_at not set")
+	}
+	// Already in that phase: nothing to do.
+	if c := setPhase(ts[0], phaseToPickup); c != nil {
+		t.Error("setPhase to the current phase returned a change")
+	}
+	// Only an assigned task has a phase set.
+	blocked := store.Task{ID: 2, Task: surveyTask, Location: "FAR"}
+	if err := inTx(ctx, db, func(tx *sql.Tx) error { return setPhase(blocked, phaseSurveying)(ctx, tx) }); err == nil {
+		t.Error("set the phase of a blocked task")
+	}
+}

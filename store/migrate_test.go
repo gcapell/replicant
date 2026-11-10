@@ -322,3 +322,27 @@ func TestRenameCreate(t *testing.T) {
 		}
 	}
 }
+
+// Rebuilding an AUTOINCREMENT table keeps its counter, even when the rows
+// with the highest ids are gone.
+func TestRebuildKeepsAutoincrement(t *testing.T) {
+	db := testDB(t)
+	mustMigrate(t, db, `CREATE TABLE a (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)`, MigrateOptions{})
+	mustExec(t, db, `INSERT INTO a (name) VALUES ('one'), ('two'), ('three')`)
+	mustExec(t, db, `DELETE FROM a WHERE id = 3`)
+	checkChanges(t, mustMigrate(t, db, `CREATE TABLE a (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, n INTEGER)`, MigrateOptions{}),
+		"rebuild table a")
+	mustExec(t, db, `INSERT INTO a (name) VALUES ('four')`)
+	var id int
+	if err := db.QueryRow(`SELECT id FROM a WHERE name = 'four'`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if id != 4 {
+		t.Errorf("new row got id %d, want 4 (3 was used before the rebuild)", id)
+	}
+	var n int
+	db.QueryRow(`SELECT count(*) FROM sqlite_sequence WHERE name = 'a'`).Scan(&n)
+	if n != 1 {
+		t.Errorf("%d sqlite_sequence rows for a", n)
+	}
+}

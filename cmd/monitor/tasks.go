@@ -181,3 +181,15 @@ func assignNext(ctx context.Context, tx *sql.Tx, device, deviceType, star string
 	log.Printf("%s (%s): assigned task %d %s %s (%.1f ly)", device, deviceType, best.ID, best.Task, best.Location, bestDist)
 	return best, nil
 }
+
+// setPhase is a change recording that task t is now in phase, or nil if it
+// already is.
+func setPhase(t store.Task, phase string) change {
+	if t.Phase == phase {
+		return nil
+	}
+	return func(ctx context.Context, tx *sql.Tx) error {
+		log.Printf("task %d %s %s: phase %s", t.ID, t.Task, t.Location, phase)
+		return store.SetPhase(ctx, tx, t.ID, phase, time.Now())
+	}
+}

@@ -16,11 +16,12 @@ type Task struct {
 	Location string
 	Priority int
 	Status   string
+	Phase    string // where within the task we are, set by its handler; "" until started
 	Assignee string // "" if unassigned
 	Details  string // JSON, "" if none
 }
 
-const taskColumns = `id, task, coalesce(location, ''), priority, status, coalesce(assignee, ''), coalesce(details, '')`
+const taskColumns = `id, task, coalesce(location, ''), priority, status, coalesce(phase, ''), coalesce(assignee, ''), coalesce(details, '')`
 
 // TasksOfType lists every task of the given type, failed ones included.
 func TasksOfType(ctx context.Context, q Reader, task string) ([]Task, error) {
@@ -42,7 +43,7 @@ func tasks(ctx context.Context, q Reader, query string, args ...any) ([]Task, er
 	var ts []Task
 	for rows.Next() {
 		var t Task
-		if err := rows.Scan(&t.ID, &t.Task, &t.Location, &t.Priority, &t.Status, &t.Assignee, &t.Details); err != nil {
+		if err := rows.Scan(&t.ID, &t.Task, &t.Location, &t.Priority, &t.Status, &t.Phase, &t.Assignee, &t.Details); err != nil {
 			return nil, err
 		}
 		ts = append(ts, t)
@@ -351,6 +352,21 @@ func CheckRelayStar(ctx context.Context, q Queryer, star string) error {
 	}
 	if !ok {
 		return fmt.Errorf("%s has no relaying ftl_relay", star)
+	}
+	return nil
+}
+
+// SetPhase records where within assigned task id we are (e.g. to_pickup).
+func SetPhase(ctx context.Context, ex Execer, id int64, phase string, now time.Time) error {
+	res, err := ex.ExecContext(ctx, `UPDATE tasks SET phase = ?, updated_at = ? WHERE id = ? AND status = 'assigned'`,
+		phase, now.UnixMilli(), id)
+	if err != nil {
+		return fmt.Errorf("setting task %d's phase to %s: %w", id, phase, err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return err
+	} else if n != 1 {
+		return fmt.Errorf("setting task %d's phase to %s: no assigned task with that id", id, phase)
 	}
 	return nil
 }

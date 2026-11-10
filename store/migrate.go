@@ -282,11 +282,53 @@ func rebuildTable(ctx context.Context, conn execQuerier, w object) error {
 			return err
 		}
 	}
+	// An AUTOINCREMENT table's counter must survive: copying rows sets the
+	// new table's to the highest id copied, which can be lower than ids
+	// already handed out (e.g. tasks moved to archived_tasks).
+	seq, hasSeq, err := sequence(ctx, conn, w.Name)
+	if err != nil {
+		return err
+	}
 	if _, err := conn.ExecContext(ctx, "DROP TABLE "+quote(w.Name)); err != nil {
 		return err
 	}
-	_, err = conn.ExecContext(ctx, fmt.Sprintf("ALTER TABLE %s RENAME TO %s", quote(tmp), quote(w.Name)))
+	if _, err = conn.ExecContext(ctx, fmt.Sprintf("ALTER TABLE %s RENAME TO %s", quote(tmp), quote(w.Name))); err != nil {
+		return err
+	}
+	if !hasSeq {
+		return nil
+	}
+	if _, err := conn.ExecContext(ctx, `DELETE FROM sqlite_sequence WHERE name = ?`, w.Name); err != nil {
+		return err
+	}
+	_, err = conn.ExecContext(ctx, `INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)`, w.Name, seq)
 	return err
+}
+
+// sequence is table's AUTOINCREMENT counter, if it has one.
+func sequence(ctx context.Context, conn execQuerier, table string) (int64, bool, error) {
+	rows, err := conn.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE name = 'sqlite_sequence'`)
+	if err != nil {
+		return 0, false, err
+	}
+	exists := rows.Next()
+	rows.Close()
+	if err := rows.Err(); err != nil || !exists {
+		return 0, false, err
+	}
+	rows, err = conn.QueryContext(ctx, `SELECT seq FROM sqlite_sequence WHERE name = ?`, table)
+	if err != nil {
+		return 0, false, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return 0, false, rows.Err()
+	}
+	var seq int64
+	if err := rows.Scan(&seq); err != nil {
+		return 0, false, err
+	}
+	return seq, true, rows.Err()
 }
 
 // tableSQL is a table's CREATE statement, normalized for comparison. The

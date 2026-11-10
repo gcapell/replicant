@@ -177,6 +177,7 @@ CREATE TABLE tasks (
 	priority INTEGER NOT NULL DEFAULT 3 CHECK (priority BETWEEN 0 AND 5), -- 0 is highest
 	status TEXT NOT NULL DEFAULT 'pending'
 		CHECK (status IN ('pending', 'blocked', 'assigned', 'failed')),
+	phase TEXT,                      -- where within the task we are, set by its handler, e.g. to_pickup; NULL until started
 	assignee TEXT,                   -- device_code; NULL until assigned
 	details TEXT,                    -- task-specific JSON, e.g. {"carbon":400,"silicates":100}
 	error TEXT,                      -- why it failed
