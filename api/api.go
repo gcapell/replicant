@@ -54,6 +54,13 @@ const (
 	defaultRetryAfter = 5 * time.Second // when Retry-After is missing or unreadable
 )
 
+// unavailableDelay is how long to wait before retrying after the n'th 503
+// (Service Unavailable) for one request, counting from 1: 30s, 1m, 2m, then
+// 4m for ever. A 503 is retried until it stops or ctx is done.
+func unavailableDelay(n int) time.Duration {
+	return 30 * time.Second << min(n-1, 3)
+}
+
 // wait sleeps for d, or until ctx is done. Replaceable in tests.
 var wait = func(ctx context.Context, d time.Duration) error {
 	t := time.NewTimer(d)
@@ -78,14 +85,25 @@ func do(ctx context.Context, method string, body any, url string, args ...any) (
 	} else {
 		log.Printf("%s %s", method, url)
 	}
-	for attempt := 1; ; attempt++ {
+	attempt, unavailable := 0, 0 // 429s and 503s so far
+	for {
 		data, resp, err := send(ctx, method, url, encoded)
 		if err != nil {
 			return nil, err
 		}
-		if resp.StatusCode == http.StatusTooManyRequests && attempt < maxAttempts {
+		if resp.StatusCode == http.StatusTooManyRequests && attempt+1 < maxAttempts {
+			attempt++
 			d, why := retryAfter(resp.Header.Get("Retry-After"), time.Now())
 			log.Printf("%s %s: 429 rate limited (attempt %d of %d); retrying in %s (%s)", method, url, attempt, maxAttempts, d, why)
+			if err := wait(ctx, d); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if resp.StatusCode == http.StatusServiceUnavailable {
+			unavailable++
+			d := unavailableDelay(unavailable)
+			log.Printf("%s %s: 503 service unavailable (%d so far); retrying in %s", method, url, unavailable, d)
 			if err := wait(ctx, d); err != nil {
 				return nil, err
 			}
