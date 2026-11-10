@@ -13,7 +13,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/gcapell/replicant/api"
 	"github.com/gcapell/replicant/auto"
 	"github.com/gcapell/replicant/store"
 )
@@ -61,8 +60,13 @@ var taskFits = map[string]func(ctx context.Context, q store.Queryer, t store.Tas
 
 // runAssigned calls the handler for every assigned task, highest priority
 // first, once each, and applies what it returns. A task type with no handler
-// is an error, as is a failing handler. Tasks that a handler assigns or
-// unblocks wait for their next wake-up (TODO: wake them).
+// is an error, as is a failing handler.
+//
+// Tasks that a handler assigns or unblocks (e.g. the survey waiting for a
+// move) don't run until the next startup. That's deliberate for now, while
+// developing, so each startup takes one easily followed step per task.
+// TODO: eventually run them straight away (and on events), so finishing one
+// task starts the next.
 func runAssigned(ctx context.Context, db *sql.DB) error {
 	ts, err := store.AssignedTasks(ctx, db)
 	if err != nil {
@@ -98,17 +102,18 @@ type member struct {
 	Status      string
 	AttachedTo  string
 	Destination string // while travelling
-	Directive   string // the AMI directive it's running, "" if none
+	Directive   string // the AMI directive it's running ("active"), "" if none or paused
 }
 
-// fetchMember reads device code from the API. Its type must be wantType and,
+// fetchMember reads device code from the API. Its type must be wantType
+// (unless that's "") and,
 // if controller isn't "", its controller must be controller.
 func fetchMember(ctx context.Context, code, wantType, controller string) (member, error) {
-	d, err := api.Device(ctx, code)
+	d, err := fetchDevice(ctx, code)
 	if err != nil {
 		return member{}, err
 	}
-	if d.DeviceType != wantType {
+	if wantType != "" && d.DeviceType != wantType {
 		return member{}, fmt.Errorf("device %s is a %s, not a %s", code, d.DeviceType, wantType)
 	}
 	if controller != "" && d.ControllerDeviceCode != controller {
@@ -121,7 +126,9 @@ func fetchMember(ctx context.Context, code, wantType, controller string) (member
 	switch d.AmiDirectiveStatus {
 	case "active":
 		m.Directive = d.AmiDirective.Name
-	case "", "completed":
+	case "", "completed", "paused":
+		// Not running. A completed directive was seen "paused" after
+		// detaching its controller by hand.
 	default:
 		return member{}, fmt.Errorf("device %s: directive %s has status %q", code, d.AmiDirective.Name, d.AmiDirectiveStatus)
 	}

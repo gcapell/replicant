@@ -341,3 +341,16 @@ func AttachCapacity(ctx context.Context, q Queryer, deviceType string) (int, err
 	}
 	return n, err
 }
+
+// CheckRelayStar is an error unless star has a relaying ftl_relay (anything
+// sent to a system without one can't be controlled).
+func CheckRelayStar(ctx context.Context, q Queryer, star string) error {
+	var ok bool
+	if err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM relay_stars WHERE star = ?)`, star).Scan(&ok); err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("%s has no relaying ftl_relay", star)
+	}
+	return nil
+}

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gcapell/replicant/api"
+	"github.com/gcapell/replicant/model"
 	"github.com/gcapell/replicant/store"
 )
 
@@ -160,5 +162,28 @@ func TestBlockOnMoveThenFinish(t *testing.T) {
 		return err
 	}); err == nil {
 		t.Error("finished a pending task")
+	}
+}
+
+func TestFetchMemberDirectiveStatus(t *testing.T) {
+	status := ""
+	fetchDevice = func(ctx context.Context, code string) (*model.Device, error) {
+		d := &model.Device{DeviceCode: code, DeviceType: "ami_survey_controller", AmiDirectiveStatus: status}
+		d.AmiDirective.Name = "survey_system"
+		return d, nil
+	}
+	defer func() { fetchDevice = api.Device }()
+	for _, c := range []struct{ status, directive string }{
+		{"active", "survey_system"}, {"completed", ""}, {"paused", ""}, {"", ""},
+	} {
+		status = c.status
+		m, err := fetchMember(t.Context(), "C", "", "")
+		if err != nil || m.Directive != c.directive {
+			t.Errorf("status %q: directive %q, err %v; want %q", c.status, m.Directive, err, c.directive)
+		}
+	}
+	status = "exploded"
+	if _, err := fetchMember(t.Context(), "C", "", ""); err == nil {
+		t.Error("unknown status accepted")
 	}
 }
