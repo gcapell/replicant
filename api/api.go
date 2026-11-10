@@ -9,12 +9,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gcapell/replicant/model"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/json-iterator/go/extra"
 )
 
 const BaseURL = "https://api.replicant.space/v1"
@@ -25,10 +25,6 @@ var (
 	client    = &http.Client{Timeout: 10 * time.Second}
 )
 var apiKey string
-
-func init() {
-	extra.SetNamingStrategy(extra.LowerCaseWithUnderscores)
-}
 
 func init() {
 	apiKey = os.Getenv("API_KEY")
@@ -47,22 +43,70 @@ func post(ctx context.Context, body any, url string, args ...any) ([]byte, error
 	return do(ctx, http.MethodPost, body, url, args...)
 }
 
+// baseURL is BaseURL, replaceable in tests.
+var baseURL = BaseURL
+
+// Rate limiting (https://replicant.space/docs/rate-limits/): a 429 response
+// is retried after its Retry-After, up to maxAttempts tries in all. A 429
+// means the request wasn't carried out, so retrying a POST is safe.
+const (
+	maxAttempts       = 10
+	defaultRetryAfter = 5 * time.Second // when Retry-After is missing or unreadable
+)
+
+// wait sleeps for d, or until ctx is done. Replaceable in tests.
+var wait = func(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func do(ctx context.Context, method string, body any, url string, args ...any) ([]byte, error) {
 	url = fmt.Sprintf(url, args...)
-	var r io.Reader
+	var encoded []byte
 	if body != nil {
-		encoded, err := marshal(body)
-		if err != nil {
+		var err error
+		if encoded, err = marshal(body); err != nil {
 			return nil, err
 		}
 		log.Printf("%s %s %s", method, url, encoded)
-		r = bytes.NewReader(encoded)
 	} else {
 		log.Printf("%s %s", method, url)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, BaseURL+url, r)
+	for attempt := 1; ; attempt++ {
+		data, resp, err := send(ctx, method, url, encoded)
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode == http.StatusTooManyRequests && attempt < maxAttempts {
+			d, why := retryAfter(resp.Header.Get("Retry-After"), time.Now())
+			log.Printf("%s %s: 429 rate limited (attempt %d of %d); retrying in %s (%s)", method, url, attempt, maxAttempts, d, why)
+			if err := wait(ctx, d); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if resp.StatusCode/100 != 2 {
+			return nil, &HTTPError{Method: method, URL: url, Status: resp.Status, StatusCode: resp.StatusCode, Body: data}
+		}
+		return data, nil
+	}
+}
+
+// send makes one request, returning the body read in full.
+func send(ctx context.Context, method, url string, body []byte) ([]byte, *http.Response, error) {
+	var r io.Reader
+	if body != nil {
+		r = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, baseURL+url, r)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	if body != nil {
@@ -70,14 +114,29 @@ func do(ctx context.Context, method string, body any, url string, args ...any) (
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
-	if resp.StatusCode/100 != 2 {
-		return nil, &HTTPError{Method: method, URL: url, Status: resp.Status, StatusCode: resp.StatusCode, Body: data}
+	if err != nil {
+		return nil, nil, err
 	}
-	return data, err
+	return data, resp, nil
+}
+
+// retryAfter reads a Retry-After header: a number of seconds, or an HTTP
+// date. Missing or unreadable means defaultRetryAfter. why says which.
+func retryAfter(h string, now time.Time) (d time.Duration, why string) {
+	if h == "" {
+		return defaultRetryAfter, "no Retry-After header"
+	}
+	if secs, err := strconv.Atoi(strings.TrimSpace(h)); err == nil && secs >= 0 {
+		return time.Duration(secs) * time.Second, "Retry-After: " + h
+	}
+	if t, err := http.ParseTime(h); err == nil {
+		return max(t.Sub(now), 0), "Retry-After: " + h
+	}
+	return defaultRetryAfter, fmt.Sprintf("unreadable Retry-After %q", h)
 }
 
 // HTTPError is a non-2xx response. Use errors.As to look at its body.

@@ -169,7 +169,7 @@ const surveyDirective = "survey_system"
 // moon at t.Location (a star). Each call takes one step (decideSurvey); the
 // team's devices are fetched from the API first, so it acts on how they are
 // now, not on the store.
-func surveySystem(ctx context.Context, db store.Reader, t store.Task) (change, error) {
+func surveySystem(ctx context.Context, db store.Reader, t store.Task) (taskChange, error) {
 	drones, err := store.ControlledBy(ctx, db, t.Assignee)
 	if err != nil {
 		return nil, err
@@ -227,12 +227,8 @@ func surveySystem(ctx context.Context, db store.Reader, t store.Task) (change, e
 		}
 		return setPhase(t, phaseGathering), nil
 	case surveyDone:
-		return func(ctx context.Context, tx *sql.Tx) error {
-			if _, err := store.FinishTask(ctx, tx, t.ID, time.Now()); err != nil {
-				return err
-			}
-			_, err := assignNext(ctx, tx, t.Assignee, "ami_survey_controller", t.Location, time.Now())
-			return err
+		return func(ctx context.Context, tx *sql.Tx) ([]int64, error) {
+			return finishAndNext(ctx, tx, t, t.Assignee, "ami_survey_controller", t.Location)
 		}, nil
 	case surveyBlock:
 		codes := make([]string, len(team))

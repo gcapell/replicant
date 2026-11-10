@@ -27,7 +27,7 @@ func TestRunAssigned(t *testing.T) {
 	var got []string
 	saved := taskHandlers[surveyTask]
 	t.Cleanup(func() { taskHandlers[surveyTask] = saved })
-	taskHandlers[surveyTask] = func(_ context.Context, _ store.Reader, task store.Task) (change, error) {
+	taskHandlers[surveyTask] = func(_ context.Context, _ store.Reader, task store.Task) (taskChange, error) {
 		got = append(got, fmt.Sprintf("%s %d %s %s", task.Location, task.Priority, task.Assignee, task.Details))
 		return nil, nil
 	}
@@ -121,7 +121,8 @@ func TestBlockOnMoveThenFinish(t *testing.T) {
 	exec(t, db, `INSERT INTO tasks (task, location, status, assignee, created_at, updated_at)
 		VALUES ('survey_system', 'FAR', 'assigned', 'C1', 0, 0)`)
 	if err := inTx(ctx, db, func(tx *sql.Tx) error {
-		return blockOnMove(1, "HOME-1-L4", "FAR-2-L4", []string{"C1", "D1"})(ctx, tx)
+		_, err := blockOnMove(1, "HOME-1-L4", "FAR-2-L4", []string{"C1", "D1"})(ctx, tx)
+		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +196,7 @@ func TestSetPhase(t *testing.T) {
 		('move_devices', 'NEAR-1-L4', 'assigned', 'T1', 0, 0),
 		('survey_system', 'FAR', 'blocked', 'C1', 0, 0)`)
 	task := store.Task{ID: 1, Task: moveDevicesTask, Location: "NEAR-1-L4"}
-	if err := inTx(ctx, db, func(tx *sql.Tx) error { return setPhase(task, phaseToPickup)(ctx, tx) }); err != nil {
+	if err := inTx(ctx, db, func(tx *sql.Tx) error { _, err := setPhase(task, phaseToPickup)(ctx, tx); return err }); err != nil {
 		t.Fatal(err)
 	}
 	ts, err := store.AssignedTasks(ctx, db)
@@ -216,7 +217,7 @@ func TestSetPhase(t *testing.T) {
 	}
 	// Only an assigned task has a phase set.
 	blocked := store.Task{ID: 2, Task: surveyTask, Location: "FAR"}
-	if err := inTx(ctx, db, func(tx *sql.Tx) error { return setPhase(blocked, phaseSurveying)(ctx, tx) }); err == nil {
+	if err := inTx(ctx, db, func(tx *sql.Tx) error { _, err := setPhase(blocked, phaseSurveying)(ctx, tx); return err }); err == nil {
 		t.Error("set the phase of a blocked task")
 	}
 }

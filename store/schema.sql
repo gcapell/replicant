@@ -49,6 +49,8 @@ CREATE TABLE stars (
 	planets_scanned INTEGER,
 	moon_count INTEGER,              -- moons_total
 	moons_scanned INTEGER,
+	survey_scanned INTEGER,          -- the last ami.survey.digest's progress: planets and moons scanned
+	survey_total INTEGER,            -- and its total, which grows as scanning planets finds moons
 	is_fully_scanned INTEGER AS (
 		planets_scanned = planet_count AND moons_scanned = moon_count
 	) STORED,
@@ -57,7 +59,8 @@ CREATE TABLE stars (
 	system_tags TEXT                 -- comma-separated, e.g. resource_rich,green
 ) STRICT;
 
--- Planets (and later moons and other places), from /locations/STAR.
+-- Planets and moons. Planets come from /locations/STAR; ami.survey.digest
+-- scan reports fill in planets and add their moons (designation STAR-P-M).
 CREATE TABLE locations (
 	designation TEXT PRIMARY KEY,
 	star TEXT NOT NULL AS (substr(designation, 1, instr(designation, '-') - 1)) STORED,

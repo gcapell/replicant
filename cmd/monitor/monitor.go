@@ -21,10 +21,13 @@
 // and gives the free survey teams one each (survey.go). -n just prints that
 // plan, from the store as it is, and exits. Next it gives pending move_devices
 // tasks to free transports (move.go). After that it calls the handler
-// for every assigned task, highest priority first (handlers.go).
+// for every assigned task, highest priority first (tasks.go); tasks that one
+// finishes, unblocks or assigns run straight away.
 //
 // Then, until interrupted, it records each event in the events table,
-// applies the ones it handles (apply.go) and prints it.
+// applies the ones it handles (apply.go) and prints it. After applying one,
+// it runs the handlers of the tasks the event concerns (wake.go), and every
+// -sweep it runs every assigned task's handler, in case an event was missed.
 package main
 
 import (
@@ -37,6 +40,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 
 	"github.com/gcapell/replicant/api"
 	"github.com/gcapell/replicant/model"
@@ -48,6 +52,7 @@ func main() {
 	nStars := flag.Int("stars", 60, "how many of the nearest stars to fetch")
 	since := flag.String("since", "", "replay events after this event ID (default: after the last one recorded)")
 	catchup := flag.String("catchup", "", "on startup, apply every recorded event of these comma-separated types again, oldest first (e.g. device.deployed,relay.activated)")
+	sweepEvery := flag.Duration("sweep", 15*time.Minute, "how often to run every assigned task's handler, in case an event that should have woken one was missed (0: never)")
 	dryRun := flag.Bool("n", false, "print the survey and move tasks startup would file and assign, from the store as it is, and exit (no API calls, no writes)")
 	flag.Parse()
 
@@ -89,18 +94,18 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	if err := fileSurveys(ctx, db, os.Stdout); err != nil {
-		log.Fatal(err)
-	}
-	if err := assignMoves(ctx, db, os.Stdout); err != nil {
-		log.Fatal(err)
-	}
-	if err := runAssigned(ctx, db); err != nil {
+	if err := sweepTasks(ctx, db, os.Stdout); err != nil {
 		log.Fatal(err)
 	}
 	log.Print("startup done")
 
-	err = recordAll(ctx, db, events, p, replaying)
+	ex := &executor{}
+	if *sweepEvery > 0 {
+		t := time.NewTicker(*sweepEvery)
+		defer t.Stop()
+		ex.sweep = t.C
+	}
+	err = execute(ctx, db, events, p, replaying, ex)
 	if ctx.Err() == nil {
 		log.Fatal(err)
 	}
@@ -205,14 +210,17 @@ func fetchStars(ctx context.Context, tx *sql.Tx, n int) error {
 }
 
 // readSystems stores /locations/STAR for each star. Any error other than
-// "No replicant in system" stops it.
+// "No replicant in system" stops it. That endpoint now only answers for a
+// system with a replicant in it, so on a fresh store most systems are
+// skipped, and stay unread (no planets, belts or scan counts).
 func readSystems(ctx context.Context, tx *sql.Tx, stars []model.Star) error {
-	read, skipped := 0, 0
+	read := 0
+	var skipped []string
 	for _, s := range stars {
 		star := s.Designation
 		loc, err := api.Location(ctx, star)
 		if noPresence(err) {
-			skipped++
+			skipped = append(skipped, star)
 			continue
 		}
 		if err != nil {
@@ -226,7 +234,11 @@ func readSystems(ctx context.Context, tx *sql.Tx, stars []model.Star) error {
 		}
 		read++
 	}
-	log.Printf("systems: read %d, skipped %d we can't read yet", read, skipped)
+	log.Printf("systems: read %d", read)
+	if len(skipped) > 0 {
+		log.Printf("WARNING: skipped %d systems /locations wouldn't read (no replicant there), which stay unread: %s",
+			len(skipped), strings.Join(skipped, " "))
+	}
 	return nil
 }
 

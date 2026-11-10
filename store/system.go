@@ -140,18 +140,51 @@ func putBelt(ctx context.Context, ex Execer, star string, b model.SystemBelt) er
 	return err
 }
 
+// SurveyCompleted records that a survey_system directive finished at star:
+// every planet and moon is scanned. If the last digest's total
+// (survey_total) is more than the planets and moons we know of, the extras
+// are taken to be moons (so far they always have been) and moon_count rises
+// to match. It's an error if the star isn't in the store or its system hasn't
+// been read.
+func SurveyCompleted(ctx context.Context, ex ExecQueryer, star string) error {
+	var planets, moons, total sql.NullInt64
+	err := ex.QueryRowContext(ctx, `SELECT planet_count, moon_count, survey_total FROM stars WHERE designation = ?`, star).
+		Scan(&planets, &moons, &total)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("survey of %s completed: star isn't in the store", star)
+	}
+	if err != nil {
+		return err
+	}
+	if !planets.Valid || !moons.Valid {
+		return fmt.Errorf("survey of %s completed: we haven't read its system (no planet or moon count)", star)
+	}
+	m := moons.Int64
+	if total.Valid && total.Int64-planets.Int64 > m {
+		m = total.Int64 - planets.Int64
+	}
+	_, err = ex.ExecContext(ctx, `UPDATE stars SET moon_count = ?, planets_scanned = planet_count, moons_scanned = ?
+		WHERE designation = ?`, m, m, star)
+	return err
+}
+
 // SurveyProgress applies an ami.survey.digest's progress at star. Progress
 // counts planets and moons together, and its total grows as scanning planets
 // turns up their moons, so it can't be split into planets_scanned and
 // moons_scanned. All it can tell us is when the survey has finished: nothing
 // remaining, with as many scanned as the system's planets and moons put
 // together. Then both scanned counts are set to the totals. Anything else
-// changes nothing.
+// changes nothing. The progress itself is kept (survey_scanned,
+// survey_total), for SurveyCompleted.
+//
+// The total can be more than the planets and moons we know of: /locations
+// doesn't count moons nobody has found yet (ISTERRELAS: 3 planets and 3 moons
+// known, total 7). The counts are then marked fully scanned as they stand, and
+// the controller's directive.completed (SurveyCompleted) raises moon_count.
 //
 // A total of 0 means no system survey (a belt search's digest) and is
 // ignored. It's an error if the star isn't in the store or its system hasn't
-// been read, if scanned and remaining don't add up to the total, or if the
-// total is more than the planets and moons we know of.
+// been read, or if scanned and remaining don't add up to the total.
 func SurveyProgress(ctx context.Context, ex ExecQueryer, star string, p model.SurveyProgress) error {
 	if p.Total == 0 {
 		return nil
@@ -170,13 +203,110 @@ func SurveyProgress(ctx context.Context, ex ExecQueryer, star string, p model.Su
 	if !planets.Valid || !moons.Valid {
 		return fmt.Errorf("survey of %s: we haven't read its system (no planet or moon count)", star)
 	}
-	known := int(planets.Int64 + moons.Int64)
-	if p.Total > known {
-		return fmt.Errorf("survey of %s: total %d is more than the %d planets and %d moons we know of", star, p.Total, planets.Int64, moons.Int64)
+	if _, err := ex.ExecContext(ctx, `UPDATE stars SET survey_scanned = ?, survey_total = ? WHERE designation = ?`,
+		p.Scanned, p.Total, star); err != nil {
+		return err
 	}
+	known := int(planets.Int64 + moons.Int64)
 	if p.Remaining > 0 || p.Scanned < known {
 		return nil
 	}
 	_, err = ex.ExecContext(ctx, `UPDATE stars SET planets_scanned = planet_count, moons_scanned = moon_count WHERE designation = ?`, star)
 	return err
+}
+
+// ScanReport applies one scan from an ami.survey.digest at star to the
+// locations table.
+//
+// A planet scan updates (or adds) the planet: type, life stage, habitable
+// zone, moon_count (the moons listed) and scanned. Each listed moon is added
+// (or updated), with its planet's habitable zone; a moon already marked
+// scanned stays so. Then the star's planet_count and moon_count rise to what
+// the locations table now holds, if that's more.
+//
+// A moon scan marks the moon scanned (adding it if need be), with its type
+// and life stage. Its planet must be in the store.
+//
+// It's an error if the star isn't in the store or its system hasn't been
+// read, if the target isn't in the star's system or doesn't match the report,
+// or if the scan type is anything but planet or moon.
+func ScanReport(ctx context.Context, ex ExecQueryer, star string, s model.SurveyScan) error {
+	var planets, moons sql.NullInt64
+	err := ex.QueryRowContext(ctx, `SELECT planet_count, moon_count FROM stars WHERE designation = ?`, star).Scan(&planets, &moons)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("scan of %s: star %s isn't in the store", s.ScanTarget, star)
+	}
+	if err != nil {
+		return err
+	}
+	if !planets.Valid || !moons.Valid {
+		return fmt.Errorf("scan of %s: we haven't read %s's system", s.ScanTarget, star)
+	}
+	parts := strings.Split(s.ScanTarget, "-")
+	if parts[0] != star {
+		return fmt.Errorf("scan of %s: not in system %s", s.ScanTarget, star)
+	}
+	switch s.ScanType {
+	case "planet":
+		p := s.Report.Planet
+		if len(parts) != 2 || p.Designation != s.ScanTarget {
+			return fmt.Errorf("planet scan of %s: report is for planet %q", s.ScanTarget, p.Designation)
+		}
+		if _, err := ex.ExecContext(ctx, `INSERT INTO locations
+			(designation, type, in_habitable_zone, life_stage, moon_count, scanned)
+			VALUES (?, ?, ?, ?, ?, 1)
+			ON CONFLICT (designation) DO UPDATE SET
+				type = excluded.type,
+				in_habitable_zone = excluded.in_habitable_zone,
+				life_stage = excluded.life_stage,
+				moon_count = excluded.moon_count,
+				scanned = 1`,
+			p.Designation, null(p.Type), p.InHabitableZone, null(p.LifeStage), len(s.Report.Moons)); err != nil {
+			return fmt.Errorf("planet %s: %w", p.Designation, err)
+		}
+		for _, m := range s.Report.Moons {
+			if !strings.HasPrefix(m.Designation, p.Designation+"-") || strings.Count(m.Designation, "-") != 2 {
+				return fmt.Errorf("planet scan of %s lists moon %q", p.Designation, m.Designation)
+			}
+			if _, err := ex.ExecContext(ctx, `INSERT INTO locations (designation, type, in_habitable_zone, scanned)
+				VALUES (?, ?, ?, ?)
+				ON CONFLICT (designation) DO UPDATE SET
+					type = coalesce(excluded.type, type),
+					scanned = max(scanned, excluded.scanned)`,
+				m.Designation, null(m.Type), p.InHabitableZone, m.Scanned); err != nil {
+				return fmt.Errorf("moon %s: %w", m.Designation, err)
+			}
+		}
+		// Planets are STAR-N, moons STAR-N-M.
+		_, err := ex.ExecContext(ctx, `UPDATE stars SET
+			planet_count = max(planet_count, (SELECT count(*) FROM locations
+				WHERE star = ?1 AND designation NOT LIKE ?1 || '-%-%')),
+			moon_count = max(moon_count, (SELECT coalesce(sum(moon_count), 0) FROM locations
+				WHERE star = ?1 AND designation NOT LIKE ?1 || '-%-%'))
+			WHERE designation = ?1`, star)
+		return err
+	case "moon":
+		m := s.Report.Moon
+		if len(parts) != 3 || m.Designation != s.ScanTarget {
+			return fmt.Errorf("moon scan of %s: report is for moon %q", s.ScanTarget, m.Designation)
+		}
+		planet := strings.Join(parts[:2], "-")
+		var hab bool
+		err := ex.QueryRowContext(ctx, `SELECT in_habitable_zone FROM locations WHERE designation = ?`, planet).Scan(&hab)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("moon scan of %s: planet %s isn't in the store", m.Designation, planet)
+		}
+		if err != nil {
+			return err
+		}
+		_, err = ex.ExecContext(ctx, `INSERT INTO locations (designation, type, in_habitable_zone, life_stage, scanned)
+			VALUES (?, ?, ?, ?, 1)
+			ON CONFLICT (designation) DO UPDATE SET
+				type = coalesce(excluded.type, type),
+				life_stage = coalesce(excluded.life_stage, life_stage),
+				scanned = 1`,
+			m.Designation, null(m.Type), hab, null(m.LifeStage))
+		return err
+	}
+	return fmt.Errorf("scan of %s: unknown scan type %q", s.ScanTarget, s.ScanType)
 }

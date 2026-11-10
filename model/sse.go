@@ -2,7 +2,16 @@ package model
 
 import (
 	jsoniter "github.com/json-iterator/go"
+	"github.com/json-iterator/go/extra"
 )
+
+// JSON field names are derived from Go names (CargoCapacity ->
+// cargo_capacity), for API responses and event payloads alike. This is set
+// here, where the event decoders live, so that they work in any package that
+// imports model, not only those that also import api.
+func init() {
+	extra.SetNamingStrategy(extra.LowerCaseWithUnderscores)
+}
 
 type Decoder func([]byte) (any, error)
 
@@ -57,13 +66,22 @@ type SurveyProgress struct {
 	Scanned   int
 	Total     int
 }
+
+// SurveyScan is one scan in a survey digest's report. Not every scan is
+// listed: a digest's activity can count more scan.completed than it lists.
 type SurveyScan struct {
 	DeviceCode string
+	ScanTarget string // e.g. CORQUELAI-5
+	ScanType   string // planet or moon
 	Report     SurveyScanReport
 }
+
+// SurveyScanReport is a planet scan's Planet and its Moons (not yet scanned
+// themselves), or a moon scan's Moon.
 type SurveyScanReport struct {
 	Moons  []Moon
 	Planet Planet
+	Moon   ScannedMoon
 }
 type Planet struct {
 	Designation     string
@@ -72,6 +90,14 @@ type Planet struct {
 	Name            string
 	SpeciesName     string
 	Tags            []string
+	Type            string // e.g. dwarf
+}
+
+// ScannedMoon is a moon scan's report (the fields we use).
+type ScannedMoon struct {
+	Designation string
+	LifeStage   string
+	Type        string // e.g. icy
 }
 type Moon struct {
 	Designation string

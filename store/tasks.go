@@ -28,6 +28,16 @@ func TasksOfType(ctx context.Context, q Reader, task string) ([]Task, error) {
 	return tasks(ctx, q, `SELECT `+taskColumns+` FROM tasks WHERE task = ? ORDER BY id`, task)
 }
 
+// TaskByID reads task id; ok is false if there's no such task (it may have
+// been archived).
+func TaskByID(ctx context.Context, q Reader, id int64) (t Task, ok bool, err error) {
+	ts, err := tasks(ctx, q, `SELECT `+taskColumns+` FROM tasks WHERE id = ?`, id)
+	if err != nil || len(ts) == 0 {
+		return Task{}, false, err
+	}
+	return ts[0], true, nil
+}
+
 // AssignedTasks lists the tasks that are assigned (so not pending, blocked or
 // failed), highest priority (lowest number) first, then oldest first.
 func AssignedTasks(ctx context.Context, q Reader) ([]Task, error) {
@@ -369,4 +379,15 @@ func SetPhase(ctx context.Context, ex Execer, id int64, phase string, now time.T
 		return fmt.Errorf("setting task %d's phase to %s: no assigned task with that id", id, phase)
 	}
 	return nil
+}
+
+// ControllerOf is device's controller, or "" if it has none or isn't in the
+// store.
+func ControllerOf(ctx context.Context, q Queryer, device string) (string, error) {
+	var c sql.NullString
+	err := q.QueryRowContext(ctx, `SELECT controller FROM devices WHERE device_code = ?`, device).Scan(&c)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return c.String, err
 }

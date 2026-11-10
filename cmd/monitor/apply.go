@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/gcapell/replicant/api"
@@ -61,9 +60,10 @@ var handlers = map[string]handler{
 }
 
 // surveyDigest is miningDigest for an ami_survey_controller.
-// It also applies the report's progress to the star's scan counts
-// (store.SurveyProgress), which marks the system fully scanned once the
-// survey is done.
+// It also adds what the report's scans found to locations (store.ScanReport:
+// planets' details and their moons), and applies its progress to the star's
+// scan counts (store.SurveyProgress), which marks the system fully scanned
+// once the survey is done.
 func surveyDigest(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
 	p, ok := payload.(*model.SurveyDigest)
 	if !ok {
@@ -77,6 +77,11 @@ func surveyDigest(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any
 	}
 	if env.Star == "" {
 		return fmt.Errorf("survey digest with progress but no star")
+	}
+	for _, s := range p.Report.Scans {
+		if err := store.ScanReport(ctx, tx, env.Star, s); err != nil {
+			return err
+		}
 	}
 	return store.SurveyProgress(ctx, tx, env.Star, p.Report.Progress)
 }
@@ -115,16 +120,16 @@ func released(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) er
 // /devices/{code}: when replaying old events that's the status now, not then.
 // A device the API doesn't know, or of a different type, is an error.
 //
-// When an ami_survey_controller completes survey_system, it also reads the
-// system again (/locations/STAR, the envelope's star) and stores it, as a
-// check on the scan counts the digests left. If the system still isn't fully
-// scanned it says so; the survey_system task will start another survey.
+// When an ami_survey_controller completes survey_system, every planet and
+// moon at the envelope's star is scanned, and the star is marked so
+// (store.SurveyCompleted). There's no reading /locations/STAR to check: it
+// only answers for a system with a replicant in it, and survey teams have none.
 func directive(ctx context.Context, _ store.Reader, env api.Envelope, payload any) (change, error) {
 	d, err := eventDevice(ctx, env)
 	if err != nil {
 		return nil, err
 	}
-	var sys *model.Location
+	surveyed := ""
 	if p, ok := payload.(*model.DirectiveCompleted); ok && p.Directive == surveyDirective {
 		if d.DeviceType != "ami_survey_controller" {
 			return nil, fmt.Errorf("%s completed %s, but it's a %s", d.DeviceCode, surveyDirective, d.DeviceType)
@@ -132,22 +137,14 @@ func directive(ctx context.Context, _ store.Reader, env api.Envelope, payload an
 		if env.Star == "" {
 			return nil, fmt.Errorf("%s completed %s with no star", d.DeviceCode, surveyDirective)
 		}
-		if sys, err = fetchLocation(ctx, env.Star); err != nil {
-			return nil, fmt.Errorf("reading surveyed system %s: %w", env.Star, err)
-		}
-		if sys.Location != env.Star {
-			return nil, fmt.Errorf("asked for /locations/%s, got %q", env.Star, sys.Location)
-		}
-		if sys.Unscanned() > 0 {
-			log.Printf("%s completed %s at %s, but %d planets and moons are still unscanned", d.DeviceCode, surveyDirective, env.Star, sys.Unscanned())
-		}
+		surveyed = env.Star
 	}
 	return func(ctx context.Context, tx *sql.Tx) error {
 		if err := store.SetStatus(ctx, tx, d.DeviceCode, d.Status); err != nil {
 			return err
 		}
-		if sys != nil {
-			return store.PutSystem(ctx, tx, *sys)
+		if surveyed != "" {
+			return store.SurveyCompleted(ctx, tx, surveyed)
 		}
 		return nil
 	}, nil

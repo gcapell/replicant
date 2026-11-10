@@ -78,17 +78,62 @@ func receive(ctx context.Context, stream streamFunc, since string, out chan<- re
 // asked to start from an earlier event), when it's printed, marked
 // "(already recorded)", and not applied again.
 func recordAll(ctx context.Context, db *sql.DB, in <-chan received, p *printer, replaying bool) error {
-	for r := range in {
-		recorded, err := recordAndApply(ctx, db, r)
-		if err != nil {
-			return fmt.Errorf("event %s (%s): %w", r.env.ID, r.env.Event, err)
-		}
-		if !recorded && !replaying {
-			return fmt.Errorf("event %s (%s) is already recorded: the stream resent it", r.env.ID, r.env.Event)
-		}
-		p.print(r, !recorded)
+	return execute(ctx, db, in, p, replaying, nil)
+}
+
+// execute is recordAll, also running tasks if ex isn't nil: after each new
+// event is applied (and committed), the handlers of the tasks it concerns
+// (tasksToWake), and every assigned task each time ex.sweep fires. Both
+// happen on this goroutine, between events, so no task's handler runs twice
+// at once. Replayed events (replaying) wake nothing. A failing handler stops
+// it.
+func execute(ctx context.Context, db *sql.DB, in <-chan received, p *printer, replaying bool, ex *executor) error {
+	var sweep <-chan time.Time
+	if ex != nil {
+		sweep = ex.sweep
 	}
-	return ctx.Err()
+	for {
+		select {
+		case r, ok := <-in:
+			if !ok {
+				return ctx.Err()
+			}
+			recorded, err := recordAndApply(ctx, db, r)
+			if err != nil {
+				return fmt.Errorf("%w\n%s", err, fullEvent(r.env))
+			}
+			if !recorded && !replaying {
+				return fmt.Errorf("event %s (%s) is already recorded: the stream resent it", r.env.ID, r.env.Event)
+			}
+			p.print(r, !recorded)
+			if ex == nil || !recorded || replaying {
+				continue
+			}
+			ids, err := tasksToWake(ctx, db, r.env)
+			if err != nil {
+				return fmt.Errorf("%w\n%s", err, fullEvent(r.env))
+			}
+			if len(ids) == 0 {
+				continue
+			}
+			p.endLine()
+			log.Printf("event %s %s (%s) wakes tasks %v", r.env.ID, r.env.Event, r.env.DeviceCode, ids)
+			if err := runTasks(ctx, db, ids); err != nil {
+				return fmt.Errorf("%w\nwoken by %s", err, fullEvent(r.env))
+			}
+		case <-sweep:
+			p.endLine()
+			log.Print("sweep: filing, assigning and running tasks")
+			if err := sweepTasks(ctx, db, p.w); err != nil {
+				return fmt.Errorf("sweep: %w", err)
+			}
+		}
+	}
+}
+
+// executor is what execute needs to run tasks.
+type executor struct {
+	sweep <-chan time.Time // when to run every assigned task; nil for never
 }
 
 // recordAndApply records r and applies it, if it's an event we handle and
@@ -156,7 +201,7 @@ func catchUp(ctx context.Context, db *sql.DB, names []string, p *printer) error 
 	for _, e := range events {
 		payload, err := model.EventRegistry[e.Name](e.Payload)
 		if err != nil {
-			return fmt.Errorf("catch up: event %s: payload wouldn't decode: %w", e.ID, err)
+			return fmt.Errorf("catch up: payload wouldn't decode: %w\n%s", err, fullEvent(api.Envelope{ID: e.ID, Event: e.Name, Payload: e.Payload}))
 		}
 		env := api.Envelope{
 			Version: e.Version, ID: e.ID, Category: e.Category, Event: e.Name, CreatedAt: e.CreatedAt,
@@ -165,11 +210,11 @@ func catchUp(ctx context.Context, db *sql.DB, names []string, p *printer) error 
 		}
 		apply, err := handlers[e.Name](ctx, db, env, payload)
 		if err != nil {
-			return fmt.Errorf("catch up: event %s: %w", e.ID, err)
+			return fmt.Errorf("catch up: %w\n%s", err, fullEvent(env))
 		}
 		if apply != nil {
 			if err := inTx(ctx, db, func(tx *sql.Tx) error { return apply(ctx, tx) }); err != nil {
-				return fmt.Errorf("catch up: event %s: %w", e.ID, err)
+				return fmt.Errorf("catch up: %w\n%s", err, fullEvent(env))
 			}
 		}
 		p.print(received{env, payload}, false)
@@ -222,4 +267,12 @@ func describe(env api.Envelope, payload any) string {
 		return head + " UNDECODED " + string(env.Payload)
 	}
 	return head + " " + litter.Sdump(payload)
+}
+
+// fullEvent describes an event in full, envelope and raw payload, for error
+// messages.
+func fullEvent(e api.Envelope) string {
+	return fmt.Sprintf("event %s %s, created %s\n  device %s (%s), replicant %s, star %s, location %s, version %d, category %s\n  payload %s",
+		e.ID, e.Event, e.CreatedAt.Format(time.RFC3339),
+		e.DeviceCode, e.DeviceType, e.ReplicantCode, e.Star, e.Location, e.Version, e.Category, e.Payload)
 }

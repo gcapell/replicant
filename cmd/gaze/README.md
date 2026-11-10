@@ -90,7 +90,7 @@ Ties go to the smallest attach capacity, then the device code. A transport that
 isn't at the observatory's location first travels there (the "fetch" step).
 
 This is greedy: a free transport may be one that's waiting for a work crew it
-dropped off (e.g. `auto_scan`'s, or `auto_salvage`'s E62C8DC1), and taking it
+dropped off (e.g. `auto_salvage`'s E62C8DC1), and taking it
 leaves the crew to be picked up some other way. Sharing transports between
 crews properly is for later.
 

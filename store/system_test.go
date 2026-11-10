@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/gcapell/replicant/model"
@@ -166,7 +168,6 @@ func TestSurveyProgress(t *testing.T) {
 		p    model.SurveyProgress
 	}{
 		{"doesn't add up", "ULSIOS", p(5, 5, 61)},
-		{"more than we know", "ULSIOS", p(66, 0, 66)},
 		{"unread system", "UNREAD", p(0, 7, 7)},
 		{"unknown star", "NOWHERE", p(0, 7, 7)},
 	} {
@@ -179,5 +180,153 @@ func TestSurveyProgress(t *testing.T) {
 	}
 	if got := counts(); got != "7 58 true" {
 		t.Errorf("finished: %s", got)
+	}
+
+	// More found than we knew of: under way changes nothing, finished marks
+	// the counts we have as scanned.
+	mustExec(t, db, `UPDATE stars SET planets_scanned = 0, moons_scanned = 0 WHERE designation = 'ULSIOS'`)
+	if err := SurveyProgress(ctx, db, "ULSIOS", p(60, 10, 70)); err != nil {
+		t.Fatal(err)
+	}
+	if got := counts(); got != "0 0 false" {
+		t.Errorf("under way, more than known: %s", got)
+	}
+	if err := SurveyProgress(ctx, db, "ULSIOS", p(70, 0, 70)); err != nil {
+		t.Fatal(err)
+	}
+	if got := counts(); got != "7 58 true" {
+		t.Errorf("finished, more than known: %s", got)
+	}
+}
+
+func readDigest(t *testing.T, file string) *model.SurveyDigest {
+	t.Helper()
+	data, err := os.ReadFile("testdata/" + file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := model.EventRegistry["ami.survey.digest"](data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p.(*model.SurveyDigest)
+}
+
+func TestScanReport(t *testing.T) {
+	db := openTest(t)
+	ctx := t.Context()
+	// As /locations/CORQUELAI left it: CORQUELAI-5 thought to have 1 moon.
+	mustExec(t, db, `INSERT INTO stars (designation, x, y, z, planet_count, planets_scanned, moon_count, moons_scanned)
+		VALUES ('CORQUELAI', 0, 0, 0, 5, 0, 1, 0), ('RILKRDANA', 0, 0, 0, 3, 3, 55, 55), ('UNREAD', 0, 0, 0, NULL, NULL, NULL, NULL)`)
+	mustExec(t, db, `INSERT INTO locations (designation, type, in_habitable_zone, life_stage, moon_count, scanned) VALUES
+		('CORQUELAI-5', NULL, 0, NULL, 1, 0), ('RILKRDANA-3', 'ice giant', 1, 'none', 2, 1)`)
+
+	d := readDigest(t, "survey_digest_planet_scan.json")
+	if len(d.Report.Scans) != 1 || d.Report.Scans[0].ScanType != "planet" || d.Report.Scans[0].ScanTarget != "CORQUELAI-5" {
+		t.Fatalf("decoded scans: %+v", d.Report.Scans)
+	}
+	if err := ScanReport(ctx, db, "CORQUELAI", d.Report.Scans[0]); err != nil {
+		t.Fatal(err)
+	}
+	rows := func(star string) []string {
+		t.Helper()
+		r, err := db.Query(`SELECT designation, coalesce(type, ''), in_habitable_zone, coalesce(life_stage, ''), coalesce(moon_count, -1), scanned
+			FROM locations WHERE star = ? ORDER BY designation`, star)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+		var got []string
+		for r.Next() {
+			var des, typ, life string
+			var hab, scanned bool
+			var moons int
+			if err := r.Scan(&des, &typ, &hab, &life, &moons, &scanned); err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, fmt.Sprintf("%s %q hab=%v %q moons=%d scanned=%v", des, typ, hab, life, moons, scanned))
+		}
+		return got
+	}
+	want := []string{
+		`CORQUELAI-5 "dwarf" hab=false "none" moons=2 scanned=true`,
+		`CORQUELAI-5-1 "rocky" hab=false "" moons=-1 scanned=false`,
+		`CORQUELAI-5-2 "captured asteroid" hab=false "" moons=-1 scanned=false`,
+	}
+	if got := rows("CORQUELAI"); !slices.Equal(got, want) {
+		t.Errorf("CORQUELAI locations:\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	var planets, moons int
+	db.QueryRow(`SELECT planet_count, moon_count FROM stars WHERE designation = 'CORQUELAI'`).Scan(&planets, &moons)
+	if planets != 5 || moons != 2 {
+		t.Errorf("CORQUELAI counts: %d planets, %d moons; want 5 (kept), 2 (raised)", planets, moons)
+	}
+
+	// Moon scans: the first moon is new, with its planet's habitable zone.
+	for _, s := range readDigest(t, "survey_digest_moon_scan.json").Report.Scans {
+		if err := ScanReport(ctx, db, "RILKRDANA", s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want = []string{
+		`RILKRDANA-3 "ice giant" hab=true "none" moons=2 scanned=true`,
+		`RILKRDANA-3-1 "icy" hab=true "none" moons=-1 scanned=true`,
+	}
+	if got := rows("RILKRDANA"); len(got) < 2 || !slices.Equal(got[:2], want) {
+		t.Errorf("RILKRDANA locations:\n%s\nwant first\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+
+	// A planet scan that lists an already-scanned moon doesn't unscan it.
+	if err := ScanReport(ctx, db, "RILKRDANA", model.SurveyScan{ScanType: "planet", ScanTarget: "RILKRDANA-3",
+		Report: model.SurveyScanReport{Planet: model.Planet{Designation: "RILKRDANA-3", Type: "ice giant", LifeStage: "none", InHabitableZone: true},
+			Moons: []model.Moon{{Designation: "RILKRDANA-3-1", Type: "icy"}, {Designation: "RILKRDANA-3-2", Type: "rocky"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := rows("RILKRDANA"); !strings.HasSuffix(got[1], "scanned=true") {
+		t.Errorf("rescanned planet unscanned its moon: %s", got[1])
+	}
+
+	for _, c := range []struct {
+		what, star string
+		s          model.SurveyScan
+	}{
+		{"other star", "CORQUELAI", model.SurveyScan{ScanType: "planet", ScanTarget: "RILKRDANA-3", Report: model.SurveyScanReport{Planet: model.Planet{Designation: "RILKRDANA-3"}}}},
+		{"report for another planet", "CORQUELAI", model.SurveyScan{ScanType: "planet", ScanTarget: "CORQUELAI-5", Report: model.SurveyScanReport{Planet: model.Planet{Designation: "CORQUELAI-4"}}}},
+		{"moon of another planet", "CORQUELAI", model.SurveyScan{ScanType: "planet", ScanTarget: "CORQUELAI-5", Report: model.SurveyScanReport{
+			Planet: model.Planet{Designation: "CORQUELAI-5"}, Moons: []model.Moon{{Designation: "CORQUELAI-4-1"}}}}},
+		{"moon of unknown planet", "CORQUELAI", model.SurveyScan{ScanType: "moon", ScanTarget: "CORQUELAI-1-1", Report: model.SurveyScanReport{Moon: model.ScannedMoon{Designation: "CORQUELAI-1-1"}}}},
+		{"unknown scan type", "CORQUELAI", model.SurveyScan{ScanType: "belt", ScanTarget: "CORQUELAI-BELT-1"}},
+		{"unread system", "UNREAD", model.SurveyScan{ScanType: "planet", ScanTarget: "UNREAD-1", Report: model.SurveyScanReport{Planet: model.Planet{Designation: "UNREAD-1"}}}},
+		{"unknown star", "NOWHERE", model.SurveyScan{ScanType: "planet", ScanTarget: "NOWHERE-1"}},
+	} {
+		if err := ScanReport(ctx, db, c.star, c.s); err == nil {
+			t.Errorf("%s: no error", c.what)
+		}
+	}
+}
+
+func TestSurveyCompleted(t *testing.T) {
+	db := openTest(t)
+	ctx := t.Context()
+	mustExec(t, db, `INSERT INTO stars (designation, x, y, z, planet_count, planets_scanned, moon_count, moons_scanned, survey_total)
+		VALUES ('A', 0, 0, 0, 3, 0, 3, 0, 7), ('B', 0, 0, 0, 5, 1, 6, 0, 9), ('C', 0, 0, 0, 2, 0, 1, 0, NULL), ('UNREAD', 0, 0, 0, NULL, NULL, NULL, NULL, NULL)`)
+	for _, s := range []string{"A", "B", "C"} {
+		if err := SurveyCompleted(ctx, db, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for star, want := range map[string]string{"A": "3/3 4/4 true", "B": "5/5 6/6 true", "C": "2/2 1/1 true"} {
+		var ps, pc, ms, mc int
+		var full bool
+		db.QueryRow(`SELECT planets_scanned, planet_count, moons_scanned, moon_count, is_fully_scanned FROM stars WHERE designation = ?`, star).
+			Scan(&ps, &pc, &ms, &mc, &full)
+		if got := fmt.Sprintf("%d/%d %d/%d %v", ps, pc, ms, mc, full); got != want {
+			t.Errorf("%s: %s, want %s", star, got, want)
+		}
+	}
+	for _, s := range []string{"UNREAD", "NOWHERE"} {
+		if err := SurveyCompleted(ctx, db, s); err == nil {
+			t.Errorf("%s: no error", s)
+		}
 	}
 }

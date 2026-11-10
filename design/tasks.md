@@ -5,11 +5,11 @@ It might help to organise our work if we maintain a database of _tasks_, e.g. "m
 ## Built so far
 
 - `monitor`'s startup files a `survey_system` task for each relay star that isn't fully surveyed, and assigns the free survey teams (min-max distance, not the greedy choice described below). `monitor -n` prints the plan.
-- Startup then calls the handler once for each `assigned` task, in priority order (`cmd/monitor/tasks.go`: `taskHandlers`, one per task type, named in camelCase and living in the task's own file). Handlers return a `change` that's applied in its own transaction. They're called one after another, not in goroutines, and nothing wakes them on events yet.
+- Startup then calls the handler once for each `assigned` task, in priority order (`cmd/monitor/tasks.go`: `taskHandlers`, one per task type, named in camelCase and living in the task's own file). Handlers return a change that's applied in its own transaction. They're called one after another, not in goroutines.
 - `surveySystem` takes real steps (see `decideSurvey` in `cmd/monitor/survey.go`): gather at an entry point, file and block on a `move_devices` task, start the survey, gather again, finish. Finishing calls `assignNext`, the generic "what should this device do next" (pending tasks its type can do, by priority then distance).
 - Survey completion reads `stars.is_fully_scanned`. `monitor` keeps it current: the last `ami.survey.digest` marks the system done, and `directive.completed` (survey_system) reads `/locations/STAR` again as a check (the prerequisite below).
 - Startup also gives pending `move_devices` tasks to free transports (surge and attach, room for every device, carrying nothing; `cmd/monitor/move.go`). The `moveDevices` handler goes to the pickup, attaches, travels, detaches and finishes, one step per call (`decideMove`).
-- **Deliberately not yet:** a task that a handler unblocks or assigns (the survey waiting for a move, a transport's next move) doesn't run until the next startup, so each startup is one easily followed step per task. Eventually finishing one task should start the next straight away.
+- Tasks run themselves: a handler's change reports the tasks it unblocked or assigned, which run straight away; each new event wakes the tasks it concerns (`cmd/monitor/wake.go`, by assignee, the assignee's team, star or location); and a sweep (every 15 minutes) files, assigns and runs everything, in case an event was missed. All on the event loop's goroutine, so a task never runs twice at once. A failing handler still stops `monitor`.
 
 ## Decisions so far
 
