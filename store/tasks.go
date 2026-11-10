@@ -286,3 +286,58 @@ func ControlledBy(ctx context.Context, q Reader, controller string) ([]string, e
 	}
 	return codes, rows.Err()
 }
+
+// Transport is a device that can carry others between systems.
+type Transport struct {
+	Code, Type, Location, Star string
+	Capacity                   int // attach_capacity, from its blueprint
+}
+
+// FreeTransports lists the devices with both surge and attach in their
+// features that are free to take a move_devices task: they have a location
+// (aren't travelling), aren't attached or stowed, carry nothing, aren't any
+// task's assignee or claimed by one, and aren't among the devices a
+// move_devices task is to move. A transport type with no blueprint is an
+// error.
+func FreeTransports(ctx context.Context, q Reader) ([]Transport, error) {
+	rows, err := q.QueryContext(ctx, `SELECT d.device_code, d.device_type, d.location, d.star, b.attach_capacity
+		FROM devices d LEFT JOIN blueprints b USING (device_type)
+		WHERE instr(',' || coalesce(d.features, '') || ',', ',surge,') > 0
+			AND instr(',' || coalesce(d.features, '') || ',', ',attach,') > 0
+			AND d.location IS NOT NULL AND d.attached_to IS NULL AND d.stowed_in IS NULL
+			AND NOT EXISTS (SELECT 1 FROM devices a WHERE a.attached_to = d.device_code)
+			AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.assignee = d.device_code)
+			AND NOT EXISTS (SELECT 1 FROM claimed_devices c WHERE c.device = d.device_code)
+			AND NOT EXISTS (SELECT 1 FROM tasks t, json_each(t.details, '$.devices') m
+				WHERE t.task = 'move_devices' AND m.value = d.device_code)
+		ORDER BY d.device_code`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ts []Transport
+	for rows.Next() {
+		var t Transport
+		var capacity sql.NullInt64
+		if err := rows.Scan(&t.Code, &t.Type, &t.Location, &t.Star, &capacity); err != nil {
+			return nil, err
+		}
+		if !capacity.Valid {
+			return nil, fmt.Errorf("transport %s: no blueprint for %s", t.Code, t.Type)
+		}
+		t.Capacity = int(capacity.Int64)
+		ts = append(ts, t)
+	}
+	return ts, rows.Err()
+}
+
+// AttachCapacity is how many devices one deviceType can carry, from its
+// blueprint. A type with no blueprint is an error.
+func AttachCapacity(ctx context.Context, q Queryer, deviceType string) (int, error) {
+	var n int
+	err := q.QueryRowContext(ctx, `SELECT attach_capacity FROM blueprints WHERE device_type = ?`, deviceType).Scan(&n)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("no blueprint for %s", deviceType)
+	}
+	return n, err
+}

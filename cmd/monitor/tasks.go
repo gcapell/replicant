@@ -8,7 +8,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -27,14 +26,37 @@ type taskHandler func(ctx context.Context, db store.Reader, t store.Task) (chang
 
 // taskHandlers maps each task type to its handler.
 var taskHandlers = map[string]taskHandler{
-	surveyTask: surveySystem,
+	surveyTask:      surveySystem,
+	moveDevicesTask: moveDevices,
 }
 
-const moveDevicesTask = "move_devices"
-
 // taskTypesFor lists the task types each device type can be assigned.
+// Transports are the types with surge and attach in their blueprints.
 var taskTypesFor = map[string][]string{
 	"ami_survey_controller": {surveyTask},
+	"cargo_vessel":          {moveDevicesTask},
+	"mobile_fleet":          {moveDevicesTask},
+	"surge_carrier":         {moveDevicesTask},
+	"surge_plate":           {moveDevicesTask},
+	"surge_platform":        {moveDevicesTask},
+}
+
+// taskFits reports whether a device of deviceType can do task t. A task type
+// with no entry fits any device taskTypesFor allows.
+//
+// TODO: survey_system should check the team still has MinSurveyDrones drones.
+var taskFits = map[string]func(ctx context.Context, q store.Queryer, t store.Task, deviceType string) (bool, error){
+	moveDevicesTask: func(ctx context.Context, q store.Queryer, t store.Task, deviceType string) (bool, error) {
+		m, err := parseMove(t)
+		if err != nil {
+			return false, err
+		}
+		capacity, err := store.AttachCapacity(ctx, q, deviceType)
+		if err != nil {
+			return false, err
+		}
+		return moveFits(m, capacity), nil
+	},
 }
 
 // runAssigned calls the handler for every assigned task, highest priority
@@ -106,47 +128,13 @@ func fetchMember(ctx context.Context, code, wantType, controller string) (member
 	return m, nil
 }
 
-// moveDevices is a move_devices task's details: bring Devices from the
-// task's location to Dst.
-type moveDevices struct {
-	Dst     string   `json:"dst"`
-	Devices []string `json:"devices"`
-}
-
-// blockOnMove files a move_devices task taking devices from src to dst, and
-// makes task wait for it.
-func blockOnMove(task int64, src, dst string, devices []string) change {
-	return func(ctx context.Context, tx *sql.Tx) error {
-		details, err := json.Marshal(moveDevices{Dst: dst, Devices: devices})
-		if err != nil {
-			return err
-		}
-		now := time.Now()
-		dep, err := store.AddTask(ctx, tx, moveDevicesTask, src, string(details), now)
-		if err != nil {
-			return err
-		}
-		if err := store.Block(ctx, tx, task, dep, now); err != nil {
-			return err
-		}
-		log.Printf("task %d: blocked on new %s task %d %s -> %s", task, moveDevicesTask, dep, src, dst)
-		return nil
-	}
-}
-
 // assignNext is "what should device do next?": of the pending, unassigned
-// tasks its type can do (taskTypesFor), it takes the highest priority one,
-// nearest star first. device is at star. It returns the task (now assigned),
-// or nil if there's nothing for it.
-//
-// TODO: no per-task check that the device is still fit for the job (e.g. a
-// survey team still has MinSurveyDrones drones).
+// tasks its type can do (taskTypesFor) and that fit it (taskFits), it takes
+// the highest priority one, nearest star first. device is at star. It
+// returns the task (now assigned), or nil if there's nothing for it.
 func assignNext(ctx context.Context, tx *sql.Tx, device, deviceType, star string, now time.Time) (*store.Task, error) {
 	pending, err := store.PendingTasks(ctx, tx, taskTypesFor[deviceType]...)
-	if err != nil || len(pending) == 0 {
-		if err == nil {
-			log.Printf("%s (%s): no pending task it can do", device, deviceType)
-		}
+	if err != nil {
 		return nil, err
 	}
 	here, err := store.StarPosition(ctx, tx, star)
@@ -159,6 +147,15 @@ func assignNext(ctx context.Context, tx *sql.Tx, device, deviceType, star string
 		if best != nil && t.Priority > best.Priority {
 			break
 		}
+		if fits := taskFits[t.Task]; fits != nil {
+			ok, err := fits(ctx, tx, t, deviceType)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				continue
+			}
+		}
 		p, err := store.StarPosition(ctx, tx, auto.StarOf(t.Location))
 		if err != nil {
 			return nil, err
@@ -166,6 +163,10 @@ func assignNext(ctx context.Context, tx *sql.Tx, device, deviceType, star string
 		if d := here.Distance(p); d < bestDist {
 			best, bestDist = &pending[i], d
 		}
+	}
+	if best == nil {
+		log.Printf("%s (%s): no pending task it can do", device, deviceType)
+		return nil, nil
 	}
 	if err := store.AssignTask(ctx, tx, best.ID, device, now); err != nil {
 		return nil, err

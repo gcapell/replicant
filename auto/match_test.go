@@ -45,4 +45,23 @@ func TestMatchMinMax(t *testing.T) {
 	if want := []int{1, 0}; !slices.Equal(got, want) {
 		t.Errorf("total breaks ties: got %v, want %v", got, want)
 	}
+
+	// Impossible pairs (+Inf). Pairing agent 0 with task 0 (distance 1)
+	// leaves agent 1 nothing it can do; more pairs beats a shorter trip.
+	inf := math.Inf(1)
+	m = [][]float64{{1, 5}, {2, inf}}
+	got = MatchMinMax(2, 2, func(a, t int) float64 { return m[a][t] })
+	if want := []int{1, 0}; !slices.Equal(got, want) {
+		t.Errorf("most pairs first: got %v, want %v", got, want)
+	}
+	// A task nobody can do stays unmatched.
+	m = [][]float64{{inf, 3}, {inf, 1}}
+	got = MatchMinMax(2, 2, func(a, t int) float64 { return m[a][t] })
+	if want := []int{-1, 1}; !slices.Equal(got, want) {
+		t.Errorf("impossible task: got %v, want %v", got, want)
+	}
+	m = [][]float64{{inf}}
+	if got = MatchMinMax(1, 1, func(a, t int) float64 { return m[a][t] }); !slices.Equal(got, []int{-1}) {
+		t.Errorf("nothing possible: got %v", got)
+	}
 }

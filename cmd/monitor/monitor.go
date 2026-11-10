@@ -19,7 +19,8 @@
 //
 // It then files a survey_system task for each relay star not fully surveyed
 // and gives the free survey teams one each (survey.go). -n just prints that
-// plan, from the store as it is, and exits. After that it calls the handler
+// plan, from the store as it is, and exits. Next it gives pending move_devices
+// tasks to free transports (move.go). After that it calls the handler
 // for every assigned task, highest priority first (handlers.go).
 //
 // Then, until interrupted, it records each event in the events table,
@@ -47,7 +48,7 @@ func main() {
 	nStars := flag.Int("stars", 60, "how many of the nearest stars to fetch")
 	since := flag.String("since", "", "replay events after this event ID (default: after the last one recorded)")
 	catchup := flag.String("catchup", "", "on startup, apply every recorded event of these comma-separated types again, oldest first (e.g. device.deployed,relay.activated)")
-	dryRun := flag.Bool("n", false, "print the survey tasks startup would file and assign, from the store as it is, and exit (no API calls, no writes)")
+	dryRun := flag.Bool("n", false, "print the survey and move tasks startup would file and assign, from the store as it is, and exit (no API calls, no writes)")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -91,6 +92,9 @@ func main() {
 	if err := fileSurveys(ctx, db, os.Stdout); err != nil {
 		log.Fatal(err)
 	}
+	if err := assignMoves(ctx, db, os.Stdout); err != nil {
+		log.Fatal(err)
+	}
 	if err := runAssigned(ctx, db); err != nil {
 		log.Fatal(err)
 	}
@@ -102,7 +106,7 @@ func main() {
 	}
 }
 
-// planOnly prints the survey plan from the store, read-only.
+// planOnly prints the survey and move plans from the store, read-only.
 func planOnly(ctx context.Context, path string) error {
 	db, err := store.OpenReadOnly(ctx, path)
 	if err != nil {
@@ -114,6 +118,13 @@ func planOnly(ctx context.Context, path string) error {
 		return err
 	}
 	p.print(os.Stdout)
+	// Moves are planned as the store is now: not counting moves filed by the
+	// survey plan above, or transports it would free.
+	m, err := readMovePlan(ctx, db)
+	if err != nil {
+		return err
+	}
+	m.print(os.Stdout)
 	return nil
 }
 

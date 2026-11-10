@@ -8,7 +8,7 @@ It might help to organise our work if we maintain a database of _tasks_, e.g. "m
 - Startup then calls the handler once for each `assigned` task, in priority order (`cmd/monitor/tasks.go`: `taskHandlers`, one per task type, named in camelCase and living in the task's own file). Handlers return a `change` that's applied in its own transaction. They're called one after another, not in goroutines, and nothing wakes them on events yet.
 - `surveySystem` takes real steps (see `decideSurvey` in `cmd/monitor/survey.go`): gather at an entry point, file and block on a `move_devices` task, start the survey, gather again, finish. Finishing calls `assignNext`, the generic "what should this device do next" (pending tasks its type can do, by priority then distance).
 - Survey completion reads `stars.is_fully_scanned`. `monitor` keeps it current: the last `ami.survey.digest` marks the system done, and `directive.completed` (survey_system) reads `/locations/STAR` again as a check (the prerequisite below).
-- Nothing handles `move_devices` yet.
+- Startup also gives pending `move_devices` tasks to free transports (surge and attach, room for every device, carrying nothing; `cmd/monitor/move.go`). The `moveDevices` handler only logs so far.
 
 ## Decisions so far
 
