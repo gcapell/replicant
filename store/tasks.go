@@ -366,6 +366,18 @@ func CheckRelayStar(ctx context.Context, q Queryer, star string) error {
 	return nil
 }
 
+// SurveyPhase shows a survey's progress in the phase of the assigned
+// survey_system task at star whose assignee is controller, e.g.
+// "surveying 14/31" (planets and moons together). It leaves updated_at alone,
+// so that still says when the task entered its phase. No such task (a
+// survey started by hand) is fine.
+func SurveyPhase(ctx context.Context, ex Execer, star, controller string, scanned, total int) error {
+	_, err := ex.ExecContext(ctx, `UPDATE tasks SET phase = ?
+		WHERE task = 'survey_system' AND location = ? AND assignee = ? AND status = 'assigned'`,
+		fmt.Sprintf("surveying %d/%d", scanned, total), star, controller)
+	return err
+}
+
 // SetPhase records where within assigned task id we are (e.g. to_pickup).
 func SetPhase(ctx context.Context, ex Execer, id int64, phase string, now time.Time) error {
 	res, err := ex.ExecContext(ctx, `UPDATE tasks SET phase = ?, updated_at = ? WHERE id = ? AND status = 'assigned'`,

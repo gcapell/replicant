@@ -207,7 +207,8 @@ func surveySystem(ctx context.Context, db store.Reader, t store.Task) (taskChang
 
 	switch a.Step {
 	case surveyWait:
-		if c.Directive == surveyDirective {
+		// Digests add the progress ("surveying 14/31"); keep it.
+		if c.Directive == surveyDirective && !strings.HasPrefix(t.Phase, phaseSurveying) {
 			return setPhase(t, phaseSurveying), nil
 		}
 		return nil, nil
@@ -245,7 +246,7 @@ func surveySystem(ctx context.Context, db store.Reader, t store.Task) (taskChang
 // entry point. While a move brings the team over, the task is blocked.
 const (
 	phaseGathering  = "gathering"
-	phaseSurveying  = "surveying"
+	phaseSurveying  = "surveying" // then "surveying 14/31" as digests report progress
 	phaseRegrouping = "regrouping"
 )
 

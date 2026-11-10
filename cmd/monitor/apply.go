@@ -63,7 +63,8 @@ var handlers = map[string]handler{
 // It also adds what the report's scans found to locations (store.ScanReport:
 // planets' details and their moons), and applies its progress to the star's
 // scan counts (store.SurveyProgress), which marks the system fully scanned
-// once the survey is done.
+// once the survey is done. The controller's survey_system task shows the
+// progress in its phase (store.SurveyPhase).
 func surveyDigest(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any) error {
 	p, ok := payload.(*model.SurveyDigest)
 	if !ok {
@@ -83,7 +84,10 @@ func surveyDigest(ctx context.Context, tx *sql.Tx, env api.Envelope, payload any
 			return err
 		}
 	}
-	return store.SurveyProgress(ctx, tx, env.Star, p.Report.Progress)
+	if err := store.SurveyProgress(ctx, tx, env.Star, p.Report.Progress); err != nil {
+		return err
+	}
+	return store.SurveyPhase(ctx, tx, env.Star, env.DeviceCode, p.Report.Progress.Scanned, p.Report.Progress.Total)
 }
 
 // adopted: the envelope's device is the controller, adopting each of
